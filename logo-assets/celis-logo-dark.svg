@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600&amp;display=swap');
+      .wordmark-dark { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; font-size: 52px; font-weight: 600; letter-spacing: -0.02em; fill: #FFFFFF; }
+    </style>
+  </defs>
+
+  <!-- Background: Deep dark navy-slate -->
+  <rect width="400" height="120" fill="#0B0C0E"/>
+
+  <!-- Logo Mark: Two mirrored interlocking C-shaped arcs -->
+  <!-- Left C arc (opening right) -->
+  <path d="M 35 28 A 32 32 0 1 1 35 92" 
+        fill="none" stroke="#FFFFFF" stroke-width="2.5" 
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Right C arc (opening left) -->
+  <path d="M 85 28 A 32 32 0 1 0 85 92" 
+        fill="none" stroke="#FFFFFF" stroke-width="2.5" 
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Central horizontal connecting node line -->
+  <line x1="35" y1="60" x2="85" y2="60" 
+        stroke="#FFFFFF" stroke-width="2.5" 
+        stroke-linecap="round"/>
+
+  <!-- Wordmark: "Celis" -->
+  <text x="112" y="78" class="wordmark-dark">Celis</text>
+</svg>

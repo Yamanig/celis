@@ -1,0 +1,406 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Celis Brand Tokens: Light Mode ── */
+  :root {
+    /* Tier 1: Raw Palette — HSL space-separated channels */
+    /* Primary Blue — 210° hue, trust & interaction */
+    --celis-color-blue-50:  210 100% 97%;
+    --celis-color-blue-100: 210 100% 93%;
+    --celis-color-blue-200: 210 100% 85%;
+    --celis-color-blue-300: 210 100% 72%;
+    --celis-color-blue-400: 210 100% 60%;
+    --celis-color-blue-500: 210 100% 50%;
+    --celis-color-blue-600: 210 90% 42%;
+    --celis-color-blue-700: 210 85% 34%;
+    --celis-color-blue-800: 210 80% 26%;
+    --celis-color-blue-900: 210 75% 20%;
+    --celis-color-blue-950: 210 70% 14%;
+
+    /* Secondary Teal — 160° hue, accents & categories */
+    --celis-color-teal-50:  160 80% 96%;
+    --celis-color-teal-100: 160 75% 90%;
+    --celis-color-teal-200: 160 70% 80%;
+    --celis-color-teal-300: 160 65% 60%;
+    --celis-color-teal-400: 160 70% 48%;
+    --celis-color-teal-500: 160 80% 40%;
+    --celis-color-teal-600: 160 85% 32%;
+    --celis-color-teal-700: 160 80% 26%;
+    --celis-color-teal-800: 160 75% 20%;
+    --celis-color-teal-900: 160 70% 16%;
+    --celis-color-teal-950: 160 65% 10%;
+
+    /* Destructive Red — 0° hue, errors & irreversible actions */
+    --celis-color-red-50:  0 100% 97%;
+    --celis-color-red-100: 0 95% 93%;
+    --celis-color-red-200: 0 90% 85%;
+    --celis-color-red-300: 0 85% 72%;
+    --celis-color-red-400: 0 82% 60%;
+    --celis-color-red-500: 0 84% 50%;
+    --celis-color-red-600: 0 72% 42%;
+    --celis-color-red-700: 0 65% 34%;
+    --celis-color-red-800: 0 60% 28%;
+    --celis-color-red-900: 0 55% 22%;
+    --celis-color-red-950: 0 50% 14%;
+
+    /* Success Green — 145° hue, deuteranopia-safe confirmations */
+    --celis-color-green-50:  145 80% 96%;
+    --celis-color-green-100: 145 70% 90%;
+    --celis-color-green-200: 145 65% 80%;
+    --celis-color-green-300: 145 60% 65%;
+    --celis-color-green-400: 145 65% 50%;
+    --celis-color-green-500: 145 100% 39%;
+    --celis-color-green-600: 145 90% 32%;
+    --celis-color-green-700: 145 80% 26%;
+    --celis-color-green-800: 145 70% 20%;
+    --celis-color-green-900: 145 60% 16%;
+    --celis-color-green-950: 145 55% 10%;
+
+    /* Neutral Slate — warm undertone, backgrounds & text */
+    --celis-color-slate-50:  215 33% 98%;
+    --celis-color-slate-100: 215 25% 95%;
+    --celis-color-slate-200: 215 20% 88%;
+    --celis-color-slate-300: 215 16% 76%;
+    --celis-color-slate-400: 215 14% 60%;
+    --celis-color-slate-500: 215 12% 45%;
+    --celis-color-slate-600: 215 16% 34%;
+    --celis-color-slate-700: 215 20% 26%;
+    --celis-color-slate-800: 215 25% 18%;
+    --celis-color-slate-900: 215 33% 12%;
+    --celis-color-slate-950: 215 40% 8%;
+
+    /* Tier 2: Semantic Tokens — Light Mode */
+    --celis-primary:            var(--celis-color-blue-500);
+    --celis-primary-hover:      var(--celis-color-blue-600);
+    --celis-primary-active:     var(--celis-color-blue-700);
+    --celis-primary-subtle:     var(--celis-color-blue-50);
+    --celis-primary-muted:      var(--celis-color-blue-100);
+
+    --celis-secondary:          var(--celis-color-teal-500);
+    --celis-secondary-hover:    var(--celis-color-teal-600);
+    --celis-secondary-subtle:   var(--celis-color-teal-50);
+
+    --celis-destructive:        var(--celis-color-red-500);
+    --celis-destructive-hover:  var(--celis-color-red-600);
+    --celis-destructive-subtle: var(--celis-color-red-50);
+
+    --celis-success:            var(--celis-color-green-500);
+    --celis-success-hover:      var(--celis-color-green-600);
+    --celis-success-subtle:     var(--celis-color-green-50);
+
+    --celis-caution:            38 92% 50%;
+    --celis-caution-subtle:     38 92% 95%;
+
+    --celis-bg:                 0 0% 100%;
+    --celis-surface-base:       0 0% 100%;
+    --celis-surface-elevated:   var(--celis-color-slate-50);
+    --celis-surface-overlay:    0 0% 100%;
+    --celis-surface-inset:      var(--celis-color-slate-100);
+
+    --celis-border:             var(--celis-color-slate-200);
+    --celis-border-strong:      var(--celis-color-slate-300);
+    --celis-border-subtle:      var(--celis-color-slate-100);
+
+    --celis-ink:                var(--celis-color-slate-900);
+    --celis-ink-secondary:      var(--celis-color-slate-600);
+    --celis-ink-tertiary:       var(--celis-color-slate-400);
+    --celis-ink-financial:      var(--celis-color-slate-950);
+    --celis-ink-inverse:        0 0% 100%;
+    --celis-ink-on-primary:     0 0% 100%;
+
+    --celis-focus-ring:         var(--celis-color-blue-500);
+    --celis-focus-ring-offset:  0 0% 100%;
+
+    /* shadcn/ui bridge */
+    --background:               var(--celis-bg);
+    --foreground:               var(--celis-ink);
+
+    --card:                     var(--celis-surface-elevated);
+    --card-foreground:          var(--celis-ink);
+
+    --popover:                  var(--celis-surface-elevated);
+    --popover-foreground:       var(--celis-ink);
+
+    --primary:                  var(--celis-primary);
+    --primary-foreground:       var(--celis-ink-on-primary);
+
+    --secondary:                var(--celis-surface-elevated);
+    --secondary-foreground:     var(--celis-ink);
+
+    --muted:                    var(--celis-surface-elevated);
+    --muted-foreground:         var(--celis-ink-secondary);
+
+    --accent:                   var(--celis-surface-elevated);
+    --accent-foreground:        var(--celis-ink);
+
+    --destructive:              var(--celis-destructive);
+    --destructive-foreground:   var(--celis-ink-inverse);
+
+    --success:                  var(--celis-success);
+    --success-foreground:       var(--celis-ink-inverse);
+
+    --caution:                  var(--celis-caution);
+    --caution-foreground:       var(--celis-ink-inverse);
+
+    --border:                   var(--celis-border);
+    --input:                    var(--celis-border);
+    --ring:                     var(--celis-focus-ring);
+
+    --radius:                   0.5rem;
+  }
+
+  /* Tier 2: Semantic Tokens — Dark Mode */
+  .dark {
+    --celis-primary:            210 90% 55%;
+    --celis-primary-hover:      210 90% 62%;
+    --celis-primary-active:     210 90% 70%;
+    --celis-primary-subtle:     210 40% 16%;
+    --celis-primary-muted:      210 35% 22%;
+
+    --celis-secondary:          160 70% 48%;
+    --celis-secondary-hover:    160 70% 55%;
+    --celis-secondary-subtle:   160 30% 14%;
+
+    --celis-destructive:        0 80% 58%;
+    --celis-destructive-hover:  0 80% 65%;
+    --celis-destructive-subtle: 0 30% 14%;
+
+    --celis-success:            145 100% 45%;
+    --celis-success-hover:      145 100% 52%;
+    --celis-success-subtle:     145 35% 14%;
+
+    --celis-caution:            38 95% 55%;
+    --celis-caution-subtle:     38 40% 14%;
+
+    --celis-bg:                 220 13% 5%;
+    --celis-surface-base:       220 13% 9%;
+    --celis-surface-elevated:   220 13% 14%;
+    --celis-surface-overlay:    220 13% 14%;
+    --celis-surface-inset:      220 13% 5%;
+
+    --celis-border:             220 13% 18%;
+    --celis-border-strong:      220 13% 28%;
+    --celis-border-subtle:      220 13% 14%;
+
+    --celis-ink:                220 13% 96%;
+    --celis-ink-secondary:      220 9% 64%;
+    --celis-ink-tertiary:       220 8% 48%;
+    --celis-ink-financial:      0 0% 100%;
+    --celis-ink-inverse:        220 13% 9%;
+    --celis-ink-on-primary:     0 0% 100%;
+
+    --celis-focus-ring:         210 90% 60%;
+    --celis-focus-ring-offset:  220 13% 5%;
+
+    /* shadcn/ui bridge — dark */
+    --background:               var(--celis-bg);
+    --foreground:               var(--celis-ink);
+
+    --card:                     var(--celis-surface-base);
+    --card-foreground:          var(--celis-ink);
+
+    --popover:                  var(--celis-surface-base);
+    --popover-foreground:       var(--celis-ink);
+
+    --primary:                  var(--celis-primary);
+    --primary-foreground:       var(--celis-ink-on-primary);
+
+    --secondary:                var(--celis-surface-elevated);
+    --secondary-foreground:     var(--celis-ink);
+
+    --muted:                    var(--celis-surface-elevated);
+    --muted-foreground:         var(--celis-ink-secondary);
+
+    --accent:                   var(--celis-surface-elevated);
+    --accent-foreground:        var(--celis-ink);
+
+    --destructive:              var(--celis-destructive);
+    --destructive-foreground:   var(--celis-ink-inverse);
+
+    --success:                  var(--celis-success);
+    --success-foreground:       var(--celis-ink-inverse);
+
+    --caution:                  var(--celis-caution);
+    --caution-foreground:       var(--celis-ink-inverse);
+
+    --border:                   var(--celis-border);
+    --input:                    var(--celis-border);
+    --ring:                     var(--celis-focus-ring);
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -moz-tab-size: 4;
+    tab-size: 4;
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  html,
+  body {
+    @apply transition-colors duration-200;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+  }
+
+  a {
+    @apply text-primary;
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  ::selection {
+    background-color: hsl(var(--celis-primary) / 0.2);
+    color: inherit;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .touch-target {
+    @apply inline-flex items-center justify-center;
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-muted;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(
+      -45deg,
+      transparent 30%,
+      hsl(var(--celis-surface-elevated) / 0.6) 50%,
+      transparent 70%
+    );
+    background-size: 300% 300%;
+    animation: shimmer 2s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton::after {
+      animation: none;
+      background: hsl(var(--celis-surface-elevated) / 0.4);
+    }
+  }
+}
+
+/* Modern mesh gradients */
+.bg-celis-gradient-hero {
+  background-color: hsl(var(--celis-surface-base));
+  background-image:
+    radial-gradient(at 0% 0%, hsl(var(--celis-color-blue-200) / 0.55) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, hsl(var(--celis-color-teal-200) / 0.4) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, hsl(var(--celis-color-blue-300) / 0.25) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, hsl(var(--celis-color-slate-200) / 0.5) 0px, transparent 50%);
+}
+
+.bg-celis-gradient-soft {
+  background-color: hsl(var(--celis-bg));
+  background-image:
+    radial-gradient(at 0% 0%, hsl(var(--celis-color-blue-100) / 0.5) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, hsl(var(--celis-color-teal-100) / 0.35) 0px, transparent 50%);
+}
+
+.dark .bg-celis-gradient-hero {
+  background-color: hsl(var(--celis-bg));
+  background-image:
+    radial-gradient(at 0% 0%, hsl(var(--celis-primary) / 0.18) 0px, transparent 45%),
+    radial-gradient(at 100% 0%, hsl(var(--celis-secondary) / 0.12) 0px, transparent 45%),
+    radial-gradient(at 100% 100%, hsl(var(--celis-color-blue-700) / 0.14) 0px, transparent 45%),
+    radial-gradient(at 0% 100%, hsl(var(--celis-color-slate-800) / 0.2) 0px, transparent 45%);
+}
+
+.dark .bg-celis-gradient-soft {
+  background-color: hsl(var(--celis-surface-base));
+  background-image:
+    radial-gradient(at 0% 0%, hsl(var(--celis-primary) / 0.1) 0px, transparent 45%),
+    radial-gradient(at 100% 100%, hsl(var(--celis-secondary) / 0.08) 0px, transparent 45%);
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-primary-foreground hover:bg-celis-primary-hover active:bg-primary/90;
+  }
+  .btn-secondary {
+    @apply btn bg-secondary text-secondary-foreground hover:bg-celis-secondary-hover active:bg-secondary/80;
+  }
+  .btn-outline {
+    @apply btn border border-input bg-background hover:bg-accent hover:text-accent-foreground;
+  }
+  .btn-ghost {
+    @apply btn hover:bg-accent hover:text-accent-foreground;
+  }
+  .btn-sm {
+    @apply h-8 px-3 text-xs;
+  }
+  .btn-md {
+    @apply h-10 px-4 text-sm;
+  }
+  .btn-lg {
+    @apply h-12 px-6 text-sm;
+  }
+
+  .input {
+    @apply flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .input-error {
+    @apply border-destructive focus-visible:ring-destructive;
+  }
+
+  .card {
+    @apply rounded-md border bg-card text-card-foreground shadow-sm;
+  }
+  .card-interactive {
+    @apply card cursor-pointer transition-all duration-200;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .card-interactive:hover {
+      @apply shadow-md;
+      transform: translateY(-0.5px);
+    }
+  }
+}

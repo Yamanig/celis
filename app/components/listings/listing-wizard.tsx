@@ -1,0 +1,425 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
+import { Label } from "~/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
+import { ImageUploader } from "./image-uploader";
+import { PaymentModal } from "./payment-modal";
+import { listingSchema, type ListingInput } from "~/lib/validation";
+import {
+  createListing,
+} from "~/server/listings.functions";
+import {
+  ITEM_CONDITIONS,
+  DELIVERY_METHODS,
+  MONETIZATION_TYPES,
+} from "~/db/schema";
+import { formatPrice } from "~/lib/format";
+import {
+  calculateListingPricing,
+  type ListingTiersConfig,
+} from "~/lib/pricing";
+import { ChevronLeft, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
+import type { CategoryListItem } from "~/server/categories.functions";
+
+interface ListingWizardProps {
+  sellerId: string;
+  categories: CategoryListItem[];
+  tiersConfig: ListingTiersConfig;
+}
+
+const STEPS = ["Details", "Pricing", "Photos", "Review"];
+
+const emptyForm: ListingInput = {
+  title: "",
+  description: "",
+  categoryId: "",
+  condition: "good",
+  price: 0,
+  monetizationType: "fixed_rate",
+  deliveryMethod: "local_pickup",
+  images: [],
+  metadata: {},
+};
+
+export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWizardProps) {
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState<ListingInput>(emptyForm);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [createdListingId, setCreatedListingId] = useState<string | null>(null);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [finished, setFinished] = useState(false);
+
+  const updateField = <K extends keyof ListingInput>(key: K, value: ListingInput[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const validateStep = () => {
+    const result = listingSchema.safeParse(form);
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.issues.forEach((issue) => {
+        const path = issue.path[0] as string;
+        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
+      });
+      setErrors(fieldErrors);
+      return false;
+    }
+    setErrors({});
+    return true;
+  };
+
+  const canProceed = useMemo(() => {
+    if (step === 0) {
+      return form.title.length >= 5 && form.description.length >= 20 && form.categoryId;
+    }
+    if (step === 1) {
+      return form.price >= 100 && form.deliveryMethod;
+    }
+    if (step === 2) {
+      return form.images.length > 0;
+    }
+    return true;
+  }, [step, form]);
+
+  const preview = useMemo(
+    () => calculateListingPricing(form.price, form.condition, tiersConfig),
+    [form.price, form.condition, tiersConfig]
+  );
+
+  const handleNext = () => {
+    if (step < STEPS.length - 1) {
+      setStep((s) => s + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 0) setStep((s) => s - 1);
+  };
+
+  const handleSubmit = async () => {
+    if (!validateStep()) return;
+    setSubmitting(true);
+    try {
+      const result = await createListing({
+        data: { sellerId, listing: form },
+      });
+      setCreatedListingId(result.id);
+      setPaymentOpen(true);
+    } catch (err) {
+      setErrors({ submit: err instanceof Error ? err.message : "Failed to create listing" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (finished) {
+    return (
+      <Card className="mx-auto max-w-2xl">
+        <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+          <CheckCircle2 className="h-16 w-16 text-celis-success" />
+          <h2 className="text-2xl font-semibold">Your listing is live!</h2>
+          <p className="text-celis-ink-secondary">
+            Buyers can now discover and purchase your item.
+          </p>
+          <Button asChild>
+            <a href={`/listings/${createdListingId}`}>View listing</a>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card className="mx-auto max-w-3xl">
+        <CardHeader>
+          <CardTitle>Sell an item</CardTitle>
+          <CardDescription>
+            Step {step + 1} of {STEPS.length}: {STEPS[step]}
+          </CardDescription>
+          <div className="mt-4 flex gap-1">
+            {STEPS.map((label, idx) => (
+              <div
+                key={label}
+                className={`h-1.5 flex-1 rounded-full ${
+                  idx <= step ? "bg-celis-primary" : "bg-celis-border"
+                }`}
+                aria-label={label}
+              />
+            ))}
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {step === 0 && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  value={form.title}
+                  onChange={(e) => updateField("title", e.target.value)}
+                  placeholder="What are you selling?"
+                />
+                {errors.title && <p className="text-sm text-celis-destructive">{errors.title}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Select value={form.categoryId} onValueChange={(v) => updateField("categoryId", v)}>
+                  <SelectTrigger id="category">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.categoryId && (
+                  <p className="text-sm text-celis-destructive">{errors.categoryId}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="condition">Condition</Label>
+                <Select value={form.condition} onValueChange={(v) => updateField("condition", v as typeof form.condition)}>
+                  <SelectTrigger id="condition">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ITEM_CONDITIONS.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={form.description}
+                  onChange={(e) => updateField("description", e.target.value)}
+                  placeholder="Describe the item, its condition, and any defects."
+                  rows={5}
+                />
+                {errors.description && (
+                  <p className="text-sm text-celis-destructive">{errors.description}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="price">Price (USD)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-celis-ink-secondary">$</span>
+                  <Input
+                    id="price"
+                    type="number"
+                    min={1}
+                    step={1}
+                    className="pl-7"
+                    value={form.price / 100 || ""}
+                    onChange={(e) =>
+                      updateField("price", Math.round(parseFloat(e.target.value || "0") * 100))
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
+                {errors.price && <p className="text-sm text-celis-destructive">{errors.price}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="monetizationType">Listing type</Label>
+                <Select
+                  value={form.monetizationType}
+                  onValueChange={(v) => updateField("monetizationType", v as typeof form.monetizationType)}
+                >
+                  <SelectTrigger id="monetizationType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONETIZATION_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t === "fixed_rate" ? "Fixed-rate listing" : "Commission on sale"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="deliveryMethod">Delivery</Label>
+                <Select
+                  value={form.deliveryMethod}
+                  onValueChange={(v) => updateField("deliveryMethod", v as typeof form.deliveryMethod)}
+                >
+                  <SelectTrigger id="deliveryMethod">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DELIVERY_METHODS.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-lg border border-celis-border bg-celis-surface-inset p-4 text-sm text-celis-ink-secondary">
+                <p className="font-medium text-celis-ink">
+                  {preview.tierLabel} tier
+                </p>
+                <p>
+                  Listing fee:{" "}
+                  <strong className="text-celis-ink">
+                    {formatPrice(preview.feeCents)}
+                  </strong>{" "}
+                  {preview.baseFeeCents !== preview.feeCents && (
+                    <span className="text-xs">
+                      ({formatPrice(preview.baseFeeCents)} × condition multiplier)
+                    </span>
+                  )}
+                </p>
+                <p>Expires on {preview.expiresAt.toLocaleDateString()}.</p>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-4">
+              <ImageUploader
+                sellerId={sellerId}
+                images={form.images}
+                onChange={(imgs) => updateField("images", imgs)}
+              />
+              {errors.images && <p className="text-sm text-celis-destructive">{errors.images}</p>}
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4">
+              <h3 className="font-medium">Review your listing</h3>
+              <dl className="divide-y divide-celis-border text-sm">
+                <div className="flex justify-between py-2">
+                  <dt className="text-celis-ink-secondary">Title</dt>
+                  <dd className="max-w-[60%] text-right font-medium">{form.title}</dd>
+                </div>
+                <div className="flex justify-between py-2">
+                  <dt className="text-celis-ink-secondary">Category</dt>
+                  <dd className="font-medium">
+                    {categories.find((c) => c.id === form.categoryId)?.name ?? "—"}
+                  </dd>
+                </div>
+                <div className="flex justify-between py-2">
+                  <dt className="text-celis-ink-secondary">Condition</dt>
+                  <dd className="font-medium">{form.condition.replace(/_/g, " ")}</dd>
+                </div>
+                <div className="flex justify-between py-2">
+                  <dt className="text-celis-ink-secondary">Price</dt>
+                  <dd className="font-medium">{formatPrice(form.price)}</dd>
+                </div>
+                <div className="flex justify-between py-2">
+                  <dt className="text-celis-ink-secondary">Delivery</dt>
+                  <dd className="font-medium">{form.deliveryMethod.replace(/_/g, " ")}</dd>
+                </div>
+                <div className="flex justify-between py-2">
+                  <dt className="text-celis-ink-secondary">Listing fee</dt>
+                  <dd className="font-medium">{formatPrice(preview.feeCents)}</dd>
+                </div>
+                <div className="flex justify-between py-2">
+                  <dt className="text-celis-ink-secondary">Expires</dt>
+                  <dd className="font-medium">
+                    {preview.expiresAt.toLocaleDateString()}
+                  </dd>
+                </div>
+              </dl>
+              <p className="text-sm text-celis-ink-secondary">
+                {form.description}
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {form.images.map((img, idx) => (
+                  <img
+                    key={idx}
+                    src={img.url}
+                    alt=""
+                    className="aspect-square rounded-md object-cover"
+                  />
+                ))}
+              </div>
+              {errors.submit && (
+                <p className="text-sm text-celis-destructive">{errors.submit}</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+
+        <CardFooter className="flex justify-between border-t border-celis-border pt-6">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleBack}
+            disabled={step === 0}
+          >
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+
+          {step < STEPS.length - 1 ? (
+            <Button type="button" onClick={handleNext} disabled={!canProceed}>
+              Next
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          ) : (
+            <Button type="button" onClick={handleSubmit} disabled={!canProceed || submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Publish & pay {formatPrice(preview.feeCents)}
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
+
+      <PaymentModal
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        userId={sellerId}
+        listingId={createdListingId}
+        amountCents={preview.feeCents}
+        onSuccess={() => setFinished(true)}
+      />
+    </>
+  );
+}
