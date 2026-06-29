@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { z } from "zod";
 import { signIn } from "~/server/auth.functions";
 import { useAuth } from "~/lib/auth-context";
 import { Button } from "~/components/ui/button";
@@ -8,8 +9,13 @@ import { Label } from "~/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
 import { CelisLogo } from "~/components/branding/celis-logo";
 
+const signInSearchSchema = z.object({
+  redirect: z.string().optional(),
+});
+
 export const Route = createFileRoute("/auth/sign-in")({
   component: SignInPage,
+  validateSearch: signInSearchSchema,
 });
 
 function SignInPage() {
@@ -19,6 +25,7 @@ function SignInPage() {
   const [loading, setLoading] = useState(false);
   const { refresh } = useAuth();
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +34,7 @@ function SignInPage() {
     try {
       await signIn({ data: { email, password } });
       await refresh();
-      navigate({ to: "/dashboard" });
+      navigate({ to: redirect || "/dashboard" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
     } finally {

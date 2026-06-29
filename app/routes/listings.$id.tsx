@@ -6,8 +6,16 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
 import { fetchListingById } from "~/server/listings.functions";
+import { useAuth } from "~/lib/auth-context";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
-import { MapPin, Package, User, CheckCircle2 } from "lucide-react";
+import {
+  MapPin,
+  Package,
+  User,
+  CheckCircle2,
+  Phone,
+  MessageCircle,
+} from "lucide-react";
 
 export const Route = createFileRoute("/listings/$id")({
   component: ListingDetailPage,
@@ -33,6 +41,10 @@ export const Route = createFileRoute("/listings/$id")({
 
 function ListingDetailPage() {
   const { listing } = Route.useLoaderData();
+  const { user } = useAuth();
+
+  const dialNumber = listing.sellerPhone ?? "";
+  const whatsappNumber = dialNumber.replace(/\D/g, "");
 
   return (
     <div className="flex min-h-screen flex-col bg-celis-bg">
@@ -84,12 +96,47 @@ function ListingDetailPage() {
                   </div>
                 </div>
 
-                <Button className="w-full" size="lg">
-                  Contact seller
-                </Button>
-                <p className="text-xs text-celis-ink-tertiary">
-                  Buying flow will be enabled in Phase 4.
-                </p>
+                {user ? (
+                  dialNumber ? (
+                    <div className="grid gap-2">
+                      <Button className="w-full" size="lg" asChild>
+                        <a href={`tel:${dialNumber}`}>
+                          <Phone className="mr-2 h-4 w-4" />
+                          Call {dialNumber}
+                        </a>
+                      </Button>
+                      {whatsappNumber && (
+                        <Button
+                          className="w-full bg-green-600 hover:bg-green-700"
+                          size="lg"
+                          asChild
+                        >
+                          <a
+                            href={`https://wa.me/${whatsappNumber}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <MessageCircle className="mr-2 h-4 w-4" />
+                            WhatsApp seller
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-celis-ink-secondary">
+                      Seller has not added a phone number.
+                    </p>
+                  )
+                ) : (
+                  <Button className="w-full" size="lg" asChild>
+                    <Link
+                      to="/auth/sign-in"
+                      search={{ redirect: `/listings/${listing.id}` }}
+                    >
+                      Sign in to contact seller
+                    </Link>
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
