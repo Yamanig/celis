@@ -1,14 +1,25 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useState } from "react";
+import { z } from "zod";
 import { SiteHeader } from "~/components/layout/site-header";
 import { SiteFooter } from "~/components/layout/site-footer";
 import { useAuth } from "~/lib/auth-context";
 import { Button } from "~/components/ui/button";
+import { Pagination } from "~/components/ui/pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { fetchSellerListings, removeListing } from "~/server/listings.functions";
 import { formatPrice } from "~/lib/format";
 import { Trash2, Package, Store } from "lucide-react";
+
+const dashboardSearchSchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+});
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -20,23 +31,24 @@ export const Route = createFileRoute("/dashboard")({
       throw redirect({ to: "/admin" });
     }
   },
-  loader: async () => {
-    return fetchSellerListings();
+  validateSearch: dashboardSearchSchema,
+  loaderDeps: ({ search }) => ({ search }),
+  loader: async ({ deps: { search } }) => {
+    return fetchSellerListings({ data: { page: search.page, limit: 10 } });
   },
 });
 
 function DashboardPage() {
   const { user } = useAuth();
-  const initialListings = Route.useLoaderData();
-  const [listings, setListings] = useState(initialListings);
+  const { items, total, activeCount, page, totalPages } = Route.useLoaderData();
+  const navigate = useNavigate({ from: "/dashboard" });
+  const [listings, setListings] = useState(items);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this listing?")) return;
     await removeListing({ data: { id } });
     setListings((prev) => prev.filter((l) => l.id !== id));
   };
-
-  const activeCount = listings.filter((l) => l.status === "active").length;
 
   return (
     <div className="flex min-h-screen flex-col bg-celis-bg">
@@ -67,7 +79,7 @@ function DashboardPage() {
             <CardContent>
               <div className="flex items-center gap-2 text-2xl font-bold">
                 <Store className="h-5 w-5 text-celis-primary" />
-                {listings.length}
+                {total}
               </div>
             </CardContent>
           </Card>
@@ -146,6 +158,14 @@ function DashboardPage() {
                 ))}
               </div>
             )}
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={(p) =>
+                navigate({ search: (prev) => ({ ...prev, page: p }) })
+              }
+            />
           </CardContent>
         </Card>
       </main>

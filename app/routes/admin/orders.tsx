@@ -1,5 +1,6 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import {
   Select,
@@ -8,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { Pagination } from "~/components/ui/pagination";
 import { AdminTable } from "~/components/admin/admin-table";
 import { PageHeader } from "~/components/admin/page-header";
 import { OrderStatusBadge } from "~/components/admin/status-badge";
@@ -17,9 +19,24 @@ import {
 } from "~/server/admin.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 
+const ordersSearchSchema = z.object({
+  status: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+});
+
 export const Route = createFileRoute("/admin/orders")({
   component: AdminOrdersPage,
-  loader: async () => fetchAdminOrders(),
+  validateSearch: ordersSearchSchema,
+  loaderDeps: ({ search }) => ({ search }),
+  loader: async ({ deps: { search } }) => {
+    return fetchAdminOrders({
+      data: {
+        status: search.status,
+        page: search.page,
+        limit: 10,
+      },
+    });
+  },
 });
 
 const STATUSES = [
@@ -33,14 +50,12 @@ const STATUSES = [
 ];
 
 function AdminOrdersPage() {
-  const orders = Route.useLoaderData();
+  const { items, page, totalPages } = Route.useLoaderData();
+  const search = Route.useSearch();
   const router = useRouter();
-  const [status, setStatus] = useState<string>("");
+  const navigate = useNavigate({ from: "/admin/orders" });
+  const [status, setStatus] = useState<string>(search.status ?? "");
   const [loadingId, setLoadingId] = useState<string | null>(null);
-
-  const filtered = useMemo(() => {
-    return status ? orders.filter((o) => o.status === status) : orders;
-  }, [orders, status]);
 
   const handleStatusChange = async (id: string, next: string) => {
     setLoadingId(id);
@@ -55,7 +70,19 @@ function AdminOrdersPage() {
 
       <Card className="border-celis-border bg-celis-surface-base">
         <CardContent className="p-4">
-          <Select value={status} onValueChange={setStatus}>
+          <Select
+            value={status}
+            onValueChange={(value) => {
+              setStatus(value);
+              navigate({
+                search: (prev) => ({
+                  ...prev,
+                  status: value || undefined,
+                  page: 1,
+                }),
+              });
+            }}
+          >
             <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
@@ -72,7 +99,7 @@ function AdminOrdersPage() {
       </Card>
 
       <AdminTable
-        rows={filtered}
+        rows={items}
         keyExtractor={(o) => o.id}
         columns={[
           {
@@ -147,6 +174,12 @@ function AdminOrdersPage() {
             ),
           },
         ]}
+      />
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
       />
     </div>
   );

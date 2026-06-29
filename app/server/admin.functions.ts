@@ -19,6 +19,7 @@ import {
   retryPayout,
   markPayoutCompleted,
   getAdminLedger,
+  exportAdminLedger,
   getPlatformConfigAll,
   updatePlatformConfig,
   runListingExpirySweep,
@@ -40,6 +41,8 @@ const usersQuerySchema = z
   .object({
     search: z.string().optional(),
     role: userRoleSchema.optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
   })
   .default({});
 
@@ -78,6 +81,8 @@ const listingsQuerySchema = z
   .object({
     status: z.string().optional(),
     categoryId: z.string().uuid().optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
   })
   .default({});
 
@@ -98,11 +103,18 @@ export const updateAdminListingStatus = createServerFn({ method: "POST" })
     return updateListingStatus(data.id, data.status);
   });
 
-export const fetchAdminCategories = createServerFn({ method: "GET" }).handler(
-  async () => {
-    return getAdminCategories();
-  }
-);
+const categoriesQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+  })
+  .default({});
+
+export const fetchAdminCategories = createServerFn({ method: "GET" })
+  .validator(categoriesQuerySchema)
+  .handler(async ({ data }) => {
+    return getAdminCategories(data);
+  });
 
 const categorySchema = z.object({
   name: z.string().min(1).max(100),
@@ -136,6 +148,8 @@ export const updateAdminCategory = createServerFn({ method: "POST" })
 const ordersQuerySchema = z
   .object({
     status: z.string().optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
   })
   .default({});
 
@@ -167,6 +181,8 @@ export const updateAdminOrderStatus = createServerFn({ method: "POST" })
 const payoutsQuerySchema = z
   .object({
     status: z.string().optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
   })
   .default({});
 
@@ -198,6 +214,8 @@ const ledgerQuerySchema = z
     from: z.string().optional(),
     to: z.string().optional(),
     type: z.enum(["all", "payment", "payout", "refund"]).optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
   })
   .default({ type: "all" as const });
 
@@ -205,6 +223,12 @@ export const fetchAdminLedger = createServerFn({ method: "GET" })
   .validator(ledgerQuerySchema)
   .handler(async ({ data }) => {
     return getAdminLedger(data);
+  });
+
+export const exportAdminLedgerCsv = createServerFn({ method: "GET" })
+  .validator(ledgerQuerySchema)
+  .handler(async ({ data }) => {
+    return exportAdminLedger(data);
   });
 
 export const fetchPlatformConfigAll = createServerFn({ method: "GET" }).handler(

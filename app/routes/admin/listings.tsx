@@ -1,5 +1,6 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import {
   Select,
@@ -8,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { Pagination } from "~/components/ui/pagination";
 import { AdminTable } from "~/components/admin/admin-table";
 import { PageHeader } from "~/components/admin/page-header";
 import { ListingStatusBadge } from "~/components/admin/status-badge";
@@ -18,11 +20,26 @@ import {
 import { listCategories } from "~/server/categories.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 
+const listingsSearchSchema = z.object({
+  status: z.string().optional(),
+  categoryId: z.string().uuid().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+});
+
 export const Route = createFileRoute("/admin/listings")({
   component: AdminListingsPage,
-  loader: async () => {
+  validateSearch: listingsSearchSchema,
+  loaderDeps: ({ search }) => ({ search }),
+  loader: async ({ deps: { search } }) => {
     const [listings, categories] = await Promise.all([
-      fetchAdminListings(),
+      fetchAdminListings({
+        data: {
+          status: search.status,
+          categoryId: search.categoryId,
+          page: search.page,
+          limit: 10,
+        },
+      }),
       listCategories(),
     ]);
     return { listings, categories };
@@ -33,18 +50,19 @@ const STATUSES = ["active", "draft", "sold", "expired", "suspended"];
 
 function AdminListingsPage() {
   const { listings, categories } = Route.useLoaderData();
+  const { items, page, totalPages } = listings;
+  const search = Route.useSearch();
   const router = useRouter();
-  const [status, setStatus] = useState<string>("");
-  const [categoryId, setCategoryId] = useState<string>("");
+  const navigate = useNavigate({ from: "/admin/listings" });
+  const [status, setStatus] = useState<string>(search.status ?? "");
+  const [categoryId, setCategoryId] = useState<string>(search.categoryId ?? "");
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    return listings.filter((l) => {
-      const matchesStatus = !status || l.status === status;
-      const matchesCategory = !categoryId || l.categoryName === categoryId;
-      return matchesStatus && matchesCategory;
+  const updateSearch = (patch: Partial<z.infer<typeof listingsSearchSchema>>) => {
+    navigate({
+      search: (prev) => ({ ...prev, ...patch, page: 1 }),
     });
-  }, [listings, status, categoryId]);
+  };
 
   const handleStatusChange = async (id: string, next: string) => {
     setLoadingId(id);
@@ -59,7 +77,13 @@ function AdminListingsPage() {
 
       <Card className="border-celis-border bg-celis-surface-base">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row">
-          <Select value={status} onValueChange={setStatus}>
+          <Select
+            value={status}
+            onValueChange={(value) => {
+              setStatus(value);
+              updateSearch({ status: value || undefined });
+            }}
+          >
             <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
@@ -72,7 +96,13 @@ function AdminListingsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={categoryId} onValueChange={setCategoryId}>
+          <Select
+            value={categoryId}
+            onValueChange={(value) => {
+              setCategoryId(value);
+              updateSearch({ categoryId: value || undefined });
+            }}
+          >
             <SelectTrigger className="w-full sm:w-52">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
@@ -89,7 +119,7 @@ function AdminListingsPage() {
       </Card>
 
       <AdminTable
-        rows={filtered}
+        rows={items}
         keyExtractor={(l) => l.id}
         columns={[
           {
@@ -132,9 +162,7 @@ function AdminListingsPage() {
             header: "Expires",
             cell: (l) => (
               <span className="text-xs text-celis-ink-secondary">
-                {l.expiresAt
-                  ? formatRelativeDate(l.expiresAt)
-                  : "—"}
+                {l.expiresAt ? formatRelativeDate(l.expiresAt) : "—"}
               </span>
             ),
           },
@@ -170,6 +198,12 @@ function AdminListingsPage() {
             ),
           },
         ]}
+      />
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
       />
     </div>
   );

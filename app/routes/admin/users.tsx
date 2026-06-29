@@ -1,9 +1,11 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useOptimistic, useState } from "react";
+import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
+import { useEffect, useOptimistic, useState } from "react";
+import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
+import { Pagination } from "~/components/ui/pagination";
 import {
   Select,
   SelectContent,
@@ -23,41 +25,72 @@ import {
 import { formatRelativeDate } from "~/lib/format";
 import { Search } from "lucide-react";
 
+const roleSchema = z.enum(["buyer", "seller", "admin"]);
+
+const usersSearchSchema = z.object({
+  search: z.string().optional(),
+  role: roleSchema.optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+});
+
 export const Route = createFileRoute("/admin/users")({
   component: AdminUsersPage,
-  loader: async () => fetchAdminUsers(),
+  validateSearch: usersSearchSchema,
+  loaderDeps: ({ search }) => ({ search }),
+  loader: async ({ deps: { search } }) => {
+    return fetchAdminUsers({
+      data: {
+        search: search.search,
+        role: search.role,
+        page: search.page,
+        limit: 10,
+      },
+    });
+  },
 });
 
 function AdminUsersPage() {
-  const users = Route.useLoaderData();
+  const { items, page, totalPages } = Route.useLoaderData();
+  const search = Route.useSearch();
   const router = useRouter();
-  const [search, setSearch] = useState("");
-  const [role, setRole] = useState<string>("");
+  const navigate = useNavigate({ from: "/admin/users" });
+  const [searchInput, setSearchInput] = useState(search.search ?? "");
+  const [role, setRole] = useState<z.infer<typeof usersSearchSchema>["role"]>(
+    search.role
+  );
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
+  useEffect(() => {
+    setSearchInput(search.search ?? "");
+  }, [search.search]);
+
+  useEffect(() => {
+    setRole(search.role);
+  }, [search.role]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          search: searchInput || undefined,
+          page: 1,
+        }),
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput, navigate]);
+
   const [optimisticUsers, updateOptimisticUser] = useOptimistic(
-    users,
+    items,
     (
       state,
       update: {
         id: string;
-        patch: Partial<(typeof users)[number]>;
+        patch: Partial<(typeof items)[number]>;
       }
     ) => state.map((u) => (u.id === update.id ? { ...u, ...update.patch } : u))
   );
-
-  const filtered = useMemo(() => {
-    const term = search.toLowerCase();
-    return optimisticUsers.filter((u) => {
-      const matchesSearch =
-        !term ||
-        u.email.toLowerCase().includes(term) ||
-        (u.displayName?.toLowerCase().includes(term) ?? false) ||
-        (u.phone?.toLowerCase().includes(term) ?? false);
-      const matchesRole = !role || u.role === role;
-      return matchesSearch && matchesRole;
-    });
-  }, [optimisticUsers, search, role]);
 
   const handleRoleChange = async (id: string, next: string) => {
     setLoadingId(id);
@@ -114,12 +147,25 @@ function AdminUsersPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-celis-ink-tertiary" />
             <Input
               placeholder="Search by email, name or phone"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-9"
             />
           </div>
-          <Select value={role} onValueChange={setRole}>
+          <Select
+            value={role}
+            onValueChange={(value) => {
+              const next = value as z.infer<typeof usersSearchSchema>["role"];
+              setRole(next);
+              navigate({
+                search: (prev) => ({
+                  ...prev,
+                  role: next || undefined,
+                  page: 1,
+                }),
+              });
+            }}
+          >
             <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder="All roles" />
             </SelectTrigger>
@@ -134,7 +180,7 @@ function AdminUsersPage() {
       </Card>
 
       <AdminTable
-        rows={filtered}
+        rows={optimisticUsers}
         keyExtractor={(u) => u.id}
         columns={[
           {
@@ -212,6 +258,12 @@ function AdminUsersPage() {
             ),
           },
         ]}
+      />
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
       />
     </div>
   );

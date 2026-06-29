@@ -1,5 +1,6 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import {
@@ -9,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { Pagination } from "~/components/ui/pagination";
 import { AdminTable } from "~/components/admin/admin-table";
 import { PageHeader } from "~/components/admin/page-header";
 import { ConfirmDialog } from "~/components/admin/confirm-dialog";
@@ -20,23 +22,36 @@ import {
 } from "~/server/admin.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 
+const payoutsSearchSchema = z.object({
+  status: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+});
+
 export const Route = createFileRoute("/admin/payouts")({
   component: AdminPayoutsPage,
-  loader: async () => fetchAdminPayouts(),
+  validateSearch: payoutsSearchSchema,
+  loaderDeps: ({ search }) => ({ search }),
+  loader: async ({ deps: { search } }) => {
+    return fetchAdminPayouts({
+      data: {
+        status: search.status,
+        page: search.page,
+        limit: 10,
+      },
+    });
+  },
 });
 
 const STATUSES = ["pending", "processing", "completed", "failed"];
 
 function AdminPayoutsPage() {
-  const payouts = Route.useLoaderData();
+  const { items, page, totalPages } = Route.useLoaderData();
+  const search = Route.useSearch();
   const router = useRouter();
-  const [status, setStatus] = useState<string>("");
+  const navigate = useNavigate({ from: "/admin/payouts" });
+  const [status, setStatus] = useState<string>(search.status ?? "");
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-
-  const filtered = useMemo(() => {
-    return status ? payouts.filter((p) => p.status === status) : payouts;
-  }, [payouts, status]);
 
   const handleRetry = async (id: string) => {
     setLoadingId(id);
@@ -60,7 +75,19 @@ function AdminPayoutsPage() {
 
       <Card className="border-celis-border bg-celis-surface-base">
         <CardContent className="p-4">
-          <Select value={status} onValueChange={setStatus}>
+          <Select
+            value={status}
+            onValueChange={(value) => {
+              setStatus(value);
+              navigate({
+                search: (prev) => ({
+                  ...prev,
+                  status: value || undefined,
+                  page: 1,
+                }),
+              });
+            }}
+          >
             <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
@@ -77,7 +104,7 @@ function AdminPayoutsPage() {
       </Card>
 
       <AdminTable
-        rows={filtered}
+        rows={items}
         keyExtractor={(p) => p.id}
         columns={[
           {
@@ -154,6 +181,12 @@ function AdminPayoutsPage() {
             ),
           },
         ]}
+      />
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
       />
 
       <ConfirmDialog

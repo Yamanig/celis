@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -11,16 +12,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { Pagination } from "~/components/ui/pagination";
 import { AdminTable } from "~/components/admin/admin-table";
 import { PageHeader } from "~/components/admin/page-header";
-import { fetchAdminLedger } from "~/server/admin.functions";
+import {
+  fetchAdminLedger,
+  exportAdminLedgerCsv,
+} from "~/server/admin.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 import { exportToCsv } from "~/lib/csv";
 import { Download } from "lucide-react";
 
+const reportsSearchSchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  type: z.enum(["all", "payment", "payout", "refund"]).optional().default("all"),
+  page: z.coerce.number().int().min(1).optional().default(1),
+});
+
 export const Route = createFileRoute("/admin/reports")({
   component: AdminReportsPage,
-  loader: async () => fetchAdminLedger(),
+  validateSearch: reportsSearchSchema,
+  loaderDeps: ({ search }) => ({ search }),
+  loader: async ({ deps: { search } }) => {
+    return fetchAdminLedger({
+      data: {
+        from: search.from,
+        to: search.to,
+        type: search.type,
+        page: search.page,
+        limit: 10,
+      },
+    });
+  },
 });
 
 const TYPE_OPTIONS = [
@@ -31,54 +55,68 @@ const TYPE_OPTIONS = [
 ];
 
 function AdminReportsPage() {
-  const ledger = Route.useLoaderData();
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [type, setType] = useState<string>("all");
+  const { items, totals, page, totalPages } = Route.useLoaderData();
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: "/admin/reports" });
+  const [from, setFrom] = useState(search.from ?? "");
+  const [to, setTo] = useState(search.to ?? "");
+  const [type, setType] = useState<string>(search.type ?? "all");
+  const [exporting, setExporting] = useState(false);
 
-  const filtered = useMemo(() => {
-    return ledger.filter((row) => {
-      const date = new Date(row.date);
-      const afterFrom = !from || date >= new Date(from);
-      const beforeTo = !to || date <= new Date(`${to}T23:59:59`);
-      const matchesType = type === "all" || row.type === type;
-      return afterFrom && beforeTo && matchesType;
+  useEffect(() => {
+    setFrom(search.from ?? "");
+  }, [search.from]);
+
+  useEffect(() => {
+    setTo(search.to ?? "");
+  }, [search.to]);
+
+  useEffect(() => {
+    setType(search.type ?? "all");
+  }, [search.type]);
+
+  const updateSearch = (
+    patch: Partial<z.infer<typeof reportsSearchSchema>>
+  ) => {
+    navigate({
+      search: (prev) => ({ ...prev, ...patch, page: 1 }),
     });
-  }, [ledger, from, to, type]);
+  };
 
-  const totals = useMemo(() => {
-    return filtered.reduce(
-      (acc, row) => {
-        if (row.type === "payment") acc.payments += row.amount;
-        if (row.type === "payout") acc.payouts += row.amount;
-        return acc;
-      },
-      { payments: 0, payouts: 0 }
-    );
-  }, [filtered]);
-
-  const handleExport = () => {
-    exportToCsv(
-      filtered.map((r) => ({
-        date: new Date(r.date).toISOString(),
-        type: r.type,
-        party: r.party,
-        amount: formatPrice(r.amount),
-        currency: r.currency,
-        status: r.status,
-        reference: r.reference ?? "",
-      })),
-      [
-        { key: "date", label: "Date" },
-        { key: "type", label: "Type" },
-        { key: "party", label: "Party" },
-        { key: "amount", label: "Amount" },
-        { key: "currency", label: "Currency" },
-        { key: "status", label: "Status" },
-        { key: "reference", label: "Reference" },
-      ],
-      `celis-ledger-${new Date().toISOString().slice(0, 10)}.csv`
-    );
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { rows } = await exportAdminLedgerCsv({
+        data: {
+          from: search.from,
+          to: search.to,
+          type: search.type,
+        },
+      });
+      exportToCsv(
+        rows.map((r) => ({
+          date: new Date(r.date).toISOString(),
+          type: r.type,
+          party: r.party,
+          amount: formatPrice(r.amount),
+          currency: r.currency,
+          status: r.status,
+          reference: r.reference ?? "",
+        })),
+        [
+          { key: "date", label: "Date" },
+          { key: "type", label: "Type" },
+          { key: "party", label: "Party" },
+          { key: "amount", label: "Amount" },
+          { key: "currency", label: "Currency" },
+          { key: "status", label: "Status" },
+          { key: "reference", label: "Reference" },
+        ],
+        `celis-ledger-${new Date().toISOString().slice(0, 10)}.csv`
+      );
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -87,7 +125,7 @@ function AdminReportsPage() {
         title="Reports"
         description="Financial ledger and CSV export"
         action={
-          <Button onClick={handleExport} disabled={filtered.length === 0}>
+          <Button onClick={handleExport} disabled={exporting || items.length === 0}>
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
@@ -129,7 +167,10 @@ function AdminReportsPage() {
               id="from"
               type="date"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                updateSearch({ from: e.target.value || undefined });
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -138,12 +179,21 @@ function AdminReportsPage() {
               id="to"
               type="date"
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={(e) => {
+                setTo(e.target.value);
+                updateSearch({ to: e.target.value || undefined });
+              }}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="type">Type</Label>
-            <Select value={type} onValueChange={setType}>
+            <Select
+              value={type}
+              onValueChange={(value) => {
+                setType(value);
+                updateSearch({ type: value as z.infer<typeof reportsSearchSchema>["type"] });
+              }}
+            >
               <SelectTrigger id="type" className="w-full sm:w-44">
                 <SelectValue />
               </SelectTrigger>
@@ -160,7 +210,7 @@ function AdminReportsPage() {
       </Card>
 
       <AdminTable
-        rows={filtered}
+        rows={items}
         keyExtractor={(r) => `${r.type}-${r.id}`}
         columns={[
           {
@@ -210,6 +260,12 @@ function AdminReportsPage() {
             ),
           },
         ]}
+      />
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
       />
     </div>
   );

@@ -57,14 +57,19 @@ export const fetchFeaturedListings = createServerFn({ method: "GET" }).handler(
   }
 );
 
-export const fetchSellerListings = createServerFn({ method: "GET" }).handler(
-  async () => {
+const sellerListingsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+});
+
+export const fetchSellerListings = createServerFn({ method: "GET" })
+  .validator(sellerListingsQuerySchema)
+  .handler(async ({ data }) => {
     const { getCurrentUser } = await import("./auth.server");
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
-    return getSellerListings(user.id);
-  }
-);
+    return getSellerListings(user.id, data);
+  });
 
 const deleteListingSchema = z.object({ id: z.string().uuid() });
 

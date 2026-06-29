@@ -242,15 +242,42 @@ export async function getFeaturedListings(limit = 8) {
   return rows.map((r) => mapListingPublic(r.listing, r.categoryName));
 }
 
-export async function getSellerListings(sellerId: string) {
+export async function getSellerListings(
+  sellerId: string,
+  options?: { page?: number; limit?: number }
+) {
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+
+  const where = eq(listings.sellerId, sellerId);
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(listings)
+    .where(where);
+
+  const [{ value: activeCount }] = await db
+    .select({ value: count() })
+    .from(listings)
+    .where(and(where, eq(listings.status, "active")));
+
   const rows = await db
     .select({ listing: listings, categoryName: categories.name })
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
-    .where(eq(listings.sellerId, sellerId))
-    .orderBy(desc(listings.createdAt));
+    .where(where)
+    .orderBy(desc(listings.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
 
-  return rows.map((r) => mapListingPublic(r.listing, r.categoryName));
+  return {
+    items: rows.map((r) => mapListingPublic(r.listing, r.categoryName)),
+    total,
+    activeCount,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function deleteListing(id: string, sellerId: string) {

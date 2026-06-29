@@ -239,8 +239,13 @@ function toDateString(value: Date | string): string {
 export async function getAdminUsers(options?: {
   search?: string;
   role?: UserRole;
+  page?: number;
+  limit?: number;
 }) {
   await requireAdmin();
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
 
   const conditions = [];
   if (options?.search) {
@@ -257,23 +262,39 @@ export async function getAdminUsers(options?: {
     conditions.push(eq(users.role, options.role));
   }
 
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where);
+
   const rows = await db
     .select({ user: users, profile: profiles })
     .from(users)
     .leftJoin(profiles, eq(users.id, profiles.id))
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(users.createdAt));
+    .where(where)
+    .orderBy(desc(users.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
 
-  return rows.map((r) => ({
-    id: r.user.id,
-    email: r.user.email,
-    role: r.user.role,
-    displayName: r.profile?.displayName ?? null,
-    phone: r.user.walletPhone ?? r.profile?.phone ?? null,
-    isVerified: r.user.verifiedAt !== null,
-    isSuperAdmin: r.user.isSuperAdmin,
-    createdAt: r.user.createdAt,
-  }));
+  return {
+    items: rows.map((r) => ({
+      id: r.user.id,
+      email: r.user.email,
+      role: r.user.role,
+      displayName: r.profile?.displayName ?? null,
+      phone: r.user.walletPhone ?? r.profile?.phone ?? null,
+      isVerified: r.user.verifiedAt !== null,
+      isSuperAdmin: r.user.isSuperAdmin,
+      createdAt: r.user.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function updateUserRole(id: string, role: UserRole) {
@@ -309,15 +330,30 @@ export async function toggleUserSuperAdmin(id: string) {
 export async function getAdminListings(options?: {
   status?: string;
   categoryId?: string;
+  page?: number;
+  limit?: number;
 }) {
   await requireAdmin();
   const config = await getListingTiersConfig();
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
 
   const conditions = [];
   if (options?.status)
     conditions.push(eq(listings.status, options.status as never));
   if (options?.categoryId)
     conditions.push(eq(listings.categoryId, options.categoryId));
+
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(listings)
+    .innerJoin(categories, eq(listings.categoryId, categories.id))
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where);
 
   const rows = await db
     .select({
@@ -330,28 +366,36 @@ export async function getAdminListings(options?: {
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .innerJoin(users, eq(listings.sellerId, users.id))
     .leftJoin(profiles, eq(users.id, profiles.id))
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(listings.createdAt));
+    .where(where)
+    .orderBy(desc(listings.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
 
-  return rows.map((r) => {
-    const pricing = calculateListingPricing(
-      r.listing.price,
-      r.listing.condition,
-      config
-    );
-    return {
-      id: r.listing.id,
-      title: r.listing.title,
-      price: r.listing.price,
-      status: r.listing.status,
-      condition: r.listing.condition,
-      categoryName: r.categoryName,
-      sellerName: r.sellerName ?? r.sellerEmail,
-      tierLabel: pricing.tierLabel,
-      expiresAt: r.listing.expiresAt,
-      createdAt: r.listing.createdAt,
-    };
-  });
+  return {
+    items: rows.map((r) => {
+      const pricing = calculateListingPricing(
+        r.listing.price,
+        r.listing.condition,
+        config
+      );
+      return {
+        id: r.listing.id,
+        title: r.listing.title,
+        price: r.listing.price,
+        status: r.listing.status,
+        condition: r.listing.condition,
+        categoryName: r.categoryName,
+        sellerName: r.sellerName ?? r.sellerEmail,
+        tierLabel: pricing.tierLabel,
+        expiresAt: r.listing.expiresAt,
+        createdAt: r.listing.createdAt,
+      };
+    }),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function updateListingStatus(
@@ -363,8 +407,18 @@ export async function updateListingStatus(
   return { success: true };
 }
 
-export async function getAdminCategories() {
+export async function getAdminCategories(options?: {
+  page?: number;
+  limit?: number;
+}) {
   await requireAdmin();
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(categories);
 
   const rows = await db
     .select({
@@ -374,16 +428,24 @@ export async function getAdminCategories() {
     .from(categories)
     .leftJoin(listings, eq(listings.categoryId, categories.id))
     .groupBy(categories.id)
-    .orderBy(categories.sortOrder, categories.name);
+    .orderBy(categories.sortOrder, categories.name)
+    .limit(limit)
+    .offset((page - 1) * limit);
 
-  return rows.map((r) => ({
-    id: r.category.id,
-    name: r.category.name,
-    slug: r.category.slug,
-    sortOrder: r.category.sortOrder,
-    listingCount: r.listingCount,
-    createdAt: r.category.createdAt,
-  }));
+  return {
+    items: rows.map((r) => ({
+      id: r.category.id,
+      name: r.category.name,
+      slug: r.category.slug,
+      sortOrder: r.category.sortOrder,
+      listingCount: r.listingCount,
+      createdAt: r.category.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function createCategory(input: {
@@ -430,12 +492,34 @@ export async function updateCategory(
   };
 }
 
-export async function getAdminOrders(options?: { status?: string }) {
+export async function getAdminOrders(options?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}) {
   await requireAdmin();
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
 
   const conditions = [];
   if (options?.status)
     conditions.push(eq(orders.status, options.status as never));
+
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(orders)
+    .innerJoin(listings, eq(orders.listingId, listings.id))
+    .innerJoin(users, eq(orders.buyerId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .innerJoin(sql`users as seller`, eq(orders.sellerId, sql`seller.id`))
+    .leftJoin(
+      sql`profiles as seller_profile`,
+      eq(sql`seller_profile.id`, sql`seller.id`)
+    )
+    .where(where);
 
   const rows = await db
     .select({
@@ -455,21 +539,29 @@ export async function getAdminOrders(options?: { status?: string }) {
       sql`profiles as seller_profile`,
       eq(sql`seller_profile.id`, sql`seller.id`)
     )
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(orders.createdAt));
+    .where(where)
+    .orderBy(desc(orders.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
 
-  return rows.map((r) => ({
-    id: r.order.id,
-    listingTitle: r.listingTitle,
-    salePrice: r.order.salePrice,
-    platformFee: r.order.platformFee,
-    shippingFee: r.order.shippingFee,
-    netPayout: r.order.netPayout,
-    status: r.order.status,
-    buyerName: r.buyerName ?? r.buyerEmail,
-    sellerName: r.sellerName ?? r.sellerEmail,
-    createdAt: r.order.createdAt,
-  }));
+  return {
+    items: rows.map((r) => ({
+      id: r.order.id,
+      listingTitle: r.listingTitle,
+      salePrice: r.order.salePrice,
+      platformFee: r.order.platformFee,
+      shippingFee: r.order.shippingFee,
+      netPayout: r.order.netPayout,
+      status: r.order.status,
+      buyerName: r.buyerName ?? r.buyerEmail,
+      sellerName: r.sellerName ?? r.sellerEmail,
+      createdAt: r.order.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function updateOrderStatus(
@@ -491,12 +583,28 @@ export async function updateOrderStatus(
   return { success: true };
 }
 
-export async function getAdminPayouts(options?: { status?: string }) {
+export async function getAdminPayouts(options?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}) {
   await requireAdmin();
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
 
   const conditions = [];
   if (options?.status)
     conditions.push(eq(payouts.status, options.status as never));
+
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(payouts)
+    .innerJoin(users, eq(payouts.userId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where);
 
   const rows = await db
     .select({
@@ -507,23 +615,31 @@ export async function getAdminPayouts(options?: { status?: string }) {
     .from(payouts)
     .innerJoin(users, eq(payouts.userId, users.id))
     .leftJoin(profiles, eq(users.id, profiles.id))
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(payouts.createdAt));
+    .where(where)
+    .orderBy(desc(payouts.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
 
-  return rows.map((r) => ({
-    id: r.payout.id,
-    amount: r.payout.amount,
-    fee: r.payout.fee,
-    currency: r.payout.currency,
-    status: r.payout.status,
-    transferMethod: r.payout.transferMethod,
-    destinationWallet: r.payout.destinationWallet,
-    destinationPhone: r.payout.destinationPhone,
-    bankTransferRef: r.payout.bankTransferRef,
-    userName: r.userName ?? r.userEmail,
-    createdAt: r.payout.createdAt,
-    completedAt: r.payout.completedAt,
-  }));
+  return {
+    items: rows.map((r) => ({
+      id: r.payout.id,
+      amount: r.payout.amount,
+      fee: r.payout.fee,
+      currency: r.payout.currency,
+      status: r.payout.status,
+      transferMethod: r.payout.transferMethod,
+      destinationWallet: r.payout.destinationWallet,
+      destinationPhone: r.payout.destinationPhone,
+      bankTransferRef: r.payout.bankTransferRef,
+      userName: r.userName ?? r.userEmail,
+      createdAt: r.payout.createdAt,
+      completedAt: r.payout.completedAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function retryPayout(id: string) {
@@ -552,7 +668,7 @@ export async function markPayoutCompleted(id: string, note?: string) {
 
 type LedgerType = "all" | "payment" | "payout" | "refund";
 
-export async function getAdminLedger(options?: {
+async function getAdminLedgerRows(options?: {
   from?: string;
   to?: string;
   type?: LedgerType;
@@ -563,57 +679,64 @@ export async function getAdminLedger(options?: {
   const from = options?.from ? new Date(options.from) : undefined;
   const to = options?.to ? new Date(options.to) : undefined;
 
-  const paymentRows =
-    type === "all" || type === "payment"
-      ? await db
-          .select({
-            id: walletPayments.id,
-            date: walletPayments.createdAt,
-            type: sql<string>`'payment'`,
-            partyEmail: users.email,
-            amount: walletPayments.amount,
-            currency: walletPayments.currency,
-            status: walletPayments.status,
-            reference: walletPayments.merchantRef,
-          })
-          .from(walletPayments)
-          .innerJoin(users, eq(walletPayments.userId, users.id))
-          .where(
-            and(
-              from ? gte(walletPayments.createdAt, from) : undefined,
-              to ? lte(walletPayments.createdAt, to) : undefined
-            )
-          )
-      : [];
+  const includePayments = type === "all" || type === "payment";
+  const includePayouts =
+    type === "all" || type === "payout" || type === "refund";
 
-  const payoutRows =
-    type === "all" || type === "payout" || type === "refund"
-      ? await db
-          .select({
-            id: payouts.id,
-            date: payouts.createdAt,
-            type: sql<string>`'payout'`,
-            partyEmail: users.email,
-            amount: payouts.amount,
-            currency: payouts.currency,
-            status: payouts.status,
-            reference: payouts.bankTransferRef,
-          })
-          .from(payouts)
-          .innerJoin(users, eq(payouts.userId, users.id))
-          .where(
-            and(
-              from ? gte(payouts.createdAt, from) : undefined,
-              to ? lte(payouts.createdAt, to) : undefined
-            )
+  const paymentRows = includePayments
+    ? await db
+        .select({
+          id: walletPayments.id,
+          date: walletPayments.createdAt,
+          type: sql<string>`'payment'`,
+          partyEmail: users.email,
+          amount: walletPayments.amount,
+          currency: walletPayments.currency,
+          status: walletPayments.status,
+          reference: walletPayments.merchantRef,
+        })
+        .from(walletPayments)
+        .innerJoin(users, eq(walletPayments.userId, users.id))
+        .where(
+          and(
+            from ? gte(walletPayments.createdAt, from) : undefined,
+            to ? lte(walletPayments.createdAt, to) : undefined
           )
-      : [];
+        )
+    : [];
+
+  const payoutRows = includePayouts
+    ? await db
+        .select({
+          id: payouts.id,
+          date: payouts.createdAt,
+          type: sql<string>`'payout'`,
+          partyEmail: users.email,
+          amount: payouts.amount,
+          currency: payouts.currency,
+          status: payouts.status,
+          reference: payouts.bankTransferRef,
+        })
+        .from(payouts)
+        .innerJoin(users, eq(payouts.userId, users.id))
+        .where(
+          and(
+            from ? gte(payouts.createdAt, from) : undefined,
+            to ? lte(payouts.createdAt, to) : undefined
+          )
+        )
+    : [];
+
+  const totals = {
+    payments: paymentRows.reduce((sum, r) => sum + r.amount, 0),
+    payouts: payoutRows.reduce((sum, r) => sum + r.amount, 0),
+  };
 
   const rows = [...paymentRows, ...payoutRows].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
-  return rows.map((r) => ({
+  const mapped = rows.map((r) => ({
     id: r.id,
     date: r.date,
     type: r.type as LedgerType | "payment" | "payout",
@@ -623,6 +746,41 @@ export async function getAdminLedger(options?: {
     status: r.status,
     reference: r.reference,
   }));
+
+  return { rows: mapped, totals };
+}
+
+export async function getAdminLedger(options?: {
+  from?: string;
+  to?: string;
+  type?: LedgerType;
+  page?: number;
+  limit?: number;
+}) {
+  const { rows, totals } = await getAdminLedgerRows(options);
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+  const total = rows.length;
+  const offset = (page - 1) * limit;
+  const items = rows.slice(offset, offset + limit);
+
+  return {
+    items,
+    totals,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function exportAdminLedger(options?: {
+  from?: string;
+  to?: string;
+  type?: LedgerType;
+}) {
+  const { rows, totals } = await getAdminLedgerRows(options);
+  return { rows, totals };
 }
 
 const CONFIG_DEFAULTS: Record<string, string | number | boolean | object> = {
