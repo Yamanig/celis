@@ -4,7 +4,12 @@ import {
   getSupabaseServerClient,
   getServiceSupabase,
 } from "~/lib/supabase/server";
-import { getCurrentUser, ensureLocalUserRecord } from "./auth.server";
+import {
+  getCurrentUser,
+  getCurrentUserProfile,
+  updateUserProfile,
+  ensureLocalUserRecord,
+} from "./auth.server";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -99,3 +104,23 @@ export const signOut = createServerFn({ method: "POST" }).handler(async () => {
   if (error) throw new Error(error.message);
   return { success: true };
 });
+
+export const fetchCurrentUserProfile = createServerFn({ method: "GET" }).handler(
+  async () => {
+    return getCurrentUserProfile();
+  }
+);
+
+const updateProfileSchema = z.object({
+  displayName: z.string().min(2).max(60),
+  phone: z.string().max(15).optional(),
+  bio: z.string().max(500).optional(),
+});
+
+export const updateCurrentUserProfile = createServerFn({ method: "POST" })
+  .validator(updateProfileSchema)
+  .handler(async ({ data }) => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    return updateUserProfile(user.id, data);
+  });

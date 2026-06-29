@@ -8,6 +8,7 @@ import {
   Search,
   Plus,
   LayoutDashboard,
+  User,
   LogOut,
   Sun,
   Moon,
@@ -85,6 +86,12 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
 
           {user ? (
             <>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/account">
+                  <User className="mr-2 h-4 w-4" />
+                  Account
+                </Link>
+              </Button>
               <Button variant="ghost" size="sm" asChild>
                 <Link to={user.role === "admin" ? "/admin" : "/dashboard"}>
                   <LayoutDashboard className="mr-2 h-4 w-4" />

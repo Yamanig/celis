@@ -50,6 +50,63 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   };
 }
 
+export async function getCurrentUserProfile() {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const rows = await db
+    .select({
+      user: users,
+      profile: profiles,
+    })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(eq(users.id, user.id))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) throw new Error("User record not found");
+
+  return {
+    id: row.user.id,
+    email: row.user.email,
+    role: row.user.role,
+    displayName: row.profile?.displayName ?? null,
+    phone: row.user.walletPhone ?? row.profile?.phone ?? null,
+    bio: row.profile?.bio ?? null,
+    isVerified: row.user.verifiedAt !== null,
+  };
+}
+
+export async function updateUserProfile(
+  id: string,
+  input: {
+    displayName: string;
+    phone?: string;
+    bio?: string;
+  }
+) {
+  const user = await getCurrentUser();
+  if (!user || user.id !== id) throw new Error("Unauthorized");
+
+  await db
+    .update(users)
+    .set({ walletPhone: input.phone || null, updatedAt: new Date() })
+    .where(eq(users.id, id));
+
+  await db
+    .update(profiles)
+    .set({
+      displayName: input.displayName,
+      phone: input.phone || null,
+      bio: input.bio || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(profiles.id, id));
+
+  return getCurrentUserProfile();
+}
+
 export async function requireAdmin(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) {
