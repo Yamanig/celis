@@ -26,7 +26,7 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
     <header className="sticky top-0 z-40 w-full border-b border-celis-border bg-celis-bg/85 backdrop-blur-lg">
       <div className="mx-auto flex h-18 min-h-[4.5rem] max-w-7xl items-center gap-4 px-4">
         <Link to="/" className="flex items-center gap-2">
-          <CelisLogo variant="auto" size={44} badge />
+          <CelisLogo variant="auto" size={52} badge />
         </Link>
 
         {showSearch && (

@@ -30,29 +30,31 @@ export function CelisLogo({
 }: CelisLogoProps) {
   const showType = variant !== "mark-only";
   const strokeWidth = Math.max(2.5, size * 0.055);
-  const markWrapperSize = size * 1.15;
+  const markWrapperSize = size * 1.2;
 
   const markColor =
     variant === "reversed"
       ? "text-white"
       : variant === "primary"
       ? "text-celis-primary"
-      : "text-celis-primary dark:text-celis-primary";
+      : badge
+      ? "text-white"
+      : "text-celis-primary";
 
   const typeColor =
     variant === "reversed"
       ? "text-white"
       : variant === "primary"
       ? "text-celis-ink"
-      : "text-celis-ink";
+      : "text-celis-ink dark:text-celis-ink";
 
   const badgeClass =
-    "flex items-center justify-center rounded-xl bg-celis-primary-subtle ring-1 ring-celis-primary/20";
+    "flex items-center justify-center rounded-2xl bg-celis-primary shadow-sm ring-1 ring-celis-primary/30";
 
   return (
     <div
       className={cn("inline-flex items-center", className)}
-      style={{ gap: size * 0.3 }}
+      style={{ gap: size * 0.35 }}
       role="img"
       aria-label="Celis"
     >
@@ -102,12 +104,12 @@ export function CelisLogo({
       {showType && (
         <span
           className={cn(
-            "select-none whitespace-nowrap font-bold leading-none",
+            "select-none whitespace-nowrap font-extrabold leading-none",
             typeColor
           )}
           style={{
-            fontSize: size * 0.75,
-            letterSpacing: "-0.03em",
+            fontSize: size * 0.8,
+            letterSpacing: "-0.02em",
           }}
         >
           Celis
