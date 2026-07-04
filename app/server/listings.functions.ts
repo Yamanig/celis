@@ -22,6 +22,11 @@ export const createListing = createServerFn({ method: "POST" })
   .validator(createListingSchema)
   .handler(async ({ data }) => {
     await requireSeller(data.sellerId);
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user?.phone) {
+      throw new Error("Add a phone number to your account before listing an item.");
+    }
     const listing = await insertDraftListing(data.sellerId, data.listing);
     return { id: listing.id, status: listing.status };
   });
