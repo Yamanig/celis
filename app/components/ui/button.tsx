@@ -16,13 +16,13 @@ const buttonVariants = cva(
           "border border-celis-border bg-transparent hover:bg-celis-secondary-subtle",
         ghost: "hover:bg-celis-secondary-subtle",
         destructive:
-          "bg-celis-destructive text-white hover:bg-celis-destructive-hover",
+          "bg-celis-destructive text-celis-ink-inverse hover:bg-celis-destructive-hover",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-8 px-3 text-xs",
+        default: "h-11 px-4 py-2",
+        sm: "h-9 px-3 text-xs",
         lg: "h-12 px-6 text-base",
-        icon: "h-10 w-10",
+        icon: "h-12 w-12",
       },
     },
     defaultVariants: {

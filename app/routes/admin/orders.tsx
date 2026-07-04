@@ -160,7 +160,7 @@ function AdminOrdersPage() {
                 disabled={loadingId === o.id}
                 onValueChange={(v) => handleStatusChange(o.id, v)}
               >
-                <SelectTrigger className="h-8 w-36">
+                <SelectTrigger className="h-11 w-full sm:w-36">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

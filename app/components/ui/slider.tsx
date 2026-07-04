@@ -22,13 +22,13 @@ const Slider = React.forwardRef<
     {props.defaultValue?.map((_, i) => (
       <SliderPrimitive.Thumb
         key={i}
-        className="block h-5 w-5 rounded-full border-2 border-celis-primary bg-celis-surface-base ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celis-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+        className="relative block h-6 w-6 rounded-full border-2 border-celis-primary bg-celis-surface-base ring-offset-background transition-colors after:absolute after:-inset-3 after:rounded-full after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celis-focus-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
       />
     )) ??
       props.value?.map((_, i) => (
         <SliderPrimitive.Thumb
           key={i}
-          className="block h-5 w-5 rounded-full border-2 border-celis-primary bg-celis-surface-base ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celis-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+          className="relative block h-6 w-6 rounded-full border-2 border-celis-primary bg-celis-surface-base ring-offset-background transition-colors after:absolute after:-inset-3 after:rounded-full after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celis-focus-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
         />
       ))}
   </SliderPrimitive.Root>

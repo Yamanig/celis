@@ -12,7 +12,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-7xl px-4 py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-4">
-            <CelisLogo variant="primary" size={32} />
+            <CelisLogo variant="mark-only" size={32} badge />
             <p className="text-sm text-celis-ink-secondary">
               Somalia&apos;s trusted marketplace for buying and selling locally.
             </p>

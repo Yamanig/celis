@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -226,9 +227,9 @@ function AdminReportsPage() {
             key: "type",
             header: "Type",
             cell: (r) => (
-              <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize bg-celis-primary-subtle text-celis-primary">
+              <Badge variant="secondary" className="capitalize">
                 {r.type}
-              </span>
+              </Badge>
             ),
           },
           {

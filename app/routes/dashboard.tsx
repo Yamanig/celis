@@ -115,7 +115,7 @@ function DashboardPage() {
                 {listings.map((listing) => (
                   <div
                     key={listing.id}
-                    className="flex items-center justify-between py-4"
+                    className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex items-center gap-4">
                       <img
@@ -151,6 +151,7 @@ function DashboardPage() {
                       size="icon"
                       onClick={() => handleDelete(listing.id)}
                       aria-label="Delete listing"
+                      className="self-start sm:self-center"
                     >
                       <Trash2 className="h-4 w-4 text-celis-destructive" />
                     </Button>

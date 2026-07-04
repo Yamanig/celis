@@ -55,7 +55,7 @@ function RootComponent() {
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
-        <meta name="theme-color" content="#007FFF" />
+        <meta name="theme-color" content="#0085FF" />
         <link rel="icon" type="image/svg+xml" href="/celis-favicon.svg" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -93,7 +93,7 @@ function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
       <h1 className="text-2xl font-semibold tracking-tight">Page not found</h1>
-      <p className="mt-2 text-muted-foreground">
+      <p className="mt-2 text-celis-ink-secondary">
         The page you’re looking for doesn’t exist on Celis.
       </p>
     </main>

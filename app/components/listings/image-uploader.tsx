@@ -98,7 +98,7 @@ export function ImageUploader({
             <button
               type="button"
               onClick={() => removeImage(idx)}
-              className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+              className="absolute right-2 top-2 rounded-full bg-celis-ink/60 p-1 text-celis-ink-inverse hover:bg-celis-ink/80"
               aria-label="Remove image"
             >
               <X className="h-4 w-4" />

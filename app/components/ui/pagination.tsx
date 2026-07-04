@@ -14,7 +14,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
     <div className="flex items-center justify-center gap-2 pt-4">
       <Button
         variant="outline"
-        size="sm"
+        size="default"
         disabled={page <= 1}
         onClick={() => onPageChange(page - 1)}
       >
@@ -26,7 +26,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
       </span>
       <Button
         variant="outline"
-        size="sm"
+        size="default"
         disabled={page >= totalPages}
         onClick={() => onPageChange(page + 1)}
       >

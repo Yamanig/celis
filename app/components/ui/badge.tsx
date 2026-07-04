@@ -13,11 +13,11 @@ const badgeVariants = cva(
           "border-transparent bg-celis-secondary text-celis-ink hover:bg-celis-secondary/80",
         outline: "text-celis-ink",
         destructive:
-          "border-transparent bg-celis-destructive text-white hover:bg-celis-destructive/80",
+          "border-transparent bg-celis-destructive text-celis-ink-inverse hover:bg-celis-destructive/80",
         success:
-          "border-transparent bg-celis-success text-white hover:bg-celis-success/80",
+          "border-transparent bg-celis-success text-celis-ink-inverse hover:bg-celis-success/80",
         caution:
-          "border-transparent bg-celis-caution text-white hover:bg-celis-caution/80",
+          "border-transparent bg-celis-caution text-celis-ink-inverse hover:bg-celis-caution/80",
       },
     },
     defaultVariants: {

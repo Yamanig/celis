@@ -165,7 +165,7 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
             {STEPS.map((label, idx) => (
               <div
                 key={label}
-                className={`h-1.5 flex-1 rounded-full ${
+                className={`h-2.5 flex-1 rounded-full ${
                   idx <= step ? "bg-celis-primary" : "bg-celis-border"
                 }`}
                 aria-label={label}
@@ -370,7 +370,7 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
               <p className="text-sm text-celis-ink-secondary">
                 {form.description}
               </p>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {form.images.map((img, idx) => (
                   <img
                     key={idx}

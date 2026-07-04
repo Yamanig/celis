@@ -2,6 +2,7 @@ import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router"
 import { useState } from "react";
 import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
+import { Badge } from "~/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -147,9 +148,9 @@ function AdminListingsPage() {
             key: "tier",
             header: "Tier",
             cell: (l) => (
-              <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-celis-primary-subtle text-celis-primary">
+              <Badge variant="secondary" className="capitalize">
                 {l.tierLabel}
-              </span>
+              </Badge>
             ),
           },
           {
@@ -184,7 +185,7 @@ function AdminListingsPage() {
                 disabled={loadingId === l.id}
                 onValueChange={(v) => handleStatusChange(l.id, v)}
               >
-                <SelectTrigger className="h-8 w-36">
+                <SelectTrigger className="h-11 w-full sm:w-36">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

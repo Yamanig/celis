@@ -13,7 +13,7 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
 
   return (
     <div className="space-y-3">
-      <div className="aspect-square overflow-hidden rounded-xl border border-celis-border bg-celis-surface-inset">
+      <div className="aspect-square overflow-hidden rounded-md border border-celis-border bg-celis-surface-inset">
         <img
           src={mainImage}
           alt={title}
@@ -21,7 +21,7 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
         />
       </div>
       {hasImages && images.length > 1 && (
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
           {images.map((src, idx) => (
             <button
               key={idx}

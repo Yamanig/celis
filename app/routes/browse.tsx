@@ -35,7 +35,7 @@ function BrowsePage() {
               Discover local deals on electronics, vehicles, property, fashion,
               and more.
             </p>
-            <div className="mt-8 flex justify-center gap-3">
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <Button size="lg" asChild>
                 <Link to="/search">Browse listings</Link>
               </Button>

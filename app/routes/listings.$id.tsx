@@ -104,7 +104,7 @@ function ListingDetailPage() {
                     </Button>
                     {whatsappNumber && (
                       <Button
-                        className="w-full bg-green-600 hover:bg-green-700"
+                        className="w-full bg-celis-success text-celis-ink-inverse hover:bg-celis-success-hover"
                         size="lg"
                         asChild
                       >

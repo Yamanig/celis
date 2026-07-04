@@ -61,7 +61,7 @@ export function SearchFilters({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-celis-border bg-celis-surface-base p-4"
+      className="space-y-4 rounded-md border border-celis-border bg-celis-surface-base p-4"
     >
       <div className="space-y-2">
         <Label htmlFor="query">Search</Label>

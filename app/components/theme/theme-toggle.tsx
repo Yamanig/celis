@@ -11,7 +11,7 @@ export function ThemeToggle() {
       size="icon"
       onClick={toggleTheme}
       aria-label="Toggle theme"
-      className="text-celis-ink-secondary"
+      className="h-12 w-12 text-celis-ink-secondary"
     >
       {resolvedTheme === "dark" ? (
         <Sun className="h-5 w-5" />

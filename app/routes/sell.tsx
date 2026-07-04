@@ -42,23 +42,20 @@ function SellPage() {
         </div>
 
         {!user.phone ? (
-          <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
+          <Card className="border-celis-caution bg-celis-caution-subtle">
             <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-              <AlertTriangle className="h-10 w-10 text-amber-600" />
+              <AlertTriangle className="h-10 w-10 text-celis-caution" />
               <div>
-                <h2 className="text-lg font-semibold text-amber-900 dark:text-amber-100">
+                <h2 className="text-lg font-semibold text-celis-ink">
                   Phone number required
                 </h2>
-                <p className="mt-1 max-w-sm text-sm text-amber-800 dark:text-amber-200">
+                <p className="mt-1 max-w-sm text-sm text-celis-ink-secondary">
                   Buyers will use your phone number to contact you. Add it to
                   your account before listing an item.
                 </p>
               </div>
               <Button asChild>
-                <Link
-                  to="/account"
-                  search={{ redirect: "/sell" }}
-                >
+                <Link to="/account" search={{ redirect: "/sell" }}>
                   Add phone number
                 </Link>
               </Button>

@@ -93,13 +93,13 @@ export function AdminShell() {
               key={item.to}
               to={item.to}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center py-2 text-[10px] font-medium transition-colors",
+                "flex min-h-[3.5rem] min-w-[3.5rem] flex-1 flex-col items-center justify-center gap-1 px-1 text-xs font-medium transition-colors",
                 active
                   ? "text-celis-primary"
                   : "text-celis-ink-secondary hover:text-celis-ink"
               )}
             >
-              <item.icon className="mb-1 h-5 w-5" />
+              <item.icon className="h-5 w-5" />
               {item.label}
             </Link>
           );
