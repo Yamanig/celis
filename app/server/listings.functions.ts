@@ -9,6 +9,8 @@ import {
   getFeaturedListings,
   getSellerListings,
   deleteListing,
+  getListingReviews,
+  insertListingReview,
   type SearchListingsFilters,
 } from "./listings.server";
 import { ITEM_CONDITIONS } from "~/db/schema";
@@ -86,4 +88,30 @@ export const removeListing = createServerFn({ method: "POST" })
     if (!user) throw new Error("Unauthorized");
     const deleted = await deleteListing(data.id, user.id);
     return { success: !!deleted, id: deleted?.id };
+  });
+
+export const fetchListingReviews = createServerFn({ method: "GET" })
+  .validator(listingIdSchema)
+  .handler(async ({ data }) => {
+    return getListingReviews(data.id);
+  });
+
+const createReviewSchema = z.object({
+  listingId: z.string().uuid(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().max(500).optional(),
+});
+
+export const createListingReview = createServerFn({ method: "POST" })
+  .validator(createReviewSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    return insertListingReview({
+      listingId: data.listingId,
+      reviewerId: user.id,
+      rating: data.rating,
+      comment: data.comment,
+    });
   });

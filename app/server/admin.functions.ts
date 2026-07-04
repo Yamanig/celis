@@ -10,6 +10,8 @@ import {
   toggleUserSuperAdmin,
   getAdminListings,
   updateListingStatus,
+  approveListing,
+  rejectListing,
   getAdminCategories,
   createCategory,
   updateCategory,
@@ -94,13 +96,41 @@ export const fetchAdminListings = createServerFn({ method: "GET" })
 
 const listingStatusSchema = z.object({
   id: z.string().uuid(),
-  status: z.enum(["active", "draft", "sold", "expired", "suspended"]),
+  status: z.enum([
+    "active",
+    "draft",
+    "pending_review",
+    "sold",
+    "expired",
+    "rejected",
+    "suspended",
+  ]),
 });
 
 export const updateAdminListingStatus = createServerFn({ method: "POST" })
   .validator(listingStatusSchema)
   .handler(async ({ data }) => {
     return updateListingStatus(data.id, data.status);
+  });
+
+const reviewListingSchema = z.object({
+  id: z.string().uuid(),
+  action: z.enum(["approve", "reject"]),
+  reason: z.string().optional(),
+});
+
+export const reviewAdminListing = createServerFn({ method: "POST" })
+  .validator(reviewListingSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    if (data.action === "approve") {
+      await approveListing(data.id, user.id);
+      return { success: true, id: data.id, status: "active" as const };
+    }
+    await rejectListing(data.id, user.id, data.reason ?? "");
+    return { success: true, id: data.id, status: "rejected" as const };
   });
 
 const categoriesQuerySchema = z

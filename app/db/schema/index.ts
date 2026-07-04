@@ -2,6 +2,7 @@ export * from "./enums";
 export * from "./users";
 export * from "./categories";
 export * from "./listings";
+export * from "./listing-reviews";
 export * from "./orders";
 export * from "./payments";
 export * from "./payouts";

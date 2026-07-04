@@ -36,6 +36,11 @@ export const listings = pgTable(
     metadata: jsonb("metadata").notNull().default({}),
     searchVector: text("search_vector"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: uuid("reviewed_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    rejectionReason: text("rejection_reason"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

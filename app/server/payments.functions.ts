@@ -6,7 +6,7 @@ import {
   confirmWalletPayment,
 } from "./payments.server";
 import { getListingFeeCents, getListingPricing } from "./config.server";
-import { activateListing } from "./listings.server";
+import { submitListingForReview } from "./listings.server";
 import { db } from "~/db";
 import { listings } from "~/db/schema";
 import { eq } from "drizzle-orm";
@@ -92,7 +92,7 @@ export const simulateConfirmPayment = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const payment = await confirmWalletPayment(data.merchantRef);
     if (data.listingId && payment.listingId === data.listingId) {
-      await activateListing(data.listingId);
+      await submitListingForReview(data.listingId);
     }
     return { success: true, payment: serializeWalletPayment(payment) };
   });

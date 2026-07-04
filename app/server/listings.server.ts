@@ -1,5 +1,5 @@
 import { db } from "~/db";
-import { listings, users, profiles, categories } from "~/db/schema";
+import { listings, users, profiles, categories, listingReviews } from "~/db/schema";
 import {
   eq,
   and,
@@ -29,6 +29,9 @@ export type ListingPublic = {
   status: string;
   images: string[];
   expiresAt: Date | null;
+  reviewedAt: Date | null;
+  reviewedBy: string | null;
+  rejectionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -57,6 +60,9 @@ function mapListingPublic(
     status: row.status,
     images: row.images,
     expiresAt: row.expiresAt,
+    reviewedAt: row.reviewedAt,
+    reviewedBy: row.reviewedBy,
+    rejectionReason: row.rejectionReason,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -112,7 +118,23 @@ export async function getListingById(id: string): Promise<ListingDetail | null> 
   };
 }
 
-export async function activateListing(id: string) {
+export async function submitListingForReview(id: string) {
+  const [updated] = await db
+    .update(listings)
+    .set({
+      status: "pending_review",
+      monetizationStatus: "active",
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  if (!updated) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  return updated;
+}
+
+export async function approveListing(id: string, reviewerId: string) {
   const { getListingPricing } = await import("./config.server");
   const [listing] = await db
     .select()
@@ -130,11 +152,35 @@ export async function activateListing(id: string) {
     .update(listings)
     .set({
       status: "active",
+      reviewedAt: new Date(),
+      reviewedBy: reviewerId,
       expiresAt: pricing.expiresAt,
       updatedAt: new Date(),
     })
     .where(eq(listings.id, id))
     .returning();
+  return updated;
+}
+
+export async function rejectListing(
+  id: string,
+  reviewerId: string,
+  reason: string
+) {
+  const [updated] = await db
+    .update(listings)
+    .set({
+      status: "rejected",
+      reviewedAt: new Date(),
+      reviewedBy: reviewerId,
+      rejectionReason: reason,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  if (!updated) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
   return updated;
 }
 
@@ -300,4 +346,75 @@ export async function expireStaleListings() {
     )
     .returning({ id: listings.id });
   return { expiredCount: expired.length };
+}
+
+export async function getListingReviews(listingId: string) {
+  const rows = await db
+    .select({
+      review: listingReviews,
+      reviewerName: profiles.displayName,
+      reviewerEmail: users.email,
+    })
+    .from(listingReviews)
+    .innerJoin(users, eq(listingReviews.reviewerId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(eq(listingReviews.listingId, listingId))
+    .orderBy(desc(listingReviews.createdAt));
+
+  const [{ avg }] = await db
+    .select({ avg: sql<number | null>`round(avg(${listingReviews.rating})::numeric, 1)` })
+    .from(listingReviews)
+    .where(eq(listingReviews.listingId, listingId));
+
+  return {
+    reviews: rows.map((r) => ({
+      id: r.review.id,
+      rating: r.review.rating,
+      comment: r.review.comment,
+      createdAt: r.review.createdAt,
+      reviewerName: r.reviewerName ?? r.reviewerEmail,
+    })),
+    average: avg ?? 0,
+    count: rows.length,
+  };
+}
+
+export async function insertListingReview(input: {
+  listingId: string;
+  reviewerId: string;
+  rating: number;
+  comment?: string;
+}) {
+  const listing = await getListingById(input.listingId);
+  if (!listing || listing.status !== "active") {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId === input.reviewerId) {
+    throw new CelisError("You cannot review your own listing", "OWN_LISTING_REVIEW", 400);
+  }
+
+  const existing = await db
+    .select()
+    .from(listingReviews)
+    .where(
+      and(
+        eq(listingReviews.listingId, input.listingId),
+        eq(listingReviews.reviewerId, input.reviewerId)
+      )
+    )
+    .limit(1);
+  if (existing.length > 0) {
+    throw new CelisError("You already reviewed this listing", "REVIEW_EXISTS", 409);
+  }
+
+  const [review] = await db
+    .insert(listingReviews)
+    .values({
+      listingId: input.listingId,
+      reviewerId: input.reviewerId,
+      rating: input.rating,
+      comment: input.comment?.trim() || null,
+    })
+    .returning();
+  return review;
 }

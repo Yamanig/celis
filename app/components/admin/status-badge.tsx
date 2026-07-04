@@ -3,8 +3,10 @@ import { Badge } from "~/components/ui/badge";
 const listingStatusVariants: Record<string, string> = {
   active: "default",
   draft: "secondary",
+  pending_review: "caution",
   sold: "success",
   expired: "caution",
+  rejected: "destructive",
   suspended: "destructive",
 };
 

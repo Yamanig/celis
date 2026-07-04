@@ -22,12 +22,13 @@ import {
   sum,
 } from "drizzle-orm";
 import { requireAdmin } from "./auth.server";
-import type { UserRole } from "~/db/schema";
+import type { UserRole, ListingStatus } from "~/db/schema";
 import {
   calculateListingPricing,
   DEFAULT_LISTING_TIERS,
 } from "~/lib/pricing";
 import { getListingTiersConfig } from "./config.server";
+import { approveListing, rejectListing } from "./listings.server";
 
 interface DashboardCounts extends Record<string, unknown> {
   users: number;
@@ -388,6 +389,8 @@ export async function getAdminListings(options?: {
         sellerName: r.sellerName ?? r.sellerEmail,
         tierLabel: pricing.tierLabel,
         expiresAt: r.listing.expiresAt,
+        reviewedAt: r.listing.reviewedAt,
+        rejectionReason: r.listing.rejectionReason,
         createdAt: r.listing.createdAt,
       };
     }),
@@ -398,14 +401,13 @@ export async function getAdminListings(options?: {
   };
 }
 
-export async function updateListingStatus(
-  id: string,
-  status: "active" | "draft" | "sold" | "expired" | "suspended"
-) {
+export async function updateListingStatus(id: string, status: ListingStatus) {
   await requireAdmin();
   await db.update(listings).set({ status }).where(eq(listings.id, id));
   return { success: true };
 }
+
+export { approveListing, rejectListing };
 
 export async function getAdminCategories(options?: {
   page?: number;

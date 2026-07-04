@@ -21,9 +21,11 @@ export const deliveryMethodEnum = pgEnum("delivery_method", DELIVERY_METHODS);
 
 export const LISTING_STATUSES = [
   "draft",
+  "pending_review",
   "active",
   "sold",
   "expired",
+  "rejected",
   "suspended",
 ] as const;
 export const listingStatusEnum = pgEnum("listing_status", LISTING_STATUSES);

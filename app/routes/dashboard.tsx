@@ -12,7 +12,7 @@ import { useAuth } from "~/lib/auth-context";
 import { Button } from "~/components/ui/button";
 import { Pagination } from "~/components/ui/pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
+import { ListingStatusBadge } from "~/components/admin/status-badge";
 import { fetchSellerListings, removeListing } from "~/server/listings.functions";
 import { formatPrice } from "~/lib/format";
 import { Trash2, Package, Store } from "lucide-react";
@@ -136,14 +136,21 @@ function DashboardPage() {
                         <p className="text-sm text-celis-ink-secondary">
                           {formatPrice(listing.price)} · {listing.categoryName}
                         </p>
-                        <Badge
-                          variant={
-                            listing.status === "active" ? "default" : "secondary"
-                          }
-                          className="mt-1 text-xs"
-                        >
-                          {listing.status}
-                        </Badge>
+                        <div className="mt-1">
+                          <ListingStatusBadge status={listing.status} />
+                        </div>
+                        {listing.status === "pending_review" && (
+                          <p className="mt-1 text-xs text-celis-ink-tertiary">
+                            Awaiting officer review before going live.
+                          </p>
+                        )}
+                        {listing.status === "rejected" &&
+                          "rejectionReason" in listing &&
+                          listing.rejectionReason && (
+                            <p className="mt-1 text-xs text-celis-destructive">
+                              Reason: {listing.rejectionReason}
+                            </p>
+                          )}
                       </div>
                     </div>
                     <Button
