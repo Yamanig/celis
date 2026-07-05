@@ -1,5 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Outlet } from "@tanstack/react-router";
+import { Link, useRouterState, Outlet } from "@tanstack/react-router";
 import { cn } from "~/lib/utils";
 import { CelisLogo } from "~/components/branding/celis-logo";
 import { ThemeToggle } from "~/components/theme/theme-toggle";
@@ -14,22 +13,72 @@ import {
   Wallet,
   FileText,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 
+interface AdminShellProps {
+  permissions: string[];
+}
+
 const nav = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/users", label: "Users", icon: Users },
-  { to: "/admin/listings", label: "Listings", icon: LayoutGrid },
-  { to: "/admin/categories", label: "Categories", icon: Tags },
-  { to: "/admin/orders", label: "Orders", icon: Package },
-  { to: "/admin/payouts", label: "Payouts", icon: Wallet },
-  { to: "/admin/reports", label: "Reports", icon: FileText },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
+  {
+    to: "/admin",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    permission: "admin:access",
+  },
+  { to: "/admin/users", label: "Users", icon: Users, permission: "users:read" },
+  {
+    to: "/admin/listings",
+    label: "Listings",
+    icon: LayoutGrid,
+    permission: "listings:read",
+  },
+  {
+    to: "/admin/categories",
+    label: "Categories",
+    icon: Tags,
+    permission: "categories:manage",
+  },
+  {
+    to: "/admin/orders",
+    label: "Orders",
+    icon: Package,
+    permission: "orders:read",
+  },
+  {
+    to: "/admin/payouts",
+    label: "Payouts",
+    icon: Wallet,
+    permission: "payouts:read",
+  },
+  {
+    to: "/admin/reports",
+    label: "Reports",
+    icon: FileText,
+    permission: "reports:read",
+  },
+  {
+    to: "/admin/roles",
+    label: "Roles",
+    icon: ShieldCheck,
+    permission: "settings:manage",
+  },
+  {
+    to: "/admin/settings",
+    label: "Settings",
+    icon: Settings,
+    permission: "settings:manage",
+  },
 ];
 
-export function AdminShell() {
+export function AdminShell({ permissions }: AdminShellProps) {
   const { location } = useRouterState();
   const pathname = location.pathname;
+
+  const visibleNav = nav.filter((item) =>
+    permissions.includes(item.permission)
+  );
 
   return (
     <div className="flex min-h-screen bg-celis-bg">
@@ -41,7 +90,7 @@ export function AdminShell() {
         </div>
         <Separator />
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {nav.map((item) => {
+          {visibleNav.map((item) => {
             const active =
               item.to === "/admin"
                 ? pathname === "/admin"
@@ -83,7 +132,7 @@ export function AdminShell() {
 
       {/* Mobile nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 flex overflow-x-auto border-t border-celis-border bg-celis-surface-base px-2 pb-safe md:hidden">
-        {nav.map((item) => {
+        {visibleNav.map((item) => {
           const active =
             item.to === "/admin"
               ? pathname === "/admin"

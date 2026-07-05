@@ -122,9 +122,8 @@ const reviewListingSchema = z.object({
 export const reviewAdminListing = createServerFn({ method: "POST" })
   .validator(reviewListingSchema)
   .handler(async ({ data }) => {
-    const { getCurrentUser } = await import("./auth.server");
-    const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
+    const { requirePermission } = await import("./auth.server");
+    const user = await requirePermission("listings:moderate");
     if (data.action === "approve") {
       await approveListing(data.id, user.id);
       return { success: true, id: data.id, status: "active" as const };

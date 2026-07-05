@@ -1,5 +1,5 @@
 import { db } from "~/db";
-import { users, profiles, authUsers } from "~/db/schema";
+import { users, profiles, authUsers, permissions, rolePermissions } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { getSupabaseServerClient } from "~/lib/supabase/server";
 import type { UserRole } from "~/db/schema";
@@ -11,6 +11,7 @@ export interface CurrentUser {
   displayName: string | null;
   phone: string | null;
   isVerified: boolean;
+  isSuperAdmin: boolean;
 }
 
 export async function getAuthUser() {
@@ -47,6 +48,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     displayName: row.profile?.displayName ?? null,
     phone: row.user.walletPhone ?? row.profile?.phone ?? null,
     isVerified: row.user.verifiedAt !== null,
+    isSuperAdmin: row.user.isSuperAdmin,
   };
 }
 
@@ -75,6 +77,7 @@ export async function getCurrentUserProfile() {
     phone: row.user.walletPhone ?? row.profile?.phone ?? null,
     bio: row.profile?.bio ?? null,
     isVerified: row.user.verifiedAt !== null,
+    isSuperAdmin: row.user.isSuperAdmin,
   };
 }
 
@@ -107,15 +110,72 @@ export async function updateUserProfile(
   return getCurrentUserProfile();
 }
 
-export async function requireAdmin(): Promise<CurrentUser> {
+export async function listPermissions() {
+  return db.select().from(permissions).orderBy(permissions.key);
+}
+
+export async function getRolePermissions(role: string) {
+  const rows = await db
+    .select({ key: permissions.key })
+    .from(rolePermissions)
+    .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+    .where(eq(rolePermissions.role, role));
+  return rows.map((r) => r.key);
+}
+
+export async function getUserPermissions(user: CurrentUser): Promise<string[]> {
+  if (user.isSuperAdmin) {
+    const all = await listPermissions();
+    return all.map((p) => p.key);
+  }
+  return getRolePermissions(user.role);
+}
+
+export async function hasPermission(
+  user: CurrentUser,
+  permissionKey: string
+): Promise<boolean> {
+  const perms = await getUserPermissions(user);
+  return perms.includes(permissionKey);
+}
+
+export async function requirePermission(
+  permissionKey: string
+): Promise<CurrentUser> {
   const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
+  if (!user) throw new Error("Unauthorized");
+  if (await hasPermission(user, permissionKey)) return user;
+  throw new Error("Forbidden");
+}
+
+export async function requireAdmin(): Promise<CurrentUser> {
+  return requirePermission("admin:access");
+}
+
+export async function setRolePermissions(
+  role: string,
+  permissionKeys: string[],
+  actor: CurrentUser
+) {
+  if (!actor.isSuperAdmin) {
+    throw new Error("Only super admins can manage role permissions");
   }
-  if (user.role !== "admin") {
-    throw new Error("Forbidden");
-  }
-  return user;
+
+  const allPerms = await listPermissions();
+  const validKeys = new Set(allPerms.map((p) => p.key));
+  const keys = permissionKeys.filter((k) => validKeys.has(k));
+
+  await db.transaction(async (tx) => {
+    await tx.delete(rolePermissions).where(eq(rolePermissions.role, role));
+    if (keys.length > 0) {
+      const permIds = allPerms
+        .filter((p) => keys.includes(p.key))
+        .map((p) => ({ role, permissionId: p.id }));
+      await tx.insert(rolePermissions).values(permIds);
+    }
+  });
+
+  return getRolePermissions(role);
 }
 
 export async function ensureLocalUserRecord(
@@ -154,5 +214,6 @@ export async function ensureLocalUserRecord(
     displayName: email.split("@")[0],
     phone: null,
     isVerified: false,
+    isSuperAdmin: false,
   };
 }

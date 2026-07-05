@@ -21,7 +21,7 @@ import {
   lte,
   sum,
 } from "drizzle-orm";
-import { requireAdmin } from "./auth.server";
+import { requireAdmin, requirePermission } from "./auth.server";
 import type { UserRole, ListingStatus } from "~/db/schema";
 import {
   calculateListingPricing,
@@ -243,7 +243,7 @@ export async function getAdminUsers(options?: {
   page?: number;
   limit?: number;
 }) {
-  await requireAdmin();
+  await requirePermission("users:read");
 
   const page = options?.page ?? 1;
   const limit = options?.limit ?? 10;
@@ -299,13 +299,13 @@ export async function getAdminUsers(options?: {
 }
 
 export async function updateUserRole(id: string, role: UserRole) {
-  await requireAdmin();
+  await requirePermission("users:manage");
   await db.update(users).set({ role }).where(eq(users.id, id));
   return { success: true };
 }
 
 export async function toggleUserVerification(id: string) {
-  await requireAdmin();
+  await requirePermission("users:manage");
   const [user] = await db
     .select({ verifiedAt: users.verifiedAt })
     .from(users)
@@ -317,7 +317,10 @@ export async function toggleUserVerification(id: string) {
 }
 
 export async function toggleUserSuperAdmin(id: string) {
-  await requireAdmin();
+  const actor = await requirePermission("users:manage");
+  if (!actor.isSuperAdmin) {
+    throw new Error("Only super admins can change super-admin status");
+  }
   const [user] = await db
     .select({ isSuperAdmin: users.isSuperAdmin })
     .from(users)
@@ -334,7 +337,7 @@ export async function getAdminListings(options?: {
   page?: number;
   limit?: number;
 }) {
-  await requireAdmin();
+  await requirePermission("listings:read");
   const config = await getListingTiersConfig();
 
   const page = options?.page ?? 1;
@@ -402,7 +405,7 @@ export async function getAdminListings(options?: {
 }
 
 export async function updateListingStatus(id: string, status: ListingStatus) {
-  await requireAdmin();
+  await requirePermission("listings:moderate");
   await db.update(listings).set({ status }).where(eq(listings.id, id));
   return { success: true };
 }
@@ -413,7 +416,7 @@ export async function getAdminCategories(options?: {
   page?: number;
   limit?: number;
 }) {
-  await requireAdmin();
+  await requirePermission("categories:manage");
 
   const page = options?.page ?? 1;
   const limit = options?.limit ?? 10;
@@ -455,7 +458,7 @@ export async function createCategory(input: {
   slug: string;
   sortOrder?: number;
 }) {
-  await requireAdmin();
+  await requirePermission("categories:manage");
   const [row] = await db
     .insert(categories)
     .values({
@@ -478,7 +481,7 @@ export async function updateCategory(
   id: string,
   input: { name?: string; slug?: string; sortOrder?: number }
 ) {
-  await requireAdmin();
+  await requirePermission("categories:manage");
   const [row] = await db
     .update(categories)
     .set({ ...input, updatedAt: new Date() })
@@ -499,7 +502,7 @@ export async function getAdminOrders(options?: {
   page?: number;
   limit?: number;
 }) {
-  await requireAdmin();
+  await requirePermission("orders:read");
 
   const page = options?.page ?? 1;
   const limit = options?.limit ?? 10;
@@ -577,7 +580,7 @@ export async function updateOrderStatus(
     | "cancelled"
     | "disputed"
 ) {
-  await requireAdmin();
+  await requirePermission("orders:manage");
   const updates: Record<string, unknown> = { status };
   if (status === "completed") updates.completedAt = new Date();
   if (status === "disputed") updates.disputedAt = new Date();
@@ -590,7 +593,7 @@ export async function getAdminPayouts(options?: {
   page?: number;
   limit?: number;
 }) {
-  await requireAdmin();
+  await requirePermission("payouts:read");
 
   const page = options?.page ?? 1;
   const limit = options?.limit ?? 10;
@@ -645,7 +648,7 @@ export async function getAdminPayouts(options?: {
 }
 
 export async function retryPayout(id: string) {
-  await requireAdmin();
+  await requirePermission("payouts:manage");
   await db
     .update(payouts)
     .set({ status: "pending", updatedAt: new Date() })
@@ -654,7 +657,7 @@ export async function retryPayout(id: string) {
 }
 
 export async function markPayoutCompleted(id: string, note?: string) {
-  await requireAdmin();
+  await requirePermission("payouts:manage");
   await db
     .update(payouts)
     .set({
@@ -675,7 +678,7 @@ async function getAdminLedgerRows(options?: {
   to?: string;
   type?: LedgerType;
 }) {
-  await requireAdmin();
+  await requirePermission("reports:read");
 
   const type = options?.type ?? "all";
   const from = options?.from ? new Date(options.from) : undefined;
@@ -799,7 +802,7 @@ const CONFIG_DEFAULTS: Record<string, string | number | boolean | object> = {
 };
 
 export async function getPlatformConfigAll() {
-  await requireAdmin();
+  await requirePermission("settings:manage");
 
   const rows = await db.select().from(platformConfigs);
   const map = new Map(rows.map((r) => [r.key, r.value]));
@@ -824,7 +827,7 @@ export async function updatePlatformConfig(
   value: string | number | boolean | object,
   adminId: string
 ) {
-  await requireAdmin();
+  await requirePermission("settings:manage");
 
   const existing = await db
     .select({ value: platformConfigs.value })
@@ -853,7 +856,7 @@ export async function updatePlatformConfig(
 }
 
 export async function runListingExpirySweep() {
-  await requireAdmin();
+  await requirePermission("listings:moderate");
   const { expireStaleListings } = await import("./listings.server");
   return expireStaleListings();
 }

@@ -9,6 +9,10 @@ import {
   getCurrentUserProfile,
   updateUserProfile,
   ensureLocalUserRecord,
+  listPermissions,
+  getRolePermissions,
+  getUserPermissions,
+  setRolePermissions,
 } from "./auth.server";
 
 const credentialsSchema = z.object({
@@ -123,4 +127,37 @@ export const updateCurrentUserProfile = createServerFn({ method: "POST" })
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
     return updateUserProfile(user.id, data);
+  });
+
+export const fetchCurrentUserPermissions = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const user = await getCurrentUser();
+    if (!user) return [];
+    return getUserPermissions(user);
+  }
+);
+
+export const fetchAllPermissions = createServerFn({ method: "GET" }).handler(
+  async () => listPermissions()
+);
+
+const rolePermissionsQuerySchema = z.object({
+  role: z.enum(["buyer", "seller", "admin", "super_admin"]),
+});
+
+export const fetchRolePermissions = createServerFn({ method: "GET" })
+  .validator(rolePermissionsQuerySchema)
+  .handler(async ({ data }) => getRolePermissions(data.role));
+
+const updateRolePermissionsSchema = z.object({
+  role: z.enum(["buyer", "seller", "admin", "super_admin"]),
+  permissionKeys: z.array(z.string()),
+});
+
+export const updateRolePermissions = createServerFn({ method: "POST" })
+  .validator(updateRolePermissionsSchema)
+  .handler(async ({ data }) => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    return setRolePermissions(data.role, data.permissionKeys, user);
   });

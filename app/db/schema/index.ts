@@ -7,3 +7,5 @@ export * from "./orders";
 export * from "./payments";
 export * from "./payouts";
 export * from "./platform-configs";
+export * from "./permissions";
+export * from "./role-permissions";
