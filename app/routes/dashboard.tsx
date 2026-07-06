@@ -4,7 +4,7 @@ import {
   redirect,
   useNavigate,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { SiteHeader } from "~/components/layout/site-header";
 import { SiteFooter } from "~/components/layout/site-footer";
@@ -13,9 +13,13 @@ import { Button } from "~/components/ui/button";
 import { Pagination } from "~/components/ui/pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { ListingStatusBadge } from "~/components/admin/status-badge";
-import { fetchSellerListings, removeListing } from "~/server/listings.functions";
+import {
+  fetchSellerListings,
+  removeListing,
+  fetchCurrentSellerSubscription,
+} from "~/server/listings.functions";
 import { formatPrice } from "~/lib/format";
-import { Trash2, Package, Store } from "lucide-react";
+import { Trash2, Package, Store, Calendar } from "lucide-react";
 
 const dashboardSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -43,6 +47,19 @@ function DashboardPage() {
   const { items, total, activeCount, page, totalPages } = Route.useLoaderData();
   const navigate = useNavigate({ from: "/dashboard" });
   const [listings, setListings] = useState(items);
+  const [subscription, setSubscription] = useState<{
+    packageName: string;
+    listingAllowance: number;
+    used: number;
+    remaining: number;
+    expiresAt: Date;
+  } | null>(null);
+
+  useEffect(() => {
+    if (user?.role === "seller") {
+      fetchCurrentSellerSubscription().then(setSubscription);
+    }
+  }, [user]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this listing?")) return;
@@ -96,6 +113,36 @@ function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+
+          {user?.role === "seller" && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-celis-ink-secondary">
+                  {subscription ? "Package" : "No package"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 text-2xl font-bold">
+                  <Calendar className="h-5 w-5 text-celis-primary" />
+                  {subscription ? (
+                    <span>
+                      {subscription.remaining} / {subscription.listingAllowance}
+                    </span>
+                  ) : (
+                    <span className="text-base font-normal text-celis-ink-secondary">
+                      N/A
+                    </span>
+                  )}
+                </div>
+                {subscription && (
+                  <p className="mt-1 text-xs text-celis-ink-secondary">
+                    {subscription.packageName} · Expires{" "}
+                    {new Date(subscription.expiresAt).toLocaleDateString()}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <Card>

@@ -3,6 +3,19 @@ import { pgEnum } from "drizzle-orm/pg-core";
 export const USER_ROLES = ["buyer", "seller", "admin"] as const;
 export const userRoleEnum = pgEnum("user_role", USER_ROLES);
 
+export const SELLER_TYPES = ["individual", "shop"] as const;
+export const sellerTypeEnum = pgEnum("seller_type", SELLER_TYPES);
+
+export const SUBSCRIPTION_STATUSES = [
+  "active",
+  "cancelled",
+  "expired",
+] as const;
+export const subscriptionStatusEnum = pgEnum(
+  "subscription_status",
+  SUBSCRIPTION_STATUSES
+);
+
 export const ITEM_CONDITIONS = [
   "new_with_tags",
   "like_new",
@@ -142,6 +155,8 @@ export const DISPUTE_REASONS = [
 export const disputeReasonEnum = pgEnum("dispute_reason", DISPUTE_REASONS);
 
 export type UserRole = (typeof USER_ROLES)[number];
+export type SellerType = (typeof SELLER_TYPES)[number];
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export type ItemCondition = (typeof ITEM_CONDITIONS)[number];
 export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
 export type ListingStatus = (typeof LISTING_STATUSES)[number];

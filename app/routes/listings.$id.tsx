@@ -18,6 +18,7 @@ import {
   MapPin,
   Package,
   User,
+  Store,
   CheckCircle2,
   Phone,
   MessageCircle,
@@ -191,6 +192,52 @@ function ListingDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {listing.sellerType === "shop" && (
+              <Card>
+                <CardContent className="space-y-4 p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-celis-primary-subtle">
+                      {listing.businessLogoUrl ? (
+                        <img
+                          src={listing.businessLogoUrl}
+                          alt={listing.businessName || "Shop"}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Store className="h-6 w-6 text-celis-primary" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        {listing.businessName || "Shop"}
+                      </p>
+                      <p className="text-xs text-celis-ink-secondary">
+                        Verified shop
+                      </p>
+                    </div>
+                  </div>
+
+                  {listing.businessAddress && (
+                    <p className="flex items-start gap-2 text-sm text-celis-ink-secondary">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                      {listing.businessAddress}
+                    </p>
+                  )}
+
+                  {listing.shopSlug && (
+                    <Button variant="outline" className="w-full" asChild>
+                      <Link
+                        to="/shops/$shopSlug"
+                        params={{ shopSlug: listing.shopSlug }}
+                      >
+                        Visit shop
+                      </Link>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardContent className="space-y-3 p-6">

@@ -25,11 +25,23 @@ export const Route = createFileRoute("/auth/sign-up")({
   component: SignUpPage,
 });
 
+function slugify(name: string) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 function SignUpPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<"buyer" | "seller">("buyer");
+  const [sellerType, setSellerType] = useState<"individual" | "shop">("individual");
+  const [businessName, setBusinessName] = useState("");
+  const [businessRegistrationNumber, setBusinessRegistrationNumber] = useState("");
+  const [businessAddress, setBusinessAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { refresh } = useAuth();
@@ -40,7 +52,23 @@ function SignUpPage() {
     setLoading(true);
     setError(null);
     try {
-      await signUp({ data: { email, password, displayName, role } });
+      await signUp({
+        data: {
+          email,
+          password,
+          displayName,
+          role,
+          ...(role === "seller" && {
+            sellerType,
+            ...(sellerType === "shop" && {
+              businessName,
+              businessRegistrationNumber,
+              businessAddress,
+              shopSlug: slugify(businessName),
+            }),
+          }),
+        },
+      });
       await refresh();
       navigate({ to: "/dashboard" });
     } catch (err) {
@@ -110,6 +138,64 @@ function SignUpPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {role === "seller" && (
+              <div className="space-y-4 rounded-lg border border-celis-border bg-celis-surface-inset p-4">
+                <div className="space-y-2">
+                  <Label>Seller type</Label>
+                  <Select
+                    value={sellerType}
+                    onValueChange={(v) => setSellerType(v as typeof sellerType)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="individual">Individual</SelectItem>
+                      <SelectItem value="shop">Shop / Business</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {sellerType === "shop" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="businessName">Business name</Label>
+                      <Input
+                        id="businessName"
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                        placeholder="Your shop name"
+                        required={sellerType === "shop"}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="businessRegistrationNumber">
+                        Business registration number
+                      </Label>
+                      <Input
+                        id="businessRegistrationNumber"
+                        value={businessRegistrationNumber}
+                        onChange={(e) =>
+                          setBusinessRegistrationNumber(e.target.value)
+                        }
+                        placeholder="Optional"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="businessAddress">Business address</Label>
+                      <Input
+                        id="businessAddress"
+                        value={businessAddress}
+                        onChange={(e) => setBusinessAddress(e.target.value)}
+                        placeholder="Optional"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {error && (
               <p className="text-sm text-celis-destructive">{error}</p>
             )}

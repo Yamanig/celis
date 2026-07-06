@@ -26,15 +26,20 @@ export const fetchCurrentUser = createServerFn({ method: "GET" }).handler(
   }
 );
 
+const signUpSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  displayName: z.string().min(2).max(60),
+  role: z.enum(["buyer", "seller"]).default("buyer"),
+  sellerType: z.enum(["individual", "shop"]).optional(),
+  businessName: z.string().max(120).optional(),
+  businessRegistrationNumber: z.string().max(60).optional(),
+  businessAddress: z.string().max(500).optional(),
+  shopSlug: z.string().max(120).optional(),
+});
+
 export const signUp = createServerFn({ method: "POST" })
-  .validator(
-    z.object({
-      email: z.string().email(),
-      password: z.string().min(6),
-      displayName: z.string().min(2).max(60),
-      role: z.enum(["buyer", "seller"]).default("buyer"),
-    })
-  )
+  .validator(signUpSchema)
   .handler(async ({ data }) => {
     // Use the service-role client to create the user with a confirmed email.
     // This avoids Supabase's sign-up email rate limit and skips the
@@ -62,15 +67,21 @@ export const signUp = createServerFn({ method: "POST" })
       data.role
     );
 
-    if (data.displayName) {
-      const { db } = await import("~/db");
-      const { profiles } = await import("~/db/schema");
-      const { eq } = await import("drizzle-orm");
-      await db
-        .update(profiles)
-        .set({ displayName: data.displayName })
-        .where(eq(profiles.id, authData.user.id));
-    }
+    const { db } = await import("~/db");
+    const { profiles } = await import("~/db/schema");
+    const { eq } = await import("drizzle-orm");
+    await db
+      .update(profiles)
+      .set({
+        displayName: data.displayName,
+        sellerType: data.sellerType,
+        businessName: data.businessName || null,
+        businessRegistrationNumber:
+          data.businessRegistrationNumber || null,
+        businessAddress: data.businessAddress || null,
+        shopSlug: data.shopSlug || null,
+      })
+      .where(eq(profiles.id, authData.user.id));
 
     // Sign in with the anon client so the session cookies are set for the user.
     const supabase = getSupabaseServerClient();
@@ -119,6 +130,12 @@ const updateProfileSchema = z.object({
   displayName: z.string().min(2).max(60),
   phone: z.string().max(15).optional(),
   bio: z.string().max(500).optional(),
+  sellerType: z.enum(["individual", "shop"]).optional(),
+  businessName: z.string().max(120).optional(),
+  businessRegistrationNumber: z.string().max(60).optional(),
+  businessAddress: z.string().max(500).optional(),
+  businessLogoUrl: z.string().url().optional(),
+  shopSlug: z.string().max(120).optional(),
 });
 
 export const updateCurrentUserProfile = createServerFn({ method: "POST" })

@@ -29,6 +29,13 @@
       "when": 1783348882360,
       "tag": "0003_audit_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783353001026,
+      "tag": "0004_seller_packages",
+      "breakpoints": true
     }
   ]
 }

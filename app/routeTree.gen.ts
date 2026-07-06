@@ -17,6 +17,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as ShopsShopSlugRouteImport } from './routes/shops.$shopSlug'
 import { Route as ListingsIdRouteImport } from './routes/listings.$id'
 import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
@@ -25,6 +26,7 @@ import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminRolesRouteImport } from './routes/admin/roles'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminPayoutsRouteImport } from './routes/admin/payouts'
+import { Route as AdminPackagesRouteImport } from './routes/admin/packages'
 import { Route as AdminOrdersRouteImport } from './routes/admin/orders'
 import { Route as AdminListingsRouteImport } from './routes/admin/listings'
 import { Route as AdminCategoriesRouteImport } from './routes/admin/categories'
@@ -70,6 +72,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const ShopsShopSlugRoute = ShopsShopSlugRouteImport.update({
+  id: '/shops/$shopSlug',
+  path: '/shops/$shopSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ListingsIdRoute = ListingsIdRouteImport.update({
   id: '/listings/$id',
   path: '/listings/$id',
@@ -110,6 +117,11 @@ const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
   path: '/payouts',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPackagesRoute = AdminPackagesRouteImport.update({
+  id: '/packages',
+  path: '/packages',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminOrdersRoute = AdminOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -143,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/listings': typeof AdminListingsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/packages': typeof AdminPackagesRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/roles': typeof AdminRolesRoute
@@ -151,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/listings/$id': typeof ListingsIdRoute
+  '/shops/$shopSlug': typeof ShopsShopSlugRoute
   '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -164,6 +178,7 @@ export interface FileRoutesByTo {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/listings': typeof AdminListingsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/packages': typeof AdminPackagesRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/roles': typeof AdminRolesRoute
@@ -172,6 +187,7 @@ export interface FileRoutesByTo {
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/listings/$id': typeof ListingsIdRoute
+  '/shops/$shopSlug': typeof ShopsShopSlugRoute
   '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
@@ -187,6 +203,7 @@ export interface FileRoutesById {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/listings': typeof AdminListingsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/packages': typeof AdminPackagesRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/roles': typeof AdminRolesRoute
@@ -195,6 +212,7 @@ export interface FileRoutesById {
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/listings/$id': typeof ListingsIdRoute
+  '/shops/$shopSlug': typeof ShopsShopSlugRoute
   '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -211,6 +229,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/listings'
     | '/admin/orders'
+    | '/admin/packages'
     | '/admin/payouts'
     | '/admin/reports'
     | '/admin/roles'
@@ -219,6 +238,7 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/listings/$id'
+    | '/shops/$shopSlug'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -232,6 +252,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/listings'
     | '/admin/orders'
+    | '/admin/packages'
     | '/admin/payouts'
     | '/admin/reports'
     | '/admin/roles'
@@ -240,6 +261,7 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/listings/$id'
+    | '/shops/$shopSlug'
     | '/admin'
   id:
     | '__root__'
@@ -254,6 +276,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/listings'
     | '/admin/orders'
+    | '/admin/packages'
     | '/admin/payouts'
     | '/admin/reports'
     | '/admin/roles'
@@ -262,6 +285,7 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/listings/$id'
+    | '/shops/$shopSlug'
     | '/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -276,6 +300,7 @@ export interface RootRouteChildren {
   AuthSignInRoute: typeof AuthSignInRoute
   AuthSignUpRoute: typeof AuthSignUpRoute
   ListingsIdRoute: typeof ListingsIdRoute
+  ShopsShopSlugRoute: typeof ShopsShopSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -336,6 +361,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/shops/$shopSlug': {
+      id: '/shops/$shopSlug'
+      path: '/shops/$shopSlug'
+      fullPath: '/shops/$shopSlug'
+      preLoaderRoute: typeof ShopsShopSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/listings/$id': {
       id: '/listings/$id'
       path: '/listings/$id'
@@ -392,6 +424,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPayoutsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/packages': {
+      id: '/admin/packages'
+      path: '/packages'
+      fullPath: '/admin/packages'
+      preLoaderRoute: typeof AdminPackagesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/orders': {
       id: '/admin/orders'
       path: '/orders'
@@ -428,6 +467,7 @@ interface AdminRouteChildren {
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminListingsRoute: typeof AdminListingsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
+  AdminPackagesRoute: typeof AdminPackagesRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminReportsRoute: typeof AdminReportsRoute
   AdminRolesRoute: typeof AdminRolesRoute
@@ -441,6 +481,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminListingsRoute: AdminListingsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
+  AdminPackagesRoute: AdminPackagesRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminReportsRoute: AdminReportsRoute,
   AdminRolesRoute: AdminRolesRoute,
@@ -462,6 +503,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthSignInRoute: AuthSignInRoute,
   AuthSignUpRoute: AuthSignUpRoute,
   ListingsIdRoute: ListingsIdRoute,
+  ShopsShopSlugRoute: ShopsShopSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

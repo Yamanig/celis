@@ -290,6 +290,8 @@ export async function getAdminUsers(options?: {
       phone: r.user.walletPhone ?? r.profile?.phone ?? null,
       isVerified: r.user.verifiedAt !== null,
       isSuperAdmin: r.user.isSuperAdmin,
+      sellerType: r.profile?.sellerType ?? "individual",
+      businessName: r.profile?.businessName ?? null,
       createdAt: r.user.createdAt,
     })),
     total,

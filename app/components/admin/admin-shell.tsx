@@ -15,6 +15,7 @@ import {
   Settings,
   ShieldCheck,
   ScrollText,
+  Briefcase,
 } from "lucide-react";
 
 interface AdminShellProps {
@@ -69,6 +70,12 @@ const nav = [
     to: "/admin/roles",
     label: "Roles",
     icon: ShieldCheck,
+    permission: "settings:manage",
+  },
+  {
+    to: "/admin/packages",
+    label: "Packages",
+    icon: Briefcase,
     permission: "settings:manage",
   },
   {

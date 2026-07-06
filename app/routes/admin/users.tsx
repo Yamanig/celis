@@ -220,6 +220,28 @@ function AdminUsersPage() {
             ),
           },
           {
+            key: "type",
+            header: "Type",
+            cell: (u) => (
+              <div className="text-sm">
+                {u.role === "seller" && u.sellerType === "shop" ? (
+                  <>
+                    <span className="font-medium text-celis-primary">Shop</span>
+                    {u.businessName && (
+                      <p className="text-xs text-celis-ink-secondary">
+                        {u.businessName}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-celis-ink-secondary">
+                    {u.role.charAt(0).toUpperCase() + u.role.slice(1)}
+                  </span>
+                )}
+              </div>
+            ),
+          },
+          {
             key: "role",
             header: "Role",
             cell: (u) => (

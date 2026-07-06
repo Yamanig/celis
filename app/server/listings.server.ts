@@ -14,6 +14,7 @@ import {
 import type { ListingInput } from "~/lib/validation";
 import { CelisError } from "~/lib/errors";
 import type { listings as listingsTable, ItemCondition } from "~/db/schema";
+import { getSellerListingEligibility } from "./seller-packages.server";
 
 export type ListingPublic = {
   id: string;
@@ -40,6 +41,12 @@ export type ListingDetail = ListingPublic & {
   sellerName: string | null;
   sellerPhone: string | null;
   sellerVerified: boolean;
+  sellerType: "individual" | "shop";
+  businessName: string | null;
+  businessLogoUrl: string | null;
+  businessRegistrationNumber: string | null;
+  businessAddress: string | null;
+  shopSlug: string | null;
 };
 
 function mapListingPublic(
@@ -99,6 +106,12 @@ export async function getListingById(id: string): Promise<ListingDetail | null> 
       sellerName: profiles.displayName,
       sellerPhone: users.walletPhone,
       sellerVerifiedAt: users.verifiedAt,
+      sellerType: profiles.sellerType,
+      businessName: profiles.businessName,
+      businessLogoUrl: profiles.businessLogoUrl,
+      businessRegistrationNumber: profiles.businessRegistrationNumber,
+      businessAddress: profiles.businessAddress,
+      shopSlug: profiles.shopSlug,
     })
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
@@ -108,13 +121,30 @@ export async function getListingById(id: string): Promise<ListingDetail | null> 
     .limit(1);
 
   if (!rows[0]) return null;
-  const { listing, categoryName, sellerName, sellerPhone, sellerVerifiedAt } =
-    rows[0];
+  const {
+    listing,
+    categoryName,
+    sellerName,
+    sellerPhone,
+    sellerVerifiedAt,
+    sellerType,
+    businessName,
+    businessLogoUrl,
+    businessRegistrationNumber,
+    businessAddress,
+    shopSlug,
+  } = rows[0];
   return {
     ...mapListingPublic(listing, categoryName),
     sellerName,
     sellerPhone,
     sellerVerified: sellerVerifiedAt !== null,
+    sellerType: sellerType ?? "individual",
+    businessName,
+    businessLogoUrl,
+    businessRegistrationNumber,
+    businessAddress,
+    shopSlug,
   };
 }
 
@@ -132,6 +162,21 @@ export async function submitListingForReview(id: string) {
     throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
   }
   return updated;
+}
+
+export async function submitShopListingForReview(
+  id: string,
+  sellerId: string
+) {
+  const eligibility = await getSellerListingEligibility(sellerId);
+  if (eligibility.sellerType !== "shop" || !eligibility.canList) {
+    throw new CelisError(
+      "No active listing package for this shop",
+      "SHOP_PACKAGE_REQUIRED",
+      402
+    );
+  }
+  return submitListingForReview(id);
 }
 
 export async function approveListing(id: string, reviewerId: string) {
@@ -286,6 +331,66 @@ export async function getFeaturedListings(limit = 8) {
     .limit(limit);
 
   return rows.map((r) => mapListingPublic(r.listing, r.categoryName));
+}
+
+export async function getShopListings(
+  shopSlug: string,
+  options?: { page?: number; limit?: number }
+) {
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 24;
+
+  const sellerRows = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.shopSlug, shopSlug))
+    .limit(1);
+  if (!sellerRows[0]) return null;
+
+  const sellerId = sellerRows[0].id;
+  const conditions = [
+    eq(listings.sellerId, sellerId),
+    eq(listings.status, "active"),
+    sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`,
+  ];
+
+  const offset = (page - 1) * limit;
+
+  const rows = await db
+    .select({ listing: listings, categoryName: categories.name })
+    .from(listings)
+    .innerJoin(categories, eq(listings.categoryId, categories.id))
+    .where(and(...conditions))
+    .orderBy(desc(listings.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(listings)
+    .where(and(...conditions));
+
+  const sellerProfile = await db
+    .select({
+      displayName: profiles.displayName,
+      businessName: profiles.businessName,
+      businessLogoUrl: profiles.businessLogoUrl,
+      businessRegistrationNumber: profiles.businessRegistrationNumber,
+      businessAddress: profiles.businessAddress,
+      sellerType: profiles.sellerType,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, sellerId))
+    .limit(1);
+
+  return {
+    seller: sellerProfile[0],
+    listings: rows.map((r) => mapListingPublic(r.listing, r.categoryName)),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function getSellerListings(

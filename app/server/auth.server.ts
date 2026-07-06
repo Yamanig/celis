@@ -76,6 +76,13 @@ export async function getCurrentUserProfile() {
     displayName: row.profile?.displayName ?? null,
     phone: row.user.walletPhone ?? row.profile?.phone ?? null,
     bio: row.profile?.bio ?? null,
+    sellerType: row.profile?.sellerType ?? "individual",
+    businessName: row.profile?.businessName ?? null,
+    businessRegistrationNumber:
+      row.profile?.businessRegistrationNumber ?? null,
+    businessAddress: row.profile?.businessAddress ?? null,
+    businessLogoUrl: row.profile?.businessLogoUrl ?? null,
+    shopSlug: row.profile?.shopSlug ?? null,
     isVerified: row.user.verifiedAt !== null,
     isSuperAdmin: row.user.isSuperAdmin,
   };
@@ -87,6 +94,12 @@ export async function updateUserProfile(
     displayName: string;
     phone?: string;
     bio?: string;
+    sellerType?: "individual" | "shop";
+    businessName?: string;
+    businessRegistrationNumber?: string;
+    businessAddress?: string;
+    businessLogoUrl?: string;
+    shopSlug?: string;
   }
 ) {
   const user = await getCurrentUser();
@@ -103,6 +116,13 @@ export async function updateUserProfile(
       displayName: input.displayName,
       phone: input.phone || null,
       bio: input.bio || null,
+      sellerType: input.sellerType,
+      businessName: input.businessName || null,
+      businessRegistrationNumber:
+        input.businessRegistrationNumber || null,
+      businessAddress: input.businessAddress || null,
+      businessLogoUrl: input.businessLogoUrl || null,
+      shopSlug: input.shopSlug || null,
       updatedAt: new Date(),
     })
     .where(eq(profiles.id, id));

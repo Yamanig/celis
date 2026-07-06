@@ -11,13 +11,59 @@ import {
   deleteListing,
   getListingReviews,
   insertListingReview,
+  submitShopListingForReview,
   type SearchListingsFilters,
 } from "./listings.server";
+import {
+  getSellerListingEligibility,
+  getCurrentSellerSubscription,
+} from "./seller-packages.server";
 import { ITEM_CONDITIONS } from "~/db/schema";
 
 const createListingSchema = z.object({
   sellerId: z.string().uuid(),
   listing: listingSchema,
+});
+
+const submitShopSchema = z.object({
+  listingId: z.string().uuid(),
+  sellerId: z.string().uuid(),
+});
+
+export const fetchSellerListingEligibility = createServerFn({ method: "GET" })
+  .validator(z.object({ sellerId: z.string().uuid() }))
+  .handler(async ({ data }) => getSellerListingEligibility(data.sellerId));
+
+export const submitShopListing = createServerFn({ method: "POST" })
+  .validator(submitShopSchema)
+  .handler(async ({ data }) => {
+    await submitShopListingForReview(data.listingId, data.sellerId);
+    return { success: true, id: data.listingId };
+  });
+
+const shopSlugSchema = z.object({
+  shopSlug: z.string().min(1),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(24),
+});
+
+export const fetchShopListings = createServerFn({ method: "GET" })
+  .validator(shopSlugSchema)
+  .handler(async ({ data }) => {
+    const { getShopListings } = await import("./listings.server");
+    return getShopListings(data.shopSlug, {
+      page: data.page,
+      limit: data.limit,
+    });
+  });
+
+export const fetchCurrentSellerSubscription = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  const { getCurrentUser } = await import("./auth.server");
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
+  return getCurrentSellerSubscription(user.id);
 });
 
 export const createListing = createServerFn({ method: "POST" })

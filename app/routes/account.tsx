@@ -7,6 +7,13 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
   fetchCurrentUserProfile,
@@ -27,6 +34,14 @@ export const Route = createFileRoute("/account")({
   loader: async () => fetchCurrentUserProfile(),
 });
 
+function slugify(name: string) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 function AccountPage() {
   const profile = Route.useLoaderData();
   const router = useRouter();
@@ -34,9 +49,25 @@ function AccountPage() {
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [phone, setPhone] = useState(profile.phone ?? "");
   const [bio, setBio] = useState(profile.bio ?? "");
+  const [sellerType, setSellerType] = useState<"individual" | "shop">(
+    profile.sellerType ?? "individual"
+  );
+  const [businessName, setBusinessName] = useState(profile.businessName ?? "");
+  const [businessRegistrationNumber, setBusinessRegistrationNumber] = useState(
+    profile.businessRegistrationNumber ?? ""
+  );
+  const [businessAddress, setBusinessAddress] = useState(
+    profile.businessAddress ?? ""
+  );
+  const [businessLogoUrl, setBusinessLogoUrl] = useState(
+    profile.businessLogoUrl ?? ""
+  );
+  const [shopSlug, setShopSlug] = useState(profile.shopSlug ?? "");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isSeller = profile.role === "seller";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +80,18 @@ function AccountPage() {
           displayName: displayName.trim(),
           phone: phone.trim() || undefined,
           bio: bio.trim() || undefined,
+          ...(isSeller && {
+            sellerType,
+            ...(sellerType === "shop" && {
+              businessName: businessName.trim() || undefined,
+              businessRegistrationNumber:
+                businessRegistrationNumber.trim() || undefined,
+              businessAddress: businessAddress.trim() || undefined,
+              businessLogoUrl: businessLogoUrl.trim() || undefined,
+              shopSlug:
+                shopSlug.trim() || slugify(businessName) || undefined,
+            }),
+          }),
         },
       });
       await refresh();
@@ -128,6 +171,89 @@ function AccountPage() {
                   rows={4}
                 />
               </div>
+
+              {isSeller && (
+                <div className="space-y-4 rounded-lg border border-celis-border bg-celis-surface-inset p-4">
+                  <h3 className="font-medium">Seller profile</h3>
+
+                  <div className="space-y-2">
+                    <Label>Seller type</Label>
+                    <Select
+                      value={sellerType}
+                      onValueChange={(v) =>
+                        setSellerType(v as typeof sellerType)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">Individual</SelectItem>
+                        <SelectItem value="shop">Shop / Business</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {sellerType === "shop" && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="businessName">Business name</Label>
+                        <Input
+                          id="businessName"
+                          value={businessName}
+                          onChange={(e) => setBusinessName(e.target.value)}
+                          placeholder="Your shop name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="businessRegistrationNumber">
+                          Business registration number
+                        </Label>
+                        <Input
+                          id="businessRegistrationNumber"
+                          value={businessRegistrationNumber}
+                          onChange={(e) =>
+                            setBusinessRegistrationNumber(e.target.value)
+                          }
+                          placeholder="Optional"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="businessAddress">
+                          Business address
+                        </Label>
+                        <Input
+                          id="businessAddress"
+                          value={businessAddress}
+                          onChange={(e) => setBusinessAddress(e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="businessLogoUrl">Business logo URL</Label>
+                        <Input
+                          id="businessLogoUrl"
+                          value={businessLogoUrl}
+                          onChange={(e) => setBusinessLogoUrl(e.target.value)}
+                          placeholder="https://..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="shopSlug">Shop slug</Label>
+                        <Input
+                          id="shopSlug"
+                          value={shopSlug}
+                          onChange={(e) => setShopSlug(slugify(e.target.value))}
+                          placeholder={slugify(businessName) || "your-shop"}
+                        />
+                        <p className="text-xs text-celis-ink-tertiary">
+                          Used for your public shop page: /shops/{shopSlug || slugify(businessName)}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <p className="text-sm text-celis-destructive">{error}</p>

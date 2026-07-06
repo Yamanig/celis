@@ -6,8 +6,9 @@ import {
   text,
   jsonb,
   boolean,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { userRoleEnum } from "./enums";
+import { userRoleEnum, sellerTypeEnum } from "./enums";
 
 /**
  * Reference to Supabase Auth users.
@@ -37,25 +38,39 @@ export const users = pgTable("users", {
     .defaultNow(),
 });
 
-export const profiles = pgTable("profiles", {
-  id: uuid("id")
-    .primaryKey()
-    .references(() => users.id, { onDelete: "cascade" }),
-  displayName: varchar("display_name", { length: 60 }).notNull(),
-  avatarUrl: text("avatar_url"),
-  bio: text("bio"),
-  location: jsonb("location").$type<{
-    city: string;
-    region: string;
-    district: string;
-    lat: number;
-    lng: number;
-  }>(),
-  phone: varchar("phone", { length: 15 }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const profiles = pgTable(
+  "profiles",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    displayName: varchar("display_name", { length: 60 }).notNull(),
+    avatarUrl: text("avatar_url"),
+    bio: text("bio"),
+    location: jsonb("location").$type<{
+      city: string;
+      region: string;
+      district: string;
+      lat: number;
+      lng: number;
+    }>(),
+    phone: varchar("phone", { length: 15 }),
+    sellerType: sellerTypeEnum("seller_type").default("individual"),
+    businessName: varchar("business_name", { length: 120 }),
+    businessLogoUrl: text("business_logo_url"),
+    businessRegistrationNumber: varchar("business_registration_number", {
+      length: 60,
+    }),
+    businessAddress: text("business_address"),
+    shopSlug: varchar("shop_slug", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    shopSlugIdx: uniqueIndex("idx_profiles_shop_slug").on(table.shopSlug),
+  })
+);

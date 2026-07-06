@@ -27,6 +27,10 @@ import {
   runListingExpirySweep,
 } from "./admin.server";
 import { getAdminAuditLogs } from "./audit.server";
+import {
+  listListingPackages,
+  assignSellerPackage,
+} from "./seller-packages.server";
 import { requirePermission } from "./auth.server";
 
 const userRoleSchema = z.enum(["buyer", "seller", "admin"]);
@@ -312,4 +316,63 @@ export const updateAdminPlatformConfig = createServerFn({ method: "POST" })
     const admin = await getCurrentUser();
     if (!admin) throw new Error("Unauthorized");
     return updatePlatformConfig(data.key, data.value, admin.id);
+  });
+
+const packageSchema = z.object({
+  name: z.string().min(1).max(120),
+  description: z.string().max(500).optional(),
+  listingAllowance: z.coerce.number().int().min(1),
+  durationDays: z.coerce.number().int().min(1),
+  price: z.coerce.number().int().min(0),
+  currency: z.string().max(3).optional(),
+});
+
+export const fetchAdminListingPackages = createServerFn({ method: "GET" }).handler(
+  async () => {
+    await requirePermission("settings:manage");
+    return listListingPackages();
+  }
+);
+
+export const createAdminListingPackage = createServerFn({ method: "POST" })
+  .validator(packageSchema)
+  .handler(async ({ data }) => {
+    await requirePermission("settings:manage");
+    const { createListingPackage } = await import("./seller-packages.server");
+    return createListingPackage(data);
+  });
+
+export const updateAdminListingPackage = createServerFn({ method: "POST" })
+  .validator(
+    packageSchema.partial().extend({
+      id: z.string().uuid(),
+      isActive: z.boolean().optional(),
+    })
+  )
+  .handler(async ({ data }) => {
+    await requirePermission("settings:manage");
+    const { id, ...input } = data;
+    const { updateListingPackage } = await import("./seller-packages.server");
+    return updateListingPackage(id, input);
+  });
+
+const assignPackageSchema = z.object({
+  sellerEmail: z.string().email(),
+  packageId: z.string().uuid(),
+});
+
+export const assignAdminSellerPackage = createServerFn({ method: "POST" })
+  .validator(assignPackageSchema)
+  .handler(async ({ data }) => {
+    await requirePermission("users:manage");
+    const { db } = await import("~/db");
+    const { users } = await import("~/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, data.sellerEmail))
+      .limit(1);
+    if (!rows[0]) throw new Error("Seller not found");
+    return assignSellerPackage(rows[0].id, data.packageId);
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
@@ -25,6 +25,8 @@ import { PaymentModal } from "./payment-modal";
 import { listingSchema, type ListingInput } from "~/lib/validation";
 import {
   createListing,
+  fetchSellerListingEligibility,
+  submitShopListing,
 } from "~/server/listings.functions";
 import {
   ITEM_CONDITIONS,
@@ -67,6 +69,16 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
   const [createdListingId, setCreatedListingId] = useState<string | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [eligibility, setEligibility] = useState<{
+    sellerType: "individual" | "shop";
+    canList: boolean;
+    requiresPayment: boolean;
+    remainingListings: number | null;
+  } | null>(null);
+
+  useEffect(() => {
+    fetchSellerListingEligibility({ data: { sellerId } }).then(setEligibility);
+  }, [sellerId]);
 
   const updateField = <K extends keyof ListingInput>(key: K, value: ListingInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -122,13 +134,22 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
 
   const handleSubmit = async () => {
     if (!validateStep()) return;
+    if (!eligibility?.canList) return;
     setSubmitting(true);
     try {
       const result = await createListing({
         data: { sellerId, listing: form },
       });
       setCreatedListingId(result.id);
-      setPaymentOpen(true);
+
+      if (eligibility.requiresPayment) {
+        setPaymentOpen(true);
+      } else {
+        await submitShopListing({
+          data: { listingId: result.id, sellerId },
+        });
+        setFinished(true);
+      }
     } catch (err) {
       setErrors({ submit: err instanceof Error ? err.message : "Failed to create listing" });
     } finally {
@@ -175,6 +196,13 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {eligibility?.canList === false && (
+            <div className="rounded-lg border border-celis-caution bg-celis-caution-subtle p-4 text-sm text-celis-ink">
+              {eligibility.sellerType === "shop"
+                ? "Your shop does not have an active listing package. Contact admin to activate a package before publishing."
+                : "You cannot publish right now. Please check your account status."}
+            </div>
+          )}
           {step === 0 && (
             <div className="space-y-4">
               <div className="space-y-2">
@@ -404,9 +432,17 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
               <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (
-            <Button type="button" onClick={handleSubmit} disabled={!canProceed || submitting}>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canProceed || submitting || eligibility?.canList === false}
+            >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Publish & pay {formatPrice(preview.feeCents)}
+              {eligibility?.requiresPayment
+                ? `Publish & pay ${formatPrice(preview.feeCents)}`
+                : eligibility?.sellerType === "shop"
+                ? `Publish (package: ${eligibility?.remainingListings ?? 0} left)`
+                : "Publish"}
             </Button>
           )}
         </CardFooter>
