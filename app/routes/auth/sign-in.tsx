@@ -15,6 +15,13 @@ const signInSearchSchema = z.object({
 
 export const Route = createFileRoute("/auth/sign-in")({
   component: SignInPage,
+  head: () => ({
+    meta: [
+      { title: "Sign in | Celis" },
+      { name: "description", content: "Sign in to your Celis account to buy, sell, and manage listings." },
+    ],
+  }),
+
   validateSearch: signInSearchSchema,
 });
 

@@ -18,9 +18,24 @@ import { fetchCurrentUser } from "~/server/auth.functions";
 
 import "~/styles/globals.css";
 
+const defaultDescription =
+  "Celis is Somalia's marketplace for electronics, vehicles, property, fashion, livestock, and more. Buy and sell locally with mobile money.";
+
 export const Route = createRootRoute({
   component: RootComponent,
   notFoundComponent: NotFound,
+  head: () => ({
+    meta: [
+      { title: "Celis — Buy & sell anything in Somalia" },
+      { name: "description", content: defaultDescription },
+      { property: "og:site_name", content: "Celis" },
+      { property: "og:type", content: "website" },
+      { property: "og:locale", content: "en_SO" },
+      { property: "og:description", content: defaultDescription },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:description", content: defaultDescription },
+    ],
+  }),
   beforeLoad: async () => {
     const user = await fetchCurrentUser();
     return { user };

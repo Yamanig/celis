@@ -9,6 +9,13 @@ import { listCategories } from "~/server/categories.functions";
 
 export const Route = createFileRoute("/browse")({
   component: BrowsePage,
+  head: () => ({
+    meta: [
+      { title: "Browse listings | Celis" },
+      { name: "description", content: "Discover local deals on electronics, vehicles, property, fashion, and more in Somalia." },
+    ],
+  }),
+
   loader: async () => {
     const [featured, categories] = await Promise.all([
       fetchFeaturedListings(),

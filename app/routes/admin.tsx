@@ -7,6 +7,14 @@ import {
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
+  head: () => ({
+    meta: [
+      { title: "Admin | Celis" },
+      { name: "description", content: "Celis admin dashboard." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: "/" });

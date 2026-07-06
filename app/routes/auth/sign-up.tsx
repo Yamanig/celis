@@ -23,6 +23,13 @@ import { CelisLogo } from "~/components/branding/celis-logo";
 
 export const Route = createFileRoute("/auth/sign-up")({
   component: SignUpPage,
+  head: () => ({
+    meta: [
+      { title: "Sign up | Celis" },
+      { name: "description", content: "Create your free Celis account and start buying or selling in Somalia." },
+    ],
+  }),
+
 });
 
 function slugify(name: string) {

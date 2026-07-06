@@ -41,6 +41,13 @@ import {
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
+  head: () => ({
+    meta: [
+      { title: "Celis — Buy & sell anything in Somalia" },
+      { name: "description", content: "Somalia's fastest growing P2P marketplace. Discover local deals on electronics, vehicles, property, fashion, livestock, and more." },
+    ],
+  }),
+
   loader: async () => {
     const [featured, categories, counts, priceRange] = await Promise.all([
       fetchFeaturedListings(),

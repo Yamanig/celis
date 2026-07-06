@@ -27,6 +27,13 @@ const dashboardSearchSchema = z.object({
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
+  head: () => ({
+    meta: [
+      { title: "Dashboard | Celis" },
+      { name: "description", content: "Manage your listings, orders, and seller package from your Celis dashboard." },
+    ],
+  }),
+
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: "/auth/sign-in", search: { redirect: "/dashboard" } });

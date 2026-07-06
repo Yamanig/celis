@@ -26,6 +26,14 @@ const ordersSearchSchema = z.object({
 
 export const Route = createFileRoute("/admin/orders")({
   component: AdminOrdersPage,
+  head: () => ({
+    meta: [
+      { title: "Orders | Admin | Celis" },
+      { name: "description", content: "Manage buyer and seller orders in Celis admin." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   validateSearch: ordersSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {

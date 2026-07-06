@@ -39,6 +39,14 @@ const listingsSearchSchema = z.object({
 
 export const Route = createFileRoute("/admin/listings")({
   component: AdminListingsPage,
+  head: () => ({
+    meta: [
+      { title: "Listings | Admin | Celis" },
+      { name: "description", content: "Review and manage marketplace listings in Celis admin." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   validateSearch: listingsSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {

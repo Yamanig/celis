@@ -30,6 +30,14 @@ import {
 
 export const Route = createFileRoute("/admin/packages")({
   component: AdminPackagesPage,
+  head: () => ({
+    meta: [
+      { title: "Listing packages | Admin | Celis" },
+      { name: "description", content: "Manage seller listing packages in Celis admin." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   loader: async () => fetchAdminListingPackages(),
 });
 

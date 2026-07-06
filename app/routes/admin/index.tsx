@@ -32,6 +32,14 @@ import {
 
 export const Route = createFileRoute("/admin/")({
   component: AdminDashboardPage,
+  head: () => ({
+    meta: [
+      { title: "Admin dashboard | Celis" },
+      { name: "description", content: "Celis admin dashboard overview." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   staleTime: 60_000,
   loader: async () => {
     const [stats, recentActivity] = await Promise.all([

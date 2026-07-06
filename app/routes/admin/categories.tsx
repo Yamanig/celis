@@ -30,6 +30,14 @@ const categoriesSearchSchema = z.object({
 
 export const Route = createFileRoute("/admin/categories")({
   component: AdminCategoriesPage,
+  head: () => ({
+    meta: [
+      { title: "Categories | Admin | Celis" },
+      { name: "description", content: "Manage marketplace categories in Celis admin." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   validateSearch: categoriesSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {

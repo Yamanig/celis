@@ -39,6 +39,14 @@ const usersSearchSchema = z.object({
 
 export const Route = createFileRoute("/admin/users")({
   component: AdminUsersPage,
+  head: () => ({
+    meta: [
+      { title: "Users | Admin | Celis" },
+      { name: "description", content: "Manage users, roles, and verification in Celis admin." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   validateSearch: usersSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {

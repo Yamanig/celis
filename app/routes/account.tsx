@@ -23,6 +23,13 @@ import { CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/account")({
   component: AccountPage,
+  head: () => ({
+    meta: [
+      { title: "Account settings | Celis" },
+      { name: "description", content: "Manage your Celis profile, phone number, seller details, and preferences." },
+    ],
+  }),
+
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({

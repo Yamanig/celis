@@ -33,6 +33,14 @@ const reportsSearchSchema = z.object({
 
 export const Route = createFileRoute("/admin/reports")({
   component: AdminReportsPage,
+  head: () => ({
+    meta: [
+      { title: "Reports | Admin | Celis" },
+      { name: "description", content: "View payments, payouts, and ledger reports in Celis admin." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   validateSearch: reportsSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {

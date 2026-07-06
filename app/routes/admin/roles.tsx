@@ -21,6 +21,14 @@ const ROLES = [
 
 export const Route = createFileRoute("/admin/roles")({
   component: AdminRolesPage,
+  head: () => ({
+    meta: [
+      { title: "Roles & permissions | Admin | Celis" },
+      { name: "description", content: "Manage user roles and permissions in Celis admin." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   loader: async () => {
     const [user, permissions] = await Promise.all([
       fetchCurrentUser(),

@@ -14,6 +14,14 @@ const auditLogSearchSchema = z.object({
 
 export const Route = createFileRoute("/admin/audit-log")({
   component: AdminAuditLogPage,
+  head: () => ({
+    meta: [
+      { title: "Audit log | Admin | Celis" },
+      { name: "description", content: "Review audit logs for admin actions in Celis." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   validateSearch: auditLogSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {

@@ -25,6 +25,13 @@ const searchParamsSchema = z.object({
 
 export const Route = createFileRoute("/search")({
   component: SearchPage,
+  head: () => ({
+    meta: [
+      { title: "Search listings | Celis" },
+      { name: "description", content: "Search thousands of local listings on Celis. Find electronics, cars, apartments, and more." },
+    ],
+  }),
+
   validateSearch: searchParamsSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {

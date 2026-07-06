@@ -21,6 +21,14 @@ import { ITEM_CONDITIONS } from "~/db/schema";
 
 export const Route = createFileRoute("/admin/settings")({
   component: AdminSettingsPage,
+  head: () => ({
+    meta: [
+      { title: "Settings | Admin | Celis" },
+      { name: "description", content: "Configure platform settings and pricing in Celis admin." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   loader: async () => fetchPlatformConfigAll(),
 });
 

@@ -29,6 +29,14 @@ const payoutsSearchSchema = z.object({
 
 export const Route = createFileRoute("/admin/payouts")({
   component: AdminPayoutsPage,
+  head: () => ({
+    meta: [
+      { title: "Payouts | Admin | Celis" },
+      { name: "description", content: "Manage seller payouts in Celis admin." },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+
   validateSearch: payoutsSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {

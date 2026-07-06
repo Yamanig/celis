@@ -10,6 +10,13 @@ import { AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/sell")({
   component: SellPage,
+  head: () => ({
+    meta: [
+      { title: "Sell an item | Celis" },
+      { name: "description", content: "List your item for sale on Celis and reach buyers across Somalia." },
+    ],
+  }),
+
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: "/auth/sign-in", search: { redirect: "/sell" } });
