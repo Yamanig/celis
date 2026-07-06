@@ -484,6 +484,29 @@ export async function getListingReviews(listingId: string) {
   };
 }
 
+export async function getSimilarListings(
+  listingId: string,
+  categoryId: string,
+  limit = 8
+) {
+  const rows = await db
+    .select({ listing: listings, categoryName: categories.name })
+    .from(listings)
+    .innerJoin(categories, eq(listings.categoryId, categories.id))
+    .where(
+      and(
+        eq(listings.status, "active"),
+        eq(listings.categoryId, categoryId),
+        sql`${listings.id} != ${listingId}`,
+        sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`
+      )
+    )
+    .orderBy(desc(listings.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => mapListingPublic(r.listing, r.categoryName));
+}
+
 export async function insertListingReview(input: {
   listingId: string;
   reviewerId: string;

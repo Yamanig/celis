@@ -3,6 +3,8 @@ import { useState } from "react";
 import { SiteHeader } from "~/components/layout/site-header";
 import { SiteFooter } from "~/components/layout/site-footer";
 import { ImageGallery } from "~/components/listings/image-gallery";
+import { SafetyTips } from "~/components/listings/safety-tips";
+import { ListingGrid } from "~/components/listings/listing-grid";
 import { useAuth } from "~/lib/auth-context";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
@@ -12,6 +14,7 @@ import {
   fetchListingById,
   fetchListingReviews,
   createListingReview,
+  fetchSimilarListings,
 } from "~/server/listings.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 import {
@@ -32,8 +35,30 @@ export const Route = createFileRoute("/listings/$id")({
     if (!listing || listing.status !== "active") {
       throw new Error("Listing not found");
     }
-    const reviews = await fetchListingReviews({ data: { id: params.id } });
-    return { listing, reviews };
+    const [reviews, similar] = await Promise.all([
+      fetchListingReviews({ data: { id: params.id } }),
+      fetchSimilarListings({
+        data: { listingId: listing.id, categoryId: listing.categoryId },
+      }),
+    ]);
+    return { listing, reviews, similar };
+  },
+  head: ({ loaderData }) => {
+    const listing = loaderData?.listing;
+    const description = listing
+      ? `${listing.title} - ${formatPrice(listing.price)} on Celis`
+      : "View this listing on Celis";
+    const image = listing?.images?.[0];
+    return {
+      meta: [
+        { title: `${listing?.title ?? "Listing"} | Celis` },
+        { name: "description", content: description },
+        { property: "og:title", content: listing?.title ?? "Listing" },
+        { property: "og:description", content: description },
+        ...(image ? [{ property: "og:image", content: image }] : []),
+        { property: "og:type", content: "product" },
+      ],
+    };
   },
   errorComponent: ({ error }) => (
     <div className="flex min-h-screen flex-col bg-celis-bg">
@@ -68,7 +93,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function ListingDetailPage() {
-  const { listing, reviews } = Route.useLoaderData();
+  const { listing, reviews, similar } = Route.useLoaderData();
   const { user } = useAuth();
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
@@ -257,6 +282,8 @@ function ListingDetailPage() {
               </CardContent>
             </Card>
 
+            <SafetyTips />
+
             <Card>
               <CardContent className="space-y-3 p-6">
                 <h2 className="font-semibold">Description</h2>
@@ -357,6 +384,33 @@ function ListingDetailPage() {
             </div>
           )}
         </section>
+
+        {similar.length > 0 && (
+          <section className="mt-12">
+            <h2 className="mb-4 text-xl font-semibold">Similar products</h2>
+            <ListingGrid listings={similar} emptyMessage="No similar products found." />
+          </section>
+        )}
+
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Product",
+              name: listing.title,
+              image: listing.images,
+              description: listing.description,
+              offers: {
+                "@type": "Offer",
+                priceCurrency: "USD",
+                price: (listing.price / 100).toFixed(2),
+                availability: "https://schema.org/InStock",
+                url: typeof window !== "undefined" ? window.location.href : undefined,
+              },
+            }),
+          }}
+        />
       </main>
 
       <SiteFooter />

@@ -87,6 +87,18 @@ export const fetchListingById = createServerFn({ method: "GET" })
     return getListingById(data.id);
   });
 
+const similarListingsSchema = z.object({
+  listingId: z.string().uuid(),
+  categoryId: z.string().uuid(),
+});
+
+export const fetchSimilarListings = createServerFn({ method: "GET" })
+  .validator(similarListingsSchema)
+  .handler(async ({ data }) => {
+    const { getSimilarListings } = await import("./listings.server");
+    return getSimilarListings(data.listingId, data.categoryId);
+  });
+
 const searchSchema = z.object({
   query: z.string().optional(),
   categoryId: z.string().uuid().optional(),
