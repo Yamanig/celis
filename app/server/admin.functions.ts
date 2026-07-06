@@ -26,6 +26,8 @@ import {
   updatePlatformConfig,
   runListingExpirySweep,
 } from "./admin.server";
+import { getAdminAuditLogs } from "./audit.server";
+import { requirePermission } from "./auth.server";
 
 const userRoleSchema = z.enum(["buyer", "seller", "admin"]);
 
@@ -124,11 +126,24 @@ export const reviewAdminListing = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { requirePermission } = await import("./auth.server");
     const user = await requirePermission("listings:moderate");
+    const { insertAuditLog } = await import("./audit.server");
     if (data.action === "approve") {
       await approveListing(data.id, user.id);
+      await insertAuditLog({
+        action: "listing_approved",
+        resourceType: "listing",
+        resourceId: data.id,
+        metadata: { actorId: user.id },
+      });
       return { success: true, id: data.id, status: "active" as const };
     }
     await rejectListing(data.id, user.id, data.reason ?? "");
+    await insertAuditLog({
+      action: "listing_rejected",
+      resourceType: "listing",
+      resourceId: data.id,
+      metadata: { actorId: user.id, reason: data.reason },
+    });
     return { success: true, id: data.id, status: "rejected" as const };
   });
 
@@ -258,6 +273,18 @@ export const exportAdminLedgerCsv = createServerFn({ method: "GET" })
   .validator(ledgerQuerySchema)
   .handler(async ({ data }) => {
     return exportAdminLedger(data);
+  });
+
+const auditLogQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+});
+
+export const fetchAdminAuditLogs = createServerFn({ method: "GET" })
+  .validator(auditLogQuerySchema)
+  .handler(async ({ data }) => {
+    await requirePermission("audit:read");
+    return getAdminAuditLogs(data);
   });
 
 export const fetchPlatformConfigAll = createServerFn({ method: "GET" }).handler(

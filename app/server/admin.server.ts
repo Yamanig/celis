@@ -22,6 +22,7 @@ import {
   sum,
 } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "./auth.server";
+import { insertAuditLog } from "./audit.server";
 import type { UserRole, ListingStatus } from "~/db/schema";
 import {
   calculateListingPricing,
@@ -301,6 +302,12 @@ export async function getAdminUsers(options?: {
 export async function updateUserRole(id: string, role: UserRole) {
   await requirePermission("users:manage");
   await db.update(users).set({ role }).where(eq(users.id, id));
+  await insertAuditLog({
+    action: "user_role_changed",
+    resourceType: "user",
+    resourceId: id,
+    metadata: { role },
+  });
   return { success: true };
 }
 
@@ -313,6 +320,12 @@ export async function toggleUserVerification(id: string) {
     .limit(1);
   const next = user?.verifiedAt ? null : new Date();
   await db.update(users).set({ verifiedAt: next }).where(eq(users.id, id));
+  await insertAuditLog({
+    action: "user_verification_toggled",
+    resourceType: "user",
+    resourceId: id,
+    metadata: { verified: next !== null },
+  });
   return { success: true, verified: next !== null };
 }
 
@@ -328,6 +341,12 @@ export async function toggleUserSuperAdmin(id: string) {
     .limit(1);
   const next = !user?.isSuperAdmin;
   await db.update(users).set({ isSuperAdmin: next }).where(eq(users.id, id));
+  await insertAuditLog({
+    action: "user_super_admin_toggled",
+    resourceType: "user",
+    resourceId: id,
+    metadata: { isSuperAdmin: next, actorId: actor.id },
+  });
   return { success: true, isSuperAdmin: next };
 }
 
@@ -407,6 +426,12 @@ export async function getAdminListings(options?: {
 export async function updateListingStatus(id: string, status: ListingStatus) {
   await requirePermission("listings:moderate");
   await db.update(listings).set({ status }).where(eq(listings.id, id));
+  await insertAuditLog({
+    action: "listing_status_changed",
+    resourceType: "listing",
+    resourceId: id,
+    metadata: { status },
+  });
   return { success: true };
 }
 
@@ -467,6 +492,12 @@ export async function createCategory(input: {
       sortOrder: input.sortOrder ?? 0,
     })
     .returning();
+  await insertAuditLog({
+    action: "category_created",
+    resourceType: "category",
+    resourceId: row.id,
+    metadata: { name: row.name, slug: row.slug },
+  });
   return {
     id: row.id,
     name: row.name,
@@ -487,6 +518,12 @@ export async function updateCategory(
     .set({ ...input, updatedAt: new Date() })
     .where(eq(categories.id, id))
     .returning();
+  await insertAuditLog({
+    action: "category_updated",
+    resourceType: "category",
+    resourceId: id,
+    metadata: input,
+  });
   return {
     id: row.id,
     name: row.name,
@@ -585,6 +622,12 @@ export async function updateOrderStatus(
   if (status === "completed") updates.completedAt = new Date();
   if (status === "disputed") updates.disputedAt = new Date();
   await db.update(orders).set(updates).where(eq(orders.id, id));
+  await insertAuditLog({
+    action: "order_status_changed",
+    resourceType: "order",
+    resourceId: id,
+    metadata: { status },
+  });
   return { success: true };
 }
 
@@ -653,6 +696,11 @@ export async function retryPayout(id: string) {
     .update(payouts)
     .set({ status: "pending", updatedAt: new Date() })
     .where(eq(payouts.id, id));
+  await insertAuditLog({
+    action: "payout_retried",
+    resourceType: "payout",
+    resourceId: id,
+  });
   return { success: true };
 }
 
@@ -666,8 +714,12 @@ export async function markPayoutCompleted(id: string, note?: string) {
       updatedAt: new Date(),
     })
     .where(eq(payouts.id, id));
-  // Note is not persisted because there is no note column; logged via description if needed.
-  void note;
+  await insertAuditLog({
+    action: "payout_completed",
+    resourceType: "payout",
+    resourceId: id,
+    metadata: note ? { note } : undefined,
+  });
   return { success: true };
 }
 
@@ -852,11 +904,24 @@ export async function updatePlatformConfig(
       .where(eq(platformConfigs.key, key));
   }
 
+  await insertAuditLog({
+    action: "config_updated",
+    resourceType: "platform_config",
+    resourceId: key,
+    metadata: { previous, value },
+  });
+
   return { success: true };
 }
 
 export async function runListingExpirySweep() {
-  await requirePermission("listings:moderate");
+  const user = await requirePermission("listings:moderate");
   const { expireStaleListings } = await import("./listings.server");
-  return expireStaleListings();
+  const result = await expireStaleListings();
+  await insertAuditLog({
+    action: "expiry_sweep_run",
+    resourceType: "listings",
+    metadata: { expiredCount: result.expiredCount, actorId: user.id },
+  });
+  return result;
 }

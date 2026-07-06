@@ -14,6 +14,7 @@ import {
   FileText,
   Settings,
   ShieldCheck,
+  ScrollText,
 } from "lucide-react";
 
 interface AdminShellProps {
@@ -57,6 +58,12 @@ const nav = [
     label: "Reports",
     icon: FileText,
     permission: "reports:read",
+  },
+  {
+    to: "/admin/audit-log",
+    label: "Audit log",
+    icon: ScrollText,
+    permission: "audit:read",
   },
   {
     to: "/admin/roles",

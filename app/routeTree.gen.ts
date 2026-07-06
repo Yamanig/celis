@@ -28,6 +28,7 @@ import { Route as AdminPayoutsRouteImport } from './routes/admin/payouts'
 import { Route as AdminOrdersRouteImport } from './routes/admin/orders'
 import { Route as AdminListingsRouteImport } from './routes/admin/listings'
 import { Route as AdminCategoriesRouteImport } from './routes/admin/categories'
+import { Route as AdminAuditLogRouteImport } from './routes/admin/audit-log'
 
 const SellRoute = SellRouteImport.update({
   id: '/sell',
@@ -124,6 +125,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminAuditLogRoute = AdminAuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
+  '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/listings': typeof AdminListingsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
+  '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/listings': typeof AdminListingsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
+  '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/listings': typeof AdminListingsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/search'
     | '/sell'
+    | '/admin/audit-log'
     | '/admin/categories'
     | '/admin/listings'
     | '/admin/orders'
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/search'
     | '/sell'
+    | '/admin/audit-log'
     | '/admin/categories'
     | '/admin/listings'
     | '/admin/orders'
@@ -239,6 +250,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/search'
     | '/sell'
+    | '/admin/audit-log'
     | '/admin/categories'
     | '/admin/listings'
     | '/admin/orders'
@@ -401,10 +413,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/audit-log': {
+      id: '/admin/audit-log'
+      path: '/audit-log'
+      fullPath: '/admin/audit-log'
+      preLoaderRoute: typeof AdminAuditLogRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
+  AdminAuditLogRoute: typeof AdminAuditLogRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminListingsRoute: typeof AdminListingsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
@@ -417,6 +437,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminAuditLogRoute: AdminAuditLogRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminListingsRoute: AdminListingsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
