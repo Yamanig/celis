@@ -16,6 +16,7 @@
     "db:push": "drizzle-kit push",
     "db:seed-admin": "node --env-file=.env --import tsx scripts/seed-admin.ts",
     "storage:create-bucket": "node --env-file=.env --import tsx scripts/create-storage-bucket.ts",
+    "cron:expire-listings": "node --env-file=.env --import tsx scripts/expire-listings.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
