@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 interface ImageGalleryProps {
   images: string[];
@@ -37,7 +37,7 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
       <button
         type="button"
         onClick={() => openModal(selected)}
-        className="block aspect-square w-full overflow-hidden rounded-md border border-celis-border bg-celis-surface-inset focus:outline-none focus:ring-2 focus:ring-celis-primary focus:ring-offset-2"
+        className="block aspect-square w-full cursor-pointer overflow-hidden rounded-md border border-celis-border bg-celis-surface-inset focus:outline-none focus:ring-2 focus:ring-celis-primary focus:ring-offset-2"
       >
         <img
           src={mainImage}
@@ -73,6 +73,15 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-5xl border-none bg-transparent p-0 shadow-none">
           <DialogTitle className="sr-only">{title} - image viewer</DialogTitle>
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute right-2 top-2 z-20 h-10 w-10 rounded-full bg-celis-surface-base/90 text-celis-ink hover:bg-celis-surface-base"
+            onClick={() => setModalOpen(false)}
+            aria-label="Close image viewer"
+          >
+            <X className="h-5 w-5" />
+          </Button>
           <div className="relative flex items-center justify-center">
             {images.length > 1 && (
               <Button

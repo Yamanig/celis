@@ -282,8 +282,6 @@ function ListingDetailPage() {
               </CardContent>
             </Card>
 
-            <SafetyTips />
-
             <Card>
               <CardContent className="space-y-3 p-6">
                 <h2 className="font-semibold">Description</h2>
@@ -292,6 +290,8 @@ function ListingDetailPage() {
                 </p>
               </CardContent>
             </Card>
+
+            <SafetyTips />
           </section>
         </div>
 
