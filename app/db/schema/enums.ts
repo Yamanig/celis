@@ -171,4 +171,11 @@ export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
 export type WalletProvider = (typeof WALLET_PROVIDERS)[number];
 export type BankName = (typeof BANK_NAMES)[number];
 export type BankAccountStatus = (typeof BANK_ACCOUNT_STATUSES)[number];
+export const INTERACTION_TYPES = ["show_contact", "request_callback"] as const;
+export const interactionTypeEnum = pgEnum(
+  "interaction_type",
+  INTERACTION_TYPES
+);
+
 export type DisputeReason = (typeof DISPUTE_REASONS)[number];
+export type InteractionType = (typeof INTERACTION_TYPES)[number];

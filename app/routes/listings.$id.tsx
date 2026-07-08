@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { SiteHeader } from "~/components/layout/site-header";
 import { SiteFooter } from "~/components/layout/site-footer";
@@ -7,9 +7,17 @@ import { SafetyTips } from "~/components/listings/safety-tips";
 import { ListingGrid } from "~/components/listings/listing-grid";
 import { useAuth } from "~/lib/auth-context";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
 import { Textarea } from "~/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import { recordListingInteraction } from "~/server/listing-interactions.functions";
 import {
   fetchListingById,
   fetchListingReviews,
@@ -24,6 +32,7 @@ import {
   Store,
   CheckCircle2,
   Phone,
+  PhoneCall,
   MessageCircle,
   Star,
 } from "lucide-react";
@@ -95,6 +104,14 @@ function StarRating({ rating }: { rating: number }) {
 function ListingDetailPage() {
   const { listing, reviews, similar } = Route.useLoaderData();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [showContact, setShowContact] = useState(false);
+  const [callbackOpen, setCallbackOpen] = useState(false);
+  const [callbackPhone, setCallbackPhone] = useState(user?.phone ?? "");
+  const [callbackDescription, setCallbackDescription] = useState("");
+  const [callbackLoading, setCallbackLoading] = useState(false);
+  const [callbackError, setCallbackError] = useState<string | null>(null);
+  const [callbackSuccess, setCallbackSuccess] = useState(false);
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState("");
@@ -185,36 +202,81 @@ function ListingDetailPage() {
                   </div>
                 )}
 
-                {dialNumber ? (
-                  <div className="grid gap-2">
-                    <Button className="w-full" size="lg" asChild>
-                      <a href={`tel:${dialNumber}`}>
-                        <Phone className="mr-2 h-4 w-4" />
-                        Call {dialNumber}
-                      </a>
-                    </Button>
-                    {whatsappNumber && (
-                      <Button
-                        className="w-full bg-celis-success text-celis-ink-inverse hover:bg-celis-success-hover"
-                        size="lg"
-                        asChild
-                      >
-                        <a
-                          href={`https://wa.me/${whatsappNumber}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <MessageCircle className="mr-2 h-4 w-4" />
-                          WhatsApp seller
+                <div className="grid gap-2">
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={async () => {
+                      if (!user) {
+                        navigate({
+                          to: "/auth/sign-in",
+                          search: { redirect: `/listings/${listing.id}` },
+                        });
+                        return;
+                      }
+                      setShowContact(true);
+                      try {
+                        await recordListingInteraction({
+                          data: {
+                            listingId: listing.id,
+                            type: "show_contact",
+                          },
+                        });
+                      } catch {
+                        // ignore tracking errors
+                      }
+                    }}
+                  >
+                    <Phone className="mr-2 h-4 w-4" />
+                    {showContact ? dialNumber || "No phone" : "Show contact"}
+                  </Button>
+
+                  {showContact && dialNumber && (
+                    <>
+                      <Button className="w-full" size="lg" asChild>
+                        <a href={`tel:${dialNumber}`}>
+                          <PhoneCall className="mr-2 h-4 w-4" />
+                          Call {dialNumber}
                         </a>
                       </Button>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-celis-ink-secondary">
-                    Seller has not added a phone number.
-                  </p>
-                )}
+                      {whatsappNumber && (
+                        <Button
+                          className="w-full bg-celis-success text-celis-ink-inverse hover:bg-celis-success-hover"
+                          size="lg"
+                          asChild
+                        >
+                          <a
+                            href={`https://wa.me/${whatsappNumber}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <MessageCircle className="mr-2 h-4 w-4" />
+                            WhatsApp seller
+                          </a>
+                        </Button>
+                      )}
+                    </>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    size="lg"
+                    onClick={() => {
+                      if (!user) {
+                        navigate({
+                          to: "/auth/sign-in",
+                          search: { redirect: `/listings/${listing.id}` },
+                        });
+                        return;
+                      }
+                      setCallbackOpen(true);
+                    }}
+                  >
+                    <PhoneCall className="mr-2 h-4 w-4" />
+                    Request call back
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -384,6 +446,92 @@ function ListingDetailPage() {
             </div>
           )}
         </section>
+
+        <Dialog open={callbackOpen} onOpenChange={setCallbackOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogTitle>Request call back</DialogTitle>
+            {callbackSuccess ? (
+              <div className="space-y-4 py-4 text-center">
+                <p className="text-celis-ink-secondary">
+                  Your request has been sent. The seller will call you back
+                  soon.
+                </p>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    setCallbackOpen(false);
+                    setCallbackSuccess(false);
+                    setCallbackDescription("");
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
+            ) : (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setCallbackLoading(true);
+                  setCallbackError(null);
+                  try {
+                    await recordListingInteraction({
+                      data: {
+                        listingId: listing.id,
+                        type: "request_callback",
+                        phone: callbackPhone,
+                        description: callbackDescription,
+                      },
+                    });
+                    setCallbackSuccess(true);
+                  } catch (err) {
+                    setCallbackError(
+                      err instanceof Error ? err.message : "Request failed"
+                    );
+                  } finally {
+                    setCallbackLoading(false);
+                  }
+                }}
+                className="space-y-4 py-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="callbackPhone">Your phone number</Label>
+                  <Input
+                    id="callbackPhone"
+                    type="tel"
+                    value={callbackPhone}
+                    onChange={(e) => setCallbackPhone(e.target.value)}
+                    placeholder="+252 61 234 5678"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="callbackDescription">
+                    Message (optional)
+                  </Label>
+                  <Textarea
+                    id="callbackDescription"
+                    value={callbackDescription}
+                    onChange={(e) => setCallbackDescription(e.target.value)}
+                    placeholder="When is the best time to call?"
+                    rows={3}
+                  />
+                </div>
+                {callbackError && (
+                  <p className="text-sm text-celis-destructive">
+                    {callbackError}
+                  </p>
+                )}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={callbackLoading}
+                >
+                  {callbackLoading ? "Sending..." : "Send request"}
+                </Button>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {similar.length > 0 && (
           <section className="mt-12">

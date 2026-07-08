@@ -36,6 +36,13 @@
       "when": 1783353001026,
       "tag": "0004_seller_packages",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783353001027,
+      "tag": "0005_listing_interactions",
+      "breakpoints": true
     }
   ]
 }
