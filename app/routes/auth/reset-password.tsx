@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
-import { createClient } from "~/lib/supabase/client";
+import { resetPasswordByToken } from "~/server/password-reset.functions";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -15,8 +15,8 @@ import {
 import { CelisLogo } from "~/components/branding/celis-logo";
 
 const resetPasswordSearchSchema = z.object({
-  code: z.string().min(1).optional(),
-  type: z.string().optional(),
+  token: z.string().min(1).optional(),
+  email: z.string().email().optional(),
 });
 
 export const Route = createFileRoute("/auth/reset-password")({
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/auth/reset-password")({
 });
 
 function ResetPasswordPage() {
-  const { code } = Route.useSearch();
+  const { token, email } = Route.useSearch();
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -46,7 +46,7 @@ function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (!code) {
+    if (!token) {
       setError("Reset link is invalid or has expired.");
       return;
     }
@@ -64,21 +64,7 @@ function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-
-      const { error: exchangeError } =
-        await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) {
-        throw new Error(exchangeError.message);
-      }
-
-      const { error: updateError } = await supabase.auth.updateUser({
-        password,
-      });
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
-
+      await resetPasswordByToken({ data: { token, password } });
       setSuccess(true);
       setTimeout(() => {
         navigate({ to: "/auth/sign-in" });
@@ -100,7 +86,7 @@ function ResetPasswordPage() {
         <CardHeader className="text-center">
           <CardTitle>Create new password</CardTitle>
           <CardDescription>
-            Enter your new password below.
+            {email ? `For ${email}` : "Enter your new password below."}
           </CardDescription>
         </CardHeader>
         <CardContent>

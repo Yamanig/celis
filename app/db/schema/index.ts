@@ -12,3 +12,4 @@ export * from "./role-permissions";
 export * from "./audit-logs";
 export * from "./seller-packages";
 export * from "./listing-interactions";
+export * from "./password-resets";
