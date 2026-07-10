@@ -126,12 +126,16 @@ export function AdminShell({ permissions }: AdminShellProps) {
       >
         <div
           className={cn(
-            "flex h-16 items-center gap-2 px-4",
-            collapsed ? "justify-center" : "justify-between"
+            "flex h-16 items-center px-4",
+            collapsed ? "justify-center gap-2 px-2" : "justify-between gap-2"
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
-            <CelisLogo variant="primary" size={36} badge />
+            <CelisLogo
+              variant={collapsed ? "mark-only" : "primary"}
+              size={36}
+              badge
+            />
             {!collapsed && (
               <span className="font-semibold text-celis-ink">Admin</span>
             )}
@@ -140,7 +144,7 @@ export function AdminShell({ permissions }: AdminShellProps) {
             type="button"
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8", collapsed && "absolute -right-4 top-4 border border-celis-border bg-celis-surface-base shadow-sm")}
+            className="h-8 w-8 shrink-0"
             onClick={toggleSidebar}
             aria-label={collapsed ? "Expand admin sidebar" : "Collapse admin sidebar"}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
