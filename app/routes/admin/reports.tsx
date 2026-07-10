@@ -6,13 +6,7 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { Combobox } from "~/components/ui/combobox";
 import { Pagination } from "~/components/ui/pagination";
 import { AdminTable } from "~/components/admin/admin-table";
 import { PageHeader } from "~/components/admin/page-header";
@@ -84,11 +78,24 @@ function AdminReportsPage() {
     setType(search.type ?? "all");
   }, [search.type]);
 
+  useEffect(() => {
+    if (
+      search.page === 1 &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("page") === "1"
+    ) {
+      navigate({
+        replace: true,
+        search: (prev) => ({ ...prev, page: undefined }),
+      });
+    }
+  }, [navigate, search.page]);
+
   const updateSearch = (
     patch: Partial<z.infer<typeof reportsSearchSchema>>
   ) => {
     navigate({
-      search: (prev) => ({ ...prev, ...patch, page: 1 }),
+      search: (prev) => ({ ...prev, ...patch, page: undefined }),
     });
   };
 
@@ -196,24 +203,15 @@ function AdminReportsPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="type">Type</Label>
-            <Select
+            <Combobox
               value={type}
               onValueChange={(value) => {
                 setType(value);
                 updateSearch({ type: value as z.infer<typeof reportsSearchSchema>["type"] });
               }}
-            >
-              <SelectTrigger id="type" className="w-full sm:w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TYPE_OPTIONS.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              className="w-full sm:w-44"
+              options={TYPE_OPTIONS}
+            />
           </div>
         </CardContent>
       </Card>
@@ -274,7 +272,9 @@ function AdminReportsPage() {
       <Pagination
         page={page}
         totalPages={totalPages}
-        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
+        onPageChange={(p) =>
+          navigate({ search: (prev) => ({ ...prev, page: p > 1 ? p : undefined }) })
+        }
       />
     </div>
   );

@@ -2,13 +2,7 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { Combobox } from "~/components/ui/combobox";
 import type { CategoryListItem } from "~/server/categories.functions";
 import { ITEM_CONDITIONS } from "~/db/schema";
 
@@ -35,6 +29,20 @@ const DEFAULT_FILTERS: SearchFiltersState = {
   condition: "",
   sort: "newest",
 };
+
+const conditionOptions = [
+  { value: "", label: "Any condition" },
+  ...ITEM_CONDITIONS.map((condition) => ({
+    value: condition,
+    label: condition.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+  })),
+];
+
+const sortOptions = [
+  { value: "newest", label: "Newest" },
+  { value: "price_asc", label: "Price: low to high" },
+  { value: "price_desc", label: "Price: high to low" },
+];
 
 export function SearchFilters({
   categories,
@@ -75,22 +83,16 @@ export function SearchFilters({
 
       <div className="space-y-2">
         <Label htmlFor="category">Category</Label>
-        <Select
+        <Combobox
           value={filters.categoryId}
           onValueChange={(v) => update("categoryId", v)}
-        >
-          <SelectTrigger id="category">
-            <SelectValue placeholder="All categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All categories</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>
-                {cat.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="All categories"
+          searchPlaceholder="Search categories..."
+          options={[
+            { value: "", label: "All categories" },
+            ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+          ]}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -120,39 +122,22 @@ export function SearchFilters({
 
       <div className="space-y-2">
         <Label htmlFor="condition">Condition</Label>
-        <Select
+        <Combobox
           value={filters.condition}
           onValueChange={(v) => update("condition", v)}
-        >
-          <SelectTrigger id="condition">
-            <SelectValue placeholder="Any condition" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Any condition</SelectItem>
-            {ITEM_CONDITIONS.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="Any condition"
+          searchPlaceholder="Search conditions..."
+          options={conditionOptions}
+        />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="sort">Sort by</Label>
-        <Select
+        <Combobox
           value={filters.sort}
           onValueChange={(v) => update("sort", v as SearchFiltersState["sort"])}
-        >
-          <SelectTrigger id="sort">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest">Newest</SelectItem>
-            <SelectItem value="price_asc">Price: low to high</SelectItem>
-            <SelectItem value="price_desc">Price: high to low</SelectItem>
-          </SelectContent>
-        </Select>
+          options={sortOptions}
+        />
       </div>
 
       <Button type="submit" className="w-full">

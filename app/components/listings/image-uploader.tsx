@@ -3,6 +3,7 @@ import { getListingImageUploadUrl } from "~/server/storage.functions";
 import type { ListingImage } from "~/lib/validation";
 import { X, Upload, Loader2 } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { getOptimizedImageUrl } from "~/lib/images";
 
 interface ImageUploaderProps {
   sellerId: string;
@@ -47,7 +48,10 @@ export function ImageUploader({
           const res = await fetch(meta.signedUrl, {
             method: "PUT",
             body: file,
-            headers: { "Content-Type": file.type },
+            headers: {
+              "Content-Type": file.type,
+              "Cache-Control": "public, max-age=31536000, immutable",
+            },
           });
           if (!res.ok) {
             throw new Error(`Upload failed for ${file.name}`);
@@ -91,9 +95,11 @@ export function ImageUploader({
             className="relative aspect-square overflow-hidden rounded-lg border border-celis-border bg-celis-surface-inset"
           >
             <img
-              src={img.url}
+              src={getOptimizedImageUrl(img.url, { width: 320, height: 320 })}
               alt={`Listing image ${idx + 1}`}
               className="h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
             <button
               type="button"

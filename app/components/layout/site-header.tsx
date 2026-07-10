@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAuth } from "~/lib/auth-context";
 import { useTheme } from "~/lib/theme-provider";
@@ -13,6 +13,13 @@ import {
 } from "~/components/ui/dialog";
 import { Separator } from "~/components/ui/separator";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import {
   Search,
   Plus,
   LayoutDashboard,
@@ -21,6 +28,7 @@ import {
   Sun,
   Moon,
   Menu,
+  Grid2X2,
 } from "lucide-react";
 
 interface SiteHeaderProps {
@@ -31,11 +39,22 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
   const { user, logout } = useAuth();
   const { resolvedTheme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-celis-border bg-celis-bg/85 backdrop-blur-lg">
-      <div className="mx-auto flex min-h-[3.5rem] max-w-7xl items-center gap-2 px-4 md:min-h-[4rem] md:gap-4">
-        <Link to="/" className="flex items-center gap-2">
+      <div className="mx-auto flex min-h-[3.5rem] max-w-7xl items-center gap-3 px-4 md:min-h-[4rem]">
+        <Link to="/" className="flex shrink-0 items-center gap-2">
           <CelisLogo variant="primary" size={40} />
         </Link>
 
@@ -43,15 +62,18 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
           <form
             action="/search"
             method="get"
-            className="hidden flex-1 items-center sm:flex"
+            className="hidden min-w-0 flex-1 items-center lg:flex"
             onSubmit={(e) => {
               e.preventDefault();
               const form = e.currentTarget;
               const query = new FormData(form).get("q") as string;
-              window.location.href = `/search?query=${encodeURIComponent(query)}`;
+              navigate({
+                to: "/search",
+                search: { query: query || undefined },
+              });
             }}
           >
-            <div className="relative w-full max-w-md">
+            <div className="relative w-full max-w-sm xl:max-w-md">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-celis-ink-tertiary" />
               <Input
                 name="q"
@@ -62,12 +84,12 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
           </form>
         )}
 
-        <nav className="ml-auto flex items-center gap-1 md:gap-2">
+        <nav className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
           <Button
             variant="ghost"
             size="sm"
             asChild
-            className="hidden md:inline-flex"
+            className="hidden lg:inline-flex"
           >
             <Link to="/browse">Browse</Link>
           </Button>
@@ -75,7 +97,7 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
             variant="ghost"
             size="sm"
             asChild
-            className="hidden md:inline-flex"
+            className="hidden lg:inline-flex"
           >
             <Link to="/search">Search</Link>
           </Button>
@@ -97,33 +119,61 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
           <div className="hidden items-center gap-1 md:flex md:gap-2">
             {user ? (
               <>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/account">
-                    <User className="mr-2 h-4 w-4" />
-                    Account
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to={user.role === "admin" ? "/admin" : "/dashboard"}>
-                    <LayoutDashboard className="mr-2 h-4 w-4" />
-                    Dashboard
-                  </Link>
-                </Button>
                 <Button size="sm" asChild>
                   <Link to="/sell">
                     <Plus className="mr-1 h-4 w-4" />
                     Sell
                   </Link>
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={logout}
-                  aria-label="Sign out"
-                  className="h-12 w-12"
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Open account menu"
+                      className="h-12 w-12"
+                    >
+                      <User className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem asChild>
+                      <Link to="/account">
+                        <User className="mr-2 h-4 w-4" />
+                        Account
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to={user.role === "admin" ? "/admin" : "/dashboard"}>
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        Dashboard
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="lg:hidden">
+                      <Link to="/browse">
+                        <Grid2X2 className="mr-2 h-4 w-4" />
+                        Browse
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="lg:hidden">
+                      <Link to="/search">
+                        <Search className="mr-2 h-4 w-4" />
+                        Search
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      disabled={loggingOut}
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        handleLogout();
+                      }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Log out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             ) : (
               <>
@@ -192,9 +242,10 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
                 <Button
                   variant="ghost"
                   className="justify-start"
-                  onClick={() => {
+                  disabled={loggingOut}
+                  onClick={async () => {
                     setMenuOpen(false);
-                    logout();
+                    await handleLogout();
                   }}
                 >
                   <LogOut className="mr-2 h-4 w-4" />

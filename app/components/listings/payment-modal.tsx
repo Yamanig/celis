@@ -12,13 +12,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { Combobox } from "~/components/ui/combobox";
 import { initiatePayment, simulateConfirmPayment } from "~/server/payments.functions";
 import { WALLET_PROVIDERS } from "~/db/schema";
 import { formatPrice } from "~/lib/format";
@@ -47,6 +41,10 @@ export function PaymentModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const providerOptions = WALLET_PROVIDERS.map((p) => ({
+    value: p,
+    label: p.charAt(0).toUpperCase() + p.slice(1),
+  }));
 
   const reset = () => {
     setProvider(WALLET_PROVIDERS[0]);
@@ -107,7 +105,8 @@ export function PaymentModal({
         <DialogHeader>
           <DialogTitle>Pay listing fee</DialogTitle>
           <DialogDescription>
-            Activate your listing for {formatPrice(amountCents)} via mobile money.
+            Pay {formatPrice(amountCents)} via mobile money to submit your
+            listing for review.
           </DialogDescription>
         </DialogHeader>
 
@@ -116,25 +115,18 @@ export function PaymentModal({
             <CheckCircle2 className="h-12 w-12 text-celis-success" />
             <p className="text-lg font-medium">Payment received</p>
             <p className="text-sm text-celis-ink-secondary">
-              Your listing is now live on Celis.
+              Your listing has been submitted for admin review.
             </p>
           </div>
         ) : (
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="provider">Mobile wallet</Label>
-              <Select value={provider} onValueChange={setProvider}>
-                <SelectTrigger id="provider">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WALLET_PROVIDERS.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p.charAt(0).toUpperCase() + p.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                value={provider}
+                onValueChange={setProvider}
+                options={providerOptions}
+              />
             </div>
 
             <div className="space-y-2">

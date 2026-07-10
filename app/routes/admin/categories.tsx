@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -66,6 +66,7 @@ function slugify(name: string) {
 function AdminCategoriesPage() {
   const { categories, permissions } = Route.useLoaderData();
   const { items, page, totalPages } = categories;
+  const search = Route.useSearch();
   const router = useRouter();
   const navigate = useNavigate({ from: "/admin/categories" });
   const canManage = permissions.includes("categories:manage");
@@ -82,6 +83,19 @@ function AdminCategoriesPage() {
     sortOrder: 0,
   });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (
+      search.page === 1 &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("page") === "1"
+    ) {
+      navigate({
+        replace: true,
+        search: (prev) => ({ ...prev, page: undefined }),
+      });
+    }
+  }, [navigate, search.page]);
 
   const reset = () => {
     setEditing(null);
@@ -210,7 +224,9 @@ function AdminCategoriesPage() {
       <Pagination
         page={page}
         totalPages={totalPages}
-        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
+        onPageChange={(p) =>
+          navigate({ search: (prev) => ({ ...prev, page: p > 1 ? p : undefined }) })
+        }
       />
 
       <Dialog open={open} onOpenChange={setOpen}>
