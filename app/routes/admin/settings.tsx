@@ -149,6 +149,21 @@ function AdminSettingsPage() {
     return null;
   };
 
+  const validateDependencies = (
+    allValues: Record<string, unknown>
+  ): Record<string, string | null> => {
+    const deps: Record<string, string | null> = {};
+    const commissionEnabled = Boolean(allValues.commission_model_enabled);
+    const bps = Number(allValues.commission_bps);
+    if (commissionEnabled && (Number.isNaN(bps) || bps <= 0)) {
+      deps.commission_model_enabled =
+        "Enable commission only after setting a commission percentage greater than 0.";
+      deps.commission_bps =
+        "Commission must be greater than 0 when the commission model is enabled.";
+    }
+    return deps;
+  };
+
   const handleChange = (key: string, value: unknown) => {
     setValues((v) => ({ ...v, [key]: value }));
     setErrors((e) => ({ ...e, [key]: validate(key, value) }));
@@ -157,9 +172,10 @@ function AdminSettingsPage() {
 
   const confirmSave = (key: string) => {
     const value = values[key] as string | number | boolean | Record<string, unknown>;
-    const error = validate(key, value);
-    if (error) {
-      setErrors((e) => ({ ...e, [key]: error }));
+    const fieldError = validate(key, value);
+    const depErrors = validateDependencies(values);
+    if (fieldError || depErrors[key]) {
+      setErrors((e) => ({ ...e, [key]: fieldError ?? depErrors[key] }));
       return;
     }
     if (FINANCIAL_KEYS.has(key)) {
@@ -189,6 +205,10 @@ function AdminSettingsPage() {
     const nextErrors: Record<string, string | null> = {};
     for (const key of Object.keys(values)) {
       nextErrors[key] = validate(key, values[key]);
+    }
+    const depErrors = validateDependencies(values);
+    for (const key of Object.keys(depErrors)) {
+      if (depErrors[key]) nextErrors[key] = depErrors[key];
     }
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
@@ -281,15 +301,20 @@ function AdminSettingsPage() {
 
     if (isBool) {
       return (
-        <div className="flex items-center gap-3">
-          <Switch
-            id={config.key}
-            checked={Boolean(value)}
-            onCheckedChange={(checked) => handleChange(config.key, checked)}
-          />
-          <Label htmlFor={config.key} className="cursor-pointer">
-            {label}
-          </Label>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <Switch
+              id={config.key}
+              checked={Boolean(value)}
+              onCheckedChange={(checked) => handleChange(config.key, checked)}
+            />
+            <Label htmlFor={config.key} className="cursor-pointer">
+              {label}
+            </Label>
+          </div>
+          {errors[config.key] && (
+            <p className="text-xs text-destructive">{errors[config.key]}</p>
+          )}
         </div>
       );
     }

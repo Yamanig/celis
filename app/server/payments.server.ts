@@ -69,6 +69,10 @@ export async function getWalletPaymentByMerchantRef(merchantRef: string) {
 }
 
 export async function confirmWalletPayment(merchantRef: string) {
+  const existing = await getWalletPaymentByMerchantRef(merchantRef);
+  if (existing?.status === "completed") {
+    return existing;
+  }
   const [payment] = await db
     .update(walletPayments)
     .set({ status: "completed", updatedAt: new Date() })

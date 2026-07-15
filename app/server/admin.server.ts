@@ -1381,25 +1381,30 @@ export async function updatePlatformConfig(
   await requirePermission("settings:manage");
 
   const existing = await db
-    .select({ value: platformConfigs.value })
+    .select({ value: platformConfigs.value, description: platformConfigs.description })
     .from(platformConfigs)
     .where(eq(platformConfigs.key, key))
     .limit(1);
 
   const previous = existing[0]?.value;
-  const note = `Updated by ${adminId}; previous: ${JSON.stringify(previous)}`;
 
   if (existing.length === 0) {
     await db.insert(platformConfigs).values({
       key,
       value,
-      description: note,
       updatedBy: adminId,
     });
   } else {
     await db
       .update(platformConfigs)
-      .set({ value, description: note, updatedBy: adminId, updatedAt: new Date() })
+      .set({
+        value,
+        updatedBy: adminId,
+        updatedAt: new Date(),
+        // Preserve any existing business description instead of overwriting
+        // it with audit text; the audit log records the actual change.
+        description: existing[0].description,
+      })
       .where(eq(platformConfigs.key, key));
   }
 

@@ -1,6 +1,6 @@
 import { db } from "~/db";
 import { profiles, users, listings, listingPackages, sellerSubscriptions } from "~/db/schema";
-import { eq, and, gte, count, desc } from "drizzle-orm";
+import { eq, and, or, gte, lte, count, desc, isNull } from "drizzle-orm";
 
 export async function getSellerProfile(sellerId: string) {
   const rows = await db
@@ -43,7 +43,12 @@ export async function countSubscriptionListings(
     .where(
       and(
         eq(listings.sellerId, sellerId),
-        gte(listings.createdAt, since)
+        gte(listings.createdAt, since),
+        or(
+          eq(listings.status, "active"),
+          eq(listings.status, "pending_review"),
+          eq(listings.status, "sold")
+        )
       )
     );
   return Number(value);
@@ -115,6 +120,18 @@ export async function assignSellerPackage(
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + pkg[0].durationDays);
 
+  // A seller can only have one active subscription at a time. Cancel any
+  // existing active subscription before assigning the new one.
+  await db
+    .update(sellerSubscriptions)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(
+      and(
+        eq(sellerSubscriptions.sellerId, sellerId),
+        eq(sellerSubscriptions.status, "active")
+      )
+    );
+
   await db.insert(sellerSubscriptions).values({
     sellerId,
     packageId,
@@ -131,10 +148,17 @@ export async function assignSellerPackage(
 }
 
 export async function listListingPackages() {
+  const now = new Date();
   return db
     .select()
     .from(listingPackages)
-    .where(eq(listingPackages.isActive, true))
+    .where(
+      and(
+        eq(listingPackages.isActive, true),
+        or(isNull(listingPackages.effectiveFrom), lte(listingPackages.effectiveFrom, now)),
+        or(isNull(listingPackages.effectiveUntil), gte(listingPackages.effectiveUntil, now))
+      )
+    )
     .orderBy(listingPackages.price, listingPackages.name);
 }
 

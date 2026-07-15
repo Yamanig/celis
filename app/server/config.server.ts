@@ -35,8 +35,15 @@ export async function getListingTiersConfig() {
 }
 
 export async function getPlatformMonetizationModel(): Promise<MonetizationModel> {
-  const value = await getPlatformConfig<MonetizationModel>("platform_monetization_model");
-  if (value === "commission_only" || value === "hybrid") return value;
+  const [value, commissionEnabled] = await Promise.all([
+    getPlatformConfig<MonetizationModel>("platform_monetization_model"),
+    getPlatformConfig<boolean>("commission_model_enabled"),
+  ]);
+  if (value === "commission_only" || value === "hybrid") {
+    // The commission toggle must be enabled for commission models to be active.
+    if (commissionEnabled === false) return "fixed_only";
+    return value;
+  }
   return "fixed_only";
 }
 

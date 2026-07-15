@@ -50,16 +50,39 @@ export const initiatePayment = createServerFn({ method: "POST" })
 
     if (data.listingId) {
       const [listing] = await db
-        .select({ price: listings.price, condition: listings.condition })
+        .select({
+          price: listings.price,
+          condition: listings.condition,
+          categoryId: listings.categoryId,
+        })
         .from(listings)
         .where(eq(listings.id, data.listingId))
         .limit(1);
       if (listing) {
         const pricing = await getListingPricing(
           listing.price,
-          listing.condition
+          listing.condition,
+          listing.categoryId
         );
         amountCents = pricing.feeCents;
+
+        // Snapshot the pricing inputs/outputs on the listing so the fee
+        // cannot change between payment and approval, and reconciliation
+        // is possible.
+        const monetizationType: "fixed_rate" | "commission" =
+          pricing.monetizationModel === "fixed_only" ? "fixed_rate" : "commission";
+        await db
+          .update(listings)
+          .set({
+            feeAmountCents: pricing.feeCents,
+            commissionBps: pricing.commissionBps,
+            currency: pricing.currency,
+            expiresAt: pricing.expiresAt,
+            appliedFeeRuleId: pricing.appliedFeeRuleId,
+            monetizationType,
+            updatedAt: new Date(),
+          })
+          .where(eq(listings.id, data.listingId));
       }
     }
 

@@ -184,7 +184,6 @@ export async function submitShopListingForReview(
 }
 
 export async function approveListing(id: string, reviewerId: string) {
-  const { getListingPricing } = await import("./config.server");
   const [listing] = await db
     .select()
     .from(listings)
@@ -195,11 +194,18 @@ export async function approveListing(id: string, reviewerId: string) {
     throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
   }
 
-  const pricing = await getListingPricing(
-    listing.price,
-    listing.condition,
-    listing.categoryId
-  );
+  // If the listing was already paid, keep the snapshot taken at payment time
+  // so a later config change cannot alter the amount charged or expiry.
+  let expiresAt = listing.expiresAt;
+  if (!expiresAt) {
+    const { getListingPricing } = await import("./config.server");
+    const pricing = await getListingPricing(
+      listing.price,
+      listing.condition,
+      listing.categoryId
+    );
+    expiresAt = pricing.expiresAt;
+  }
 
   const [updated] = await db
     .update(listings)
@@ -207,11 +213,7 @@ export async function approveListing(id: string, reviewerId: string) {
       status: "active",
       reviewedAt: new Date(),
       reviewedBy: reviewerId,
-      expiresAt: pricing.expiresAt,
-      appliedFeeRuleId: pricing.appliedFeeRuleId,
-      feeAmountCents: pricing.feeCents,
-      commissionBps: pricing.commissionBps,
-      currency: pricing.currency,
+      expiresAt,
       updatedAt: new Date(),
     })
     .where(eq(listings.id, id))
