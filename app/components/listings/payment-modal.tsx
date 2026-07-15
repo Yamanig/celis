@@ -30,6 +30,7 @@ interface PaymentModalProps {
   userId: string;
   listingId: string | null;
   amountCents: number;
+  enabledProviders?: readonly string[];
   onSuccess: () => void;
 }
 
@@ -39,9 +40,11 @@ export function PaymentModal({
   userId,
   listingId,
   amountCents,
+  enabledProviders = WALLET_PROVIDERS,
   onSuccess,
 }: PaymentModalProps) {
-  const [provider, setProvider] = useState<string>(WALLET_PROVIDERS[0]);
+  const providers = (enabledProviders.length > 0 ? enabledProviders : WALLET_PROVIDERS) as string[];
+  const [provider, setProvider] = useState<string>(providers[0]);
   const [phone, setPhone] = useState("");
   const [merchantRef, setMerchantRef] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,7 +52,7 @@ export function PaymentModal({
   const [success, setSuccess] = useState(false);
 
   const reset = () => {
-    setProvider(WALLET_PROVIDERS[0]);
+    setProvider(providers[0]);
     setPhone("");
     setMerchantRef(null);
     setError(null);
@@ -128,7 +131,7 @@ export function PaymentModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {WALLET_PROVIDERS.map((p) => (
+                  {providers.map((p) => (
                     <SelectItem key={p} value={p}>
                       {p.charAt(0).toUpperCase() + p.slice(1)}
                     </SelectItem>

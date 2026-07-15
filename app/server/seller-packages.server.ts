@@ -147,24 +147,35 @@ export async function assignSellerPackage(
   return getActiveSellerSubscription(sellerId);
 }
 
-export async function listListingPackages() {
+export async function listListingPackages(
+  options: { sellerType?: "individual" | "shop" } = {}
+) {
   const now = new Date();
+  const conditions = [
+    eq(listingPackages.isActive, true),
+    or(isNull(listingPackages.effectiveFrom), lte(listingPackages.effectiveFrom, now)),
+    or(isNull(listingPackages.effectiveUntil), gte(listingPackages.effectiveUntil, now)),
+  ];
+  if (options.sellerType) {
+    conditions.push(
+      or(
+        isNull(listingPackages.sellerTypeEligibility),
+        eq(listingPackages.sellerTypeEligibility, options.sellerType)
+      )
+    );
+  }
   return db
     .select()
     .from(listingPackages)
-    .where(
-      and(
-        eq(listingPackages.isActive, true),
-        or(isNull(listingPackages.effectiveFrom), lte(listingPackages.effectiveFrom, now)),
-        or(isNull(listingPackages.effectiveUntil), gte(listingPackages.effectiveUntil, now))
-      )
-    )
+    .where(and(...conditions))
     .orderBy(listingPackages.price, listingPackages.name);
 }
 
 export async function createListingPackage(input: {
+  code: string;
   name: string;
   description?: string;
+  sellerTypeEligibility?: "individual" | "shop" | null;
   listingAllowance: number;
   durationDays: number;
   price: number;
@@ -177,8 +188,10 @@ export async function createListingPackage(input: {
   const [pkg] = await db
     .insert(listingPackages)
     .values({
+      code: input.code,
       name: input.name,
       description: input.description,
+      sellerTypeEligibility: input.sellerTypeEligibility ?? null,
       listingAllowance: input.listingAllowance,
       isUnlimited: input.isUnlimited ?? false,
       durationDays: input.durationDays,
@@ -195,8 +208,10 @@ export async function createListingPackage(input: {
 export async function updateListingPackage(
   id: string,
   input: Partial<{
+    code: string;
     name: string;
     description: string;
+    sellerTypeEligibility: "individual" | "shop" | null;
     listingAllowance: number;
     isUnlimited: boolean;
     featuredAllowance: number;

@@ -43,6 +43,13 @@ export const Route = createFileRoute("/admin/settings")({
 const PLATFORM_CURRENCY = "USD";
 const MAX_COMMISSION_BPS = 5000; // 50%
 
+function toDateTimeLocal(value: Date | string | null | undefined): string {
+  if (!value) return "";
+  const date = typeof value === "string" ? new Date(value) : value;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 interface ConfigItem {
   key: string;
   value: string | number | boolean;
@@ -115,6 +122,17 @@ function AdminSettingsPage() {
   const [values, setValues] = useState<Record<string, unknown>>(
     () => Object.fromEntries(configs.map((c) => [c.key, c.value]))
   );
+  const [effectiveDates, setEffectiveDates] = useState<
+    Record<string, { from: string; until: string }>
+  >(
+    () =>
+      Object.fromEntries(
+        configs.map((c) => [
+          c.key,
+          { from: toDateTimeLocal(c.effectiveFrom), until: toDateTimeLocal(c.effectiveUntil) },
+        ])
+      )
+  );
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -126,7 +144,9 @@ function AdminSettingsPage() {
     open: boolean;
     key: string;
     value: string | number | boolean | Record<string, unknown>;
-  }>({ open: false, key: "", value: "" });
+    from: string;
+    until: string;
+  }>({ open: false, key: "", value: "", from: "", until: "" });
 
   const configMap = useMemo(
     () => new Map(configs.map((c) => [c.key, c])),
@@ -178,21 +198,31 @@ function AdminSettingsPage() {
       setErrors((e) => ({ ...e, [key]: fieldError ?? depErrors[key] }));
       return;
     }
+    const dates = effectiveDates[key] ?? { from: "", until: "" };
     if (FINANCIAL_KEYS.has(key)) {
-      setConfirm({ open: true, key, value });
+      setConfirm({ open: true, key, value, from: dates.from, until: dates.until });
     } else {
-      doSave(key, value);
+      doSave(key, value, dates.from, dates.until);
     }
   };
 
   const doSave = async (
     key: string,
-    value: string | number | boolean | Record<string, unknown>
+    value: string | number | boolean | Record<string, unknown>,
+    effectiveFrom?: string,
+    effectiveUntil?: string
   ) => {
     setLoading(true);
     setSaved(false);
     try {
-      await updateAdminPlatformConfig({ data: { key, value } });
+      await updateAdminPlatformConfig({
+        data: {
+          key,
+          value,
+          effectiveFrom: effectiveFrom || undefined,
+          effectiveUntil: effectiveUntil || undefined,
+        },
+      });
       await router.invalidate();
       setSaved(true);
     } finally {
@@ -217,14 +247,17 @@ function AdminSettingsPage() {
     setSaved(false);
     try {
       await Promise.all(
-        Object.entries(values).map(([key, value]) =>
-          updateAdminPlatformConfig({
+        Object.entries(values).map(([key, value]) => {
+          const dates = effectiveDates[key] ?? { from: "", until: "" };
+          return updateAdminPlatformConfig({
             data: {
               key,
               value: value as string | number | boolean | Record<string, unknown>,
+              effectiveFrom: dates.from || undefined,
+              effectiveUntil: dates.until || undefined,
             },
-          })
-        )
+          });
+        })
       );
       await router.invalidate();
       setSaved(true);
@@ -394,6 +427,38 @@ function AdminSettingsPage() {
     );
   };
 
+  const renderEffectiveDateInputs = (config: ConfigItem) => {
+    const dates = effectiveDates[config.key] ?? { from: "", until: "" };
+    return (
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+        <Input
+          type="datetime-local"
+          className="text-xs sm:w-48"
+          aria-label="Effective from"
+          value={dates.from}
+          onChange={(e) =>
+            setEffectiveDates((prev) => ({
+              ...prev,
+              [config.key]: { ...dates, from: e.target.value },
+            }))
+          }
+        />
+        <Input
+          type="datetime-local"
+          className="text-xs sm:w-48"
+          aria-label="Effective until"
+          value={dates.until}
+          onChange={(e) =>
+            setEffectiveDates((prev) => ({
+              ...prev,
+              [config.key]: { ...dates, until: e.target.value },
+            }))
+          }
+        />
+      </div>
+    );
+  };
+
   const confirmItem = confirm.open ? configMap.get(confirm.key) : undefined;
   const confirmPreviousValue = confirmItem?.value;
   const confirmDisplayPrevious =
@@ -448,20 +513,23 @@ function AdminSettingsPage() {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                {renderInput(config)}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => confirmSave(config.key)}
-                  disabled={
-                    loading ||
-                    values[config.key] === config.value ||
-                    Boolean(errors[config.key])
-                  }
-                >
-                  Save
-                </Button>
+              <div className="flex flex-col gap-2 sm:items-end">
+                <div className="flex items-center gap-2">
+                  {renderInput(config)}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => confirmSave(config.key)}
+                    disabled={
+                      loading ||
+                      values[config.key] === config.value ||
+                      Boolean(errors[config.key])
+                    }
+                  >
+                    Save
+                  </Button>
+                </div>
+                {renderEffectiveDateInputs(config)}
               </div>
             </div>
           ))}
@@ -489,20 +557,23 @@ function AdminSettingsPage() {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                {renderInput(config)}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => confirmSave(config.key)}
-                  disabled={
-                    loading ||
-                    values[config.key] === config.value ||
-                    Boolean(errors[config.key])
-                  }
-                >
-                  Save
-                </Button>
+              <div className="flex flex-col gap-2 sm:items-end">
+                <div className="flex items-center gap-2">
+                  {renderInput(config)}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => confirmSave(config.key)}
+                    disabled={
+                      loading ||
+                      values[config.key] === config.value ||
+                      Boolean(errors[config.key])
+                    }
+                  >
+                    Save
+                  </Button>
+                </div>
+                {renderEffectiveDateInputs(config)}
               </div>
             </div>
           ))}
@@ -730,7 +801,7 @@ function AdminSettingsPage() {
               Cancel
             </Button>
             <Button
-              onClick={() => doSave(confirm.key, confirm.value)}
+              onClick={() => doSave(confirm.key, confirm.value, confirm.from, confirm.until)}
               disabled={loading}
             >
               Confirm

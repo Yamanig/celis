@@ -6,17 +6,22 @@ import {
   integer,
   text,
   boolean,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
-import { subscriptionStatusEnum } from "./enums";
+import { sellerTypeEnum, subscriptionStatusEnum } from "./enums";
 
-export const listingPackages = pgTable("listing_packages", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: varchar("name", { length: 120 }).notNull(),
-  description: text("description"),
-  listingAllowance: integer("listing_allowance").notNull(),
-  isUnlimited: boolean("is_unlimited").notNull().default(false),
+export const listingPackages = pgTable(
+  "listing_packages",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    code: varchar("code", { length: 60 }),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description"),
+    sellerTypeEligibility: sellerTypeEnum("seller_type_eligibility"),
+    listingAllowance: integer("listing_allowance").notNull(),
+    isUnlimited: boolean("is_unlimited").notNull().default(false),
   featuredAllowance: integer("featured_allowance"),
   durationDays: integer("duration_days").notNull(),
   price: integer("price").notNull().default(0),
@@ -26,14 +31,18 @@ export const listingPackages = pgTable("listing_packages", {
   effectiveFrom: timestamp("effective_from", { withTimezone: true }),
   effectiveUntil: timestamp("effective_until", { withTimezone: true }),
   version: integer("version").notNull().default(1),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    codeIdx: uniqueIndex("idx_listing_packages_code").on(table.code),
+  })
+);
 
 export const sellerSubscriptions = pgTable("seller_subscriptions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),

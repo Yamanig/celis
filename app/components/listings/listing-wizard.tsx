@@ -34,7 +34,11 @@ import {
   type CategoryConditionItem,
 } from "~/server/categories.functions";
 import { getListingPricingPreview } from "~/server/config.functions";
-import { DELIVERY_METHODS, MONETIZATION_TYPES } from "~/db/schema";
+import {
+  DELIVERY_METHODS,
+  MONETIZATION_TYPES,
+  WALLET_PROVIDERS,
+} from "~/db/schema";
 import { formatPrice } from "~/lib/format";
 import {
   calculateListingPricing,
@@ -52,11 +56,20 @@ import {
 import { ChevronLeft, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
 import type { CategoryListItem } from "~/server/categories.functions";
 
+interface FeatureToggles {
+  localPickupEnabled: boolean;
+  platformShippingEnabled: boolean;
+  evcEnabled: boolean;
+  premierWalletEnabled: boolean;
+  edahabEnabled: boolean;
+}
+
 interface ListingWizardProps {
   sellerId: string;
   categories: CategoryListItem[];
   tiersConfig: ListingTiersConfig;
   monetizationModel: MonetizationModel;
+  featureToggles: FeatureToggles;
 }
 
 const STEPS = ["Details", "Pricing", "Photos", "Review"];
@@ -78,13 +91,45 @@ export function ListingWizard({
   categories,
   tiersConfig,
   monetizationModel,
+  featureToggles,
 }: ListingWizardProps) {
+  const enabledDeliveryMethods = useMemo(() => {
+    return DELIVERY_METHODS.filter((m) => {
+      if (m === "shipping") return featureToggles.platformShippingEnabled;
+      if (m === "local_pickup") return featureToggles.localPickupEnabled;
+      return featureToggles.platformShippingEnabled && featureToggles.localPickupEnabled;
+    });
+  }, [featureToggles]);
+
+  const enabledWalletProviders = useMemo(() => {
+    return WALLET_PROVIDERS.filter((p) => {
+      if (p === "evc") return featureToggles.evcEnabled;
+      if (p === "premier") return featureToggles.premierWalletEnabled;
+      if (p === "edahab") return featureToggles.edahabEnabled;
+      return true;
+    });
+  }, [featureToggles]);
+
+  const defaultDeliveryMethod = enabledDeliveryMethods[0] ?? "local_pickup";
+
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<ListingInput>({
     ...emptyForm,
     monetizationType:
       monetizationModel === "commission_only" ? "commission" : "fixed_rate",
+    deliveryMethod: defaultDeliveryMethod as ListingInput["deliveryMethod"],
   });
+
+  // If toggles change and the selected delivery method is no longer available,
+  // fall back to the first enabled option.
+  useEffect(() => {
+    if (!enabledDeliveryMethods.includes(form.deliveryMethod)) {
+      setForm((prev) => ({
+        ...prev,
+        deliveryMethod: defaultDeliveryMethod as ListingInput["deliveryMethod"],
+      }));
+    }
+  }, [enabledDeliveryMethods, defaultDeliveryMethod, form.deliveryMethod]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [createdListingId, setCreatedListingId] = useState<string | null>(null);
@@ -446,7 +491,7 @@ export function ListingWizard({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {DELIVERY_METHODS.map((m) => (
+                    {enabledDeliveryMethods.map((m) => (
                       <SelectItem key={m} value={m}>
                         {m.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
                       </SelectItem>
@@ -627,6 +672,7 @@ export function ListingWizard({
         userId={sellerId}
         listingId={createdListingId}
         amountCents={preview.totalFeeCents}
+        enabledProviders={enabledWalletProviders}
         onSuccess={() => setFinished(true)}
       />
     </>

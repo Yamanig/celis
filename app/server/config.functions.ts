@@ -5,6 +5,7 @@ import {
   getListingTiersConfig,
   getPlatformMonetizationModel,
   getListingPricing,
+  getPlatformConfig,
 } from "./config.server";
 import { ITEM_CONDITIONS } from "~/db/schema";
 
@@ -18,6 +19,31 @@ export const getListingTiers = createServerFn({ method: "GET" }).handler(async (
 
 export const getMonetizationModel = createServerFn({ method: "GET" }).handler(
   async () => getPlatformMonetizationModel()
+);
+
+export const getFeatureToggles = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const [
+      localPickupEnabled,
+      platformShippingEnabled,
+      evcEnabled,
+      premierWalletEnabled,
+      edahabEnabled,
+    ] = await Promise.all([
+      getPlatformConfig<boolean>("local_pickup_enabled"),
+      getPlatformConfig<boolean>("platform_shipping_enabled"),
+      getPlatformConfig<boolean>("evc_enabled"),
+      getPlatformConfig<boolean>("premier_wallet_enabled"),
+      getPlatformConfig<boolean>("edahab_enabled"),
+    ]);
+    return {
+      localPickupEnabled: localPickupEnabled ?? true,
+      platformShippingEnabled: platformShippingEnabled ?? true,
+      evcEnabled: evcEnabled ?? true,
+      premierWalletEnabled: premierWalletEnabled ?? true,
+      edahabEnabled: edahabEnabled ?? true,
+    };
+  }
 );
 
 const pricingPreviewSchema = z.object({

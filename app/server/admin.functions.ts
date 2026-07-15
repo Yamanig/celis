@@ -300,6 +300,43 @@ export const updateAdminOrderStatus = createServerFn({ method: "POST" })
     return updateOrderStatus(data.id, data.status);
   });
 
+const createOrderSchema = z.object({
+  listingId: z.string().uuid(),
+  buyerEmail: z.string().email(),
+  salePrice: z.coerce.number().int().min(0),
+});
+
+export const createAdminOrder = createServerFn({ method: "POST" })
+  .validator(createOrderSchema)
+  .handler(async ({ data }) => {
+    await requirePermission("orders:manage");
+    const { db } = await import("~/db");
+    const { users, listings } = await import("~/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { createOrder } = await import("./orders.server");
+
+    const [buyer] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, data.buyerEmail))
+      .limit(1);
+    if (!buyer) throw new Error("Buyer not found");
+
+    const [listing] = await db
+      .select({ sellerId: listings.sellerId })
+      .from(listings)
+      .where(eq(listings.id, data.listingId))
+      .limit(1);
+    if (!listing) throw new Error("Listing not found");
+
+    return createOrder({
+      listingId: data.listingId,
+      buyerId: buyer.id,
+      sellerId: listing.sellerId,
+      salePrice: data.salePrice,
+    });
+  });
+
 const payoutsQuerySchema = z
   .object({
     status: z.string().optional(),
@@ -419,6 +456,8 @@ export const runAdminExpirySweep = createServerFn({ method: "POST" }).handler(
 const updateConfigSchema = z.object({
   key: z.string(),
   value: z.union([z.string(), z.number(), z.boolean(), z.record(z.unknown())]),
+  effectiveFrom: z.string().datetime().optional(),
+  effectiveUntil: z.string().datetime().optional(),
 });
 
 export const updateAdminPlatformConfig = createServerFn({ method: "POST" })
@@ -428,12 +467,20 @@ export const updateAdminPlatformConfig = createServerFn({ method: "POST" })
     const { getCurrentUser } = await import("./auth.server");
     const admin = await getCurrentUser();
     if (!admin) throw new Error("Unauthorized");
-    return updatePlatformConfig(data.key, data.value, admin.id);
+    return updatePlatformConfig(
+      data.key,
+      data.value,
+      admin.id,
+      data.effectiveFrom ? new Date(data.effectiveFrom) : undefined,
+      data.effectiveUntil ? new Date(data.effectiveUntil) : undefined
+    );
   });
 
 const packageSchema = z.object({
+  code: z.string().min(1).max(60),
   name: z.string().min(1).max(120),
   description: z.string().max(500).optional(),
+  sellerTypeEligibility: z.enum(["individual", "shop"]).optional(),
   listingAllowance: z.coerce.number().int().min(1),
   isUnlimited: z.boolean().optional(),
   featuredAllowance: z.coerce.number().int().min(0).optional(),

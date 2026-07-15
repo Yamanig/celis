@@ -905,10 +905,16 @@ export async function updateOrderStatus(
     | "disputed"
 ) {
   await requirePermission("orders:manage");
-  const updates: Record<string, unknown> = { status };
-  if (status === "completed") updates.completedAt = new Date();
-  if (status === "disputed") updates.disputedAt = new Date();
-  await db.update(orders).set(updates).where(eq(orders.id, id));
+
+  if (status === "completed") {
+    const { completeOrder } = await import("./orders.server");
+    await completeOrder(id);
+  } else {
+    const updates: Record<string, unknown> = { status };
+    if (status === "disputed") updates.disputedAt = new Date();
+    await db.update(orders).set(updates).where(eq(orders.id, id));
+  }
+
   await insertAuditLog({
     action: "order_status_changed",
     resourceType: "order",
@@ -1376,7 +1382,9 @@ export async function getPlatformConfigAll() {
 export async function updatePlatformConfig(
   key: string,
   value: string | number | boolean | object,
-  adminId: string
+  adminId: string,
+  effectiveFrom?: Date | null,
+  effectiveUntil?: Date | null
 ) {
   await requirePermission("settings:manage");
 
@@ -1388,19 +1396,24 @@ export async function updatePlatformConfig(
 
   const previous = existing[0]?.value;
 
+  const setValues = {
+    value,
+    updatedBy: adminId,
+    updatedAt: new Date(),
+    effectiveFrom: effectiveFrom ?? null,
+    effectiveUntil: effectiveUntil ?? null,
+  };
+
   if (existing.length === 0) {
     await db.insert(platformConfigs).values({
       key,
-      value,
-      updatedBy: adminId,
+      ...setValues,
     });
   } else {
     await db
       .update(platformConfigs)
       .set({
-        value,
-        updatedBy: adminId,
-        updatedAt: new Date(),
+        ...setValues,
         // Preserve any existing business description instead of overwriting
         // it with audit text; the audit log records the actual change.
         description: existing[0].description,

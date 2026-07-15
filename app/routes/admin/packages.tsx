@@ -43,8 +43,10 @@ export const Route = createFileRoute("/admin/packages")({
 });
 
 interface PackageForm {
+  code: string;
   name: string;
   description: string;
+  sellerTypeEligibility: "individual" | "shop" | "";
   listingAllowance: number;
   isUnlimited: boolean;
   featuredAllowance: number;
@@ -56,8 +58,10 @@ interface PackageForm {
 }
 
 const emptyForm: PackageForm = {
+  code: "",
   name: "",
   description: "",
+  sellerTypeEligibility: "",
   listingAllowance: 10,
   isUnlimited: false,
   featuredAllowance: 0,
@@ -96,8 +100,13 @@ function AdminPackagesPage() {
   const openEdit = (pkg: typeof packages[number]) => {
     setEditing(pkg);
     setForm({
+      code: pkg.code ?? "",
       name: pkg.name,
       description: pkg.description ?? "",
+      sellerTypeEligibility:
+        pkg.sellerTypeEligibility === "individual" || pkg.sellerTypeEligibility === "shop"
+          ? pkg.sellerTypeEligibility
+          : "",
       listingAllowance: pkg.listingAllowance,
       isUnlimited: pkg.isUnlimited,
       featuredAllowance: pkg.featuredAllowance ?? 0,
@@ -114,12 +123,19 @@ function AdminPackagesPage() {
     e.preventDefault();
     setLoading(true);
     try {
+      const payload = {
+        ...form,
+        sellerTypeEligibility:
+          form.sellerTypeEligibility === ""
+            ? undefined
+            : form.sellerTypeEligibility,
+      };
       if (editing) {
         await updateAdminListingPackage({
-          data: { id: editing.id, ...form },
+          data: { id: editing.id, ...payload },
         });
       } else {
-        await createAdminListingPackage({ data: form });
+        await createAdminListingPackage({ data: payload });
       }
       await router.invalidate();
       setOpen(false);
@@ -272,6 +288,40 @@ function AdminPackagesPage() {
                   setForm((f) => ({ ...f, description: e.target.value }))
                 }
               />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="code">Code</Label>
+                <Input
+                  id="code"
+                  value={form.code}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, code: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sellerType">Seller type</Label>
+                <Select
+                  value={form.sellerTypeEligibility}
+                  onValueChange={(v) =>
+                    setForm((f) => ({
+                      ...f,
+                      sellerTypeEligibility: v as PackageForm["sellerTypeEligibility"],
+                    }))
+                  }
+                >
+                  <SelectTrigger id="sellerType">
+                    <SelectValue placeholder="All seller types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All seller types</SelectItem>
+                    <SelectItem value="individual">Individual</SelectItem>
+                    <SelectItem value="shop">Shop</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
