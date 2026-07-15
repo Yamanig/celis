@@ -3,7 +3,7 @@ import { SiteHeader } from "~/components/layout/site-header";
 import { SiteFooter } from "~/components/layout/site-footer";
 import { ListingWizard } from "~/components/listings/listing-wizard";
 import { listCategories } from "~/server/categories.functions";
-import { getListingTiers } from "~/server/config.functions";
+import { getListingTiers, getMonetizationModel } from "~/server/config.functions";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { AlertTriangle } from "lucide-react";
@@ -23,16 +23,17 @@ export const Route = createFileRoute("/sell")({
     }
   },
   loader: async () => {
-    const [categories, tiersConfig] = await Promise.all([
+    const [categories, tiersConfig, monetizationModel] = await Promise.all([
       listCategories(),
       getListingTiers(),
+      getMonetizationModel(),
     ]);
-    return { categories, tiersConfig };
+    return { categories, tiersConfig, monetizationModel };
   },
 });
 
 function SellPage() {
-  const { categories, tiersConfig } = Route.useLoaderData();
+  const { categories, tiersConfig, monetizationModel } = Route.useLoaderData();
   const { user } = Route.useRouteContext();
 
   if (!user) return null;
@@ -73,6 +74,7 @@ function SellPage() {
             sellerId={user.id}
             categories={categories}
             tiersConfig={tiersConfig}
+            monetizationModel={monetizationModel}
           />
         )}
       </main>

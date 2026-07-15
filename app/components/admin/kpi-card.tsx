@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
+import { Link } from "@tanstack/react-router";
 
 interface KpiCardProps {
   title: string;
@@ -7,6 +8,7 @@ interface KpiCardProps {
   icon: React.ComponentType<{ className?: string }>;
   tone?: "primary" | "success" | "caution" | "destructive" | "default";
   subtitle?: string;
+  href?: string;
 }
 
 const toneMap = {
@@ -23,9 +25,10 @@ export function KpiCard({
   icon: Icon,
   tone = "default",
   subtitle,
+  href,
 }: KpiCardProps) {
-  return (
-    <Card className="border-celis-border bg-celis-surface-base">
+  const content = (
+    <>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-celis-ink-secondary">
           {title}
@@ -42,6 +45,22 @@ export function KpiCard({
           <p className="mt-1 text-xs text-celis-ink-secondary">{subtitle}</p>
         )}
       </CardContent>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link to={href} className="block">
+        <Card className="border-celis-border bg-celis-surface-base transition-colors hover:border-celis-primary hover:bg-celis-surface-elevated">
+          {content}
+        </Card>
+      </Link>
+    );
+  }
+
+  return (
+    <Card className="border-celis-border bg-celis-surface-base">
+      {content}
     </Card>
   );
 }

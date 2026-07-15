@@ -125,6 +125,7 @@ function AdminDashboardPage() {
           value={counts.expiringSoon}
           icon={Clock}
           tone="caution"
+          href="/admin/listings?expiryWindow=3"
         />
       </div>
 

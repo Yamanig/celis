@@ -23,7 +23,7 @@ import {
 } from "drizzle-orm";
 import { requireAdmin, requirePermission } from "./auth.server";
 import { insertAuditLog } from "./audit.server";
-import type { UserRole, ListingStatus } from "~/db/schema";
+import type { UserRole, ListingStatus, VerificationStatus } from "~/db/schema";
 import {
   calculateListingPricing,
   DEFAULT_LISTING_TIERS,
@@ -220,7 +220,8 @@ export async function getAdminRecentActivity() {
       email: r.user.email,
       role: r.user.role,
       displayName: r.profile?.displayName ?? null,
-      isVerified: r.user.verifiedAt !== null,
+      isVerified:
+        r.user.verificationStatus === "approved" || r.user.verifiedAt !== null,
       isSuperAdmin: r.user.isSuperAdmin,
       createdAt: toDateString(r.user.createdAt),
     })),
@@ -241,6 +242,7 @@ function toDateString(value: Date | string): string {
 export async function getAdminUsers(options?: {
   search?: string;
   role?: UserRole;
+  domain?: "customer" | "internal";
   page?: number;
   limit?: number;
 }) {
@@ -262,6 +264,15 @@ export async function getAdminUsers(options?: {
   }
   if (options?.role) {
     conditions.push(eq(users.role, options.role));
+  }
+  if (options?.domain) {
+    if (options.domain === "customer") {
+      conditions.push(or(eq(users.role, "buyer"), eq(users.role, "seller")));
+    } else {
+      conditions.push(
+        sql`${users.role} IN ('admin', 'listing_review_officer', 'seller_verification_officer', 'finance_officer', 'support_officer', 'auditor')`
+      );
+    }
   }
 
   const where = conditions.length ? and(...conditions) : undefined;
@@ -286,9 +297,13 @@ export async function getAdminUsers(options?: {
       id: r.user.id,
       email: r.user.email,
       role: r.user.role,
+      isInternal: r.user.isInternal,
       displayName: r.profile?.displayName ?? null,
       phone: r.user.walletPhone ?? r.profile?.phone ?? null,
-      isVerified: r.user.verifiedAt !== null,
+      isVerified:
+        r.user.verificationStatus === "approved" || r.user.verifiedAt !== null,
+      verificationStatus: r.user.verificationStatus,
+      verificationRejectionReason: r.user.verificationRejectionReason,
       isSuperAdmin: r.user.isSuperAdmin,
       sellerType: r.profile?.sellerType ?? "individual",
       businessName: r.profile?.businessName ?? null,
@@ -301,14 +316,39 @@ export async function getAdminUsers(options?: {
   };
 }
 
-export async function updateUserRole(id: string, role: UserRole) {
+export async function updateUserRole(id: string, role: UserRole, actorId: string) {
   await requirePermission("users:manage");
+
+  const internalRoles = new Set<UserRole>([
+    "admin",
+    "listing_review_officer",
+    "seller_verification_officer",
+    "finance_officer",
+    "support_officer",
+    "auditor",
+  ]);
+
+  const [user] = await db
+    .select({ role: users.role, isInternal: users.isInternal })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  if (!user) throw new Error("User not found");
+
+  // Prevent promoting an external customer to an internal role through the
+  // simple role dropdown. Internal users must be created via the invite flow.
+  if (internalRoles.has(role) && !user.isInternal && user.role !== "admin") {
+    throw new Error(
+      "External customers cannot be converted to internal staff via role change. Use the invite internal user flow."
+    );
+  }
+
   await db.update(users).set({ role }).where(eq(users.id, id));
   await insertAuditLog({
     action: "user_role_changed",
     resourceType: "user",
     resourceId: id,
-    metadata: { role },
+    metadata: { previousRole: user.role, newRole: role, actorId },
   });
   return { success: true };
 }
@@ -316,19 +356,150 @@ export async function updateUserRole(id: string, role: UserRole) {
 export async function toggleUserVerification(id: string) {
   await requirePermission("users:manage");
   const [user] = await db
-    .select({ verifiedAt: users.verifiedAt })
+    .select({ verifiedAt: users.verifiedAt, verificationStatus: users.verificationStatus })
     .from(users)
     .where(eq(users.id, id))
     .limit(1);
-  const next = user?.verifiedAt ? null : new Date();
-  await db.update(users).set({ verifiedAt: next }).where(eq(users.id, id));
+  const approving = user?.verificationStatus !== "approved";
+  const updates = approving
+    ? { verificationStatus: "approved" as VerificationStatus, verifiedAt: new Date(), verificationRejectionReason: null }
+    : { verificationStatus: "pending" as VerificationStatus, verifiedAt: null, verificationRejectionReason: null };
+  await db.update(users).set(updates).where(eq(users.id, id));
   await insertAuditLog({
     action: "user_verification_toggled",
     resourceType: "user",
     resourceId: id,
-    metadata: { verified: next !== null },
+    metadata: { verified: approving },
   });
-  return { success: true, verified: next !== null };
+  return { success: true, verified: approving };
+}
+
+export async function getUnverifiedSellers(options?: {
+  search?: string;
+  status?: VerificationStatus;
+  page?: number;
+  limit?: number;
+}) {
+  await requirePermission("seller:verify");
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+
+  const conditions = [
+    eq(users.role, "seller"),
+    or(
+      eq(users.verificationStatus, "pending"),
+      eq(users.verificationStatus, "rejected")
+    ),
+  ];
+
+  if (options?.search) {
+    const term = `%${options.search}%`;
+    conditions.push(
+      or(
+        ilike(users.email, term),
+        ilike(profiles.displayName, term),
+        ilike(users.walletPhone, term)
+      )
+    );
+  }
+  if (options?.status) {
+    conditions.push(eq(users.verificationStatus, options.status));
+  }
+
+  const where = and(...conditions);
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where);
+
+  const rows = await db
+    .select({ user: users, profile: profiles })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where)
+    .orderBy(desc(users.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  return {
+    items: rows.map((r) => ({
+      id: r.user.id,
+      email: r.user.email,
+      displayName: r.profile?.displayName ?? null,
+      phone: r.user.walletPhone ?? r.profile?.phone ?? null,
+      sellerType: r.profile?.sellerType ?? "individual",
+      businessName: r.profile?.businessName ?? null,
+      businessRegistrationNumber: r.profile?.businessRegistrationNumber ?? null,
+      businessAddress: r.profile?.businessAddress ?? null,
+      verificationStatus: r.user.verificationStatus,
+      verificationRejectionReason: r.user.verificationRejectionReason,
+      verifiedAt: r.user.verifiedAt,
+      createdAt: r.user.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function reviewSellerVerification(
+  id: string,
+  action: "approve" | "reject" | "suspend",
+  reason: string,
+  actorId: string
+) {
+  await requirePermission("seller:verify");
+
+  const [user] = await db
+    .select({ verificationStatus: users.verificationStatus, verifiedAt: users.verifiedAt })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  if (!user) throw new Error("User not found");
+
+  const previousStatus = user.verificationStatus;
+  const updates: {
+    verificationStatus: VerificationStatus;
+    verifiedAt: Date | null;
+    verificationRejectionReason: string | null;
+    updatedAt: Date;
+  } = {
+    verificationStatus: "pending",
+    verifiedAt: null,
+    verificationRejectionReason: null,
+    updatedAt: new Date(),
+  };
+
+  if (action === "approve") {
+    updates.verificationStatus = "approved";
+    updates.verifiedAt = new Date();
+  } else if (action === "reject") {
+    updates.verificationStatus = "rejected";
+    updates.verificationRejectionReason = reason || null;
+  } else if (action === "suspend") {
+    updates.verificationStatus = "suspended";
+    updates.verificationRejectionReason = reason || null;
+  }
+
+  await db.update(users).set(updates).where(eq(users.id, id));
+
+  await insertAuditLog({
+    action: action === "approve" ? "seller_verification_approved" : action === "reject" ? "seller_verification_rejected" : "seller_verification_suspended",
+    resourceType: "user",
+    resourceId: id,
+    metadata: {
+      previousStatus,
+      newStatus: updates.verificationStatus,
+      reason: action === "approve" ? undefined : reason,
+      actorId,
+    },
+  });
+
+  return { success: true, status: updates.verificationStatus };
 }
 
 export async function toggleUserSuperAdmin(id: string) {
@@ -355,6 +526,10 @@ export async function toggleUserSuperAdmin(id: string) {
 export async function getAdminListings(options?: {
   status?: string;
   categoryId?: string;
+  sellerId?: string;
+  expiryWindow?: number;
+  packageId?: string;
+  paymentStatus?: string;
   page?: number;
   limit?: number;
 }) {
@@ -369,6 +544,25 @@ export async function getAdminListings(options?: {
     conditions.push(eq(listings.status, options.status as never));
   if (options?.categoryId)
     conditions.push(eq(listings.categoryId, options.categoryId));
+  if (options?.sellerId)
+    conditions.push(eq(listings.sellerId, options.sellerId));
+  if (options?.paymentStatus)
+    conditions.push(eq(listings.monetizationStatus, options.paymentStatus as never));
+
+  if (options?.expiryWindow !== undefined) {
+    const now = new Date();
+    const threshold = new Date();
+    threshold.setDate(now.getDate() + options.expiryWindow);
+    if (options.expiryWindow === 0) {
+      // Already expired
+      conditions.push(sql`${listings.expiresAt} < ${now.toISOString()}`);
+    } else {
+      conditions.push(
+        sql`${listings.expiresAt} <= ${threshold.toISOString()}`,
+        sql`${listings.expiresAt} >= ${now.toISOString()}`
+      );
+    }
+  }
 
   const where = conditions.length ? and(...conditions) : undefined;
 
@@ -401,7 +595,8 @@ export async function getAdminListings(options?: {
       const pricing = calculateListingPricing(
         r.listing.price,
         r.listing.condition,
-        config
+        config,
+        { monetizationModel: "fixed_only" }
       );
       return {
         id: r.listing.id,
@@ -411,11 +606,14 @@ export async function getAdminListings(options?: {
         condition: r.listing.condition,
         categoryName: r.categoryName,
         sellerName: r.sellerName ?? r.sellerEmail,
+        sellerId: r.listing.sellerId,
         tierLabel: pricing.tierLabel,
+        monetizationStatus: r.listing.monetizationStatus,
         expiresAt: r.listing.expiresAt,
         reviewedAt: r.listing.reviewedAt,
         rejectionReason: r.listing.rejectionReason,
         createdAt: r.listing.createdAt,
+        updatedAt: r.listing.updatedAt,
       };
     }),
     total,
@@ -423,6 +621,93 @@ export async function getAdminListings(options?: {
     limit,
     totalPages: Math.ceil(total / limit),
   };
+}
+
+export async function extendListingExpiry(
+  listingId: string,
+  days: number,
+  reason: string,
+  actorId: string
+) {
+  await requirePermission("listings:moderate");
+  const [listing] = await db
+    .select({ expiresAt: listings.expiresAt })
+    .from(listings)
+    .where(eq(listings.id, listingId))
+    .limit(1);
+  if (!listing) throw new Error("Listing not found");
+
+  const previousExpiresAt = listing.expiresAt;
+  const newExpiresAt = new Date();
+  if (previousExpiresAt && previousExpiresAt > newExpiresAt) {
+    newExpiresAt.setTime(previousExpiresAt.getTime());
+  }
+  newExpiresAt.setDate(newExpiresAt.getDate() + days);
+
+  const extensionLog = {
+    previousExpiresAt: previousExpiresAt?.toISOString() ?? null,
+    newExpiresAt: newExpiresAt.toISOString(),
+    extendedBy: actorId,
+    reason,
+    timestamp: new Date().toISOString(),
+  };
+
+  await db
+    .update(listings)
+    .set({
+      expiresAt: newExpiresAt,
+      expiryExtensionLog: sql`COALESCE(${listings.expiryExtensionLog}, '[]'::jsonb) || ${JSON.stringify([extensionLog])}::jsonb`,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, listingId));
+
+  await insertAuditLog({
+    action: "listing_expiry_extended",
+    resourceType: "listing",
+    resourceId: listingId,
+    metadata: extensionLog,
+  });
+
+  return { success: true, newExpiresAt };
+}
+
+export async function notifyExpiringSeller(
+  listingId: string,
+  channel: string,
+  actorId: string
+) {
+  await requirePermission("listings:moderate");
+  const [listing] = await db
+    .select({ sellerId: listings.sellerId, title: listings.title })
+    .from(listings)
+    .where(eq(listings.id, listingId))
+    .limit(1);
+  if (!listing) throw new Error("Listing not found");
+
+  // Placeholder: in production this would send an SMS/push/email.
+  const result = `queued_${channel}`;
+  const entry = {
+    channel,
+    sentAt: new Date().toISOString(),
+    result,
+  };
+
+  await db
+    .update(listings)
+    .set({
+      expiryNotifiedAt: sql`COALESCE(${listings.expiryNotifiedAt}, '[]'::jsonb) || ${JSON.stringify([entry])}::jsonb`,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, listingId));
+
+  await insertAuditLog({
+    action: "listing_expiry_notification_sent",
+    resourceType: "listing",
+    resourceId: listingId,
+    metadata: { channel, result, sellerId: listing.sellerId, actorId },
+  });
+
+  return { success: true, result };
 }
 
 export async function updateListingStatus(id: string, status: ListingStatus) {
@@ -842,6 +1127,216 @@ export async function exportAdminLedger(options?: {
   return { rows, totals };
 }
 
+function startOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+export async function getFailedPaymentsReport(options?: {
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}) {
+  await requirePermission("reports:read");
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+  const from = options?.from ? startOfDay(new Date(options.from)) : undefined;
+  const to = options?.to ? endOfDay(new Date(options.to)) : undefined;
+
+  const conditions = [
+    or(
+      eq(walletPayments.status, "failed"),
+      eq(walletPayments.status, "pending")
+    ),
+  ];
+  if (from) conditions.push(gte(walletPayments.createdAt, from));
+  if (to) conditions.push(lte(walletPayments.createdAt, to));
+
+  const where = and(...conditions);
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(walletPayments)
+    .innerJoin(users, eq(walletPayments.userId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where);
+
+  const rows = await db
+    .select({
+      payment: walletPayments,
+      userEmail: users.email,
+      userName: profiles.displayName,
+    })
+    .from(walletPayments)
+    .innerJoin(users, eq(walletPayments.userId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where)
+    .orderBy(desc(walletPayments.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  return {
+    items: rows.map((r) => ({
+      id: r.payment.id,
+      merchantRef: r.payment.merchantRef,
+      walletRef: r.payment.walletRef,
+      userEmail: r.userEmail,
+      userName: r.userName,
+      amount: r.payment.amount,
+      currency: r.payment.currency,
+      provider: r.payment.walletProvider,
+      status: r.payment.status,
+      retryCount: r.payment.retryCount,
+      errorMessage:
+        (r.payment.callbackPayload as { error?: string } | null)?.error ?? null,
+      createdAt: r.payment.createdAt,
+      updatedAt: r.payment.updatedAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function getNewUsersReport(options?: {
+  date?: string;
+  page?: number;
+  limit?: number;
+}) {
+  await requirePermission("reports:read");
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+  const day = options?.date ? new Date(options.date) : new Date();
+  const from = startOfDay(day);
+  const to = endOfDay(day);
+
+  const conditions = [
+    gte(users.createdAt, from),
+    lte(users.createdAt, to),
+  ];
+  const where = and(...conditions);
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where);
+
+  const rows = await db
+    .select({ user: users, profile: profiles })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where)
+    .orderBy(desc(users.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  return {
+    items: rows.map((r) => ({
+      id: r.user.id,
+      email: r.user.email,
+      displayName: r.profile?.displayName ?? null,
+      phone: r.user.walletPhone ?? r.profile?.phone ?? null,
+      role: r.user.role,
+      sellerType: r.profile?.sellerType ?? "individual",
+      isVerified:
+        r.user.verificationStatus === "approved" || r.user.verifiedAt !== null,
+      createdAt: r.user.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function getNewListingsReport(options?: {
+  date?: string;
+  page?: number;
+  limit?: number;
+}) {
+  await requirePermission("reports:read");
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+  const day = options?.date ? new Date(options.date) : new Date();
+  const from = startOfDay(day);
+  const to = endOfDay(day);
+
+  const conditions = [
+    gte(listings.createdAt, from),
+    lte(listings.createdAt, to),
+  ];
+  const where = and(...conditions);
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(listings)
+    .innerJoin(categories, eq(listings.categoryId, categories.id))
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .leftJoin(sql`reviewer`, eq(sql`reviewer.id`, listings.reviewedBy))
+    .leftJoin(
+      sql`reviewer_profile`,
+      eq(sql`reviewer_profile.id`, sql`reviewer.id`)
+    )
+    .where(where);
+
+  const rows = await db
+    .select({
+      listing: listings,
+      categoryName: categories.name,
+      sellerName: profiles.displayName,
+      sellerEmail: users.email,
+      reviewerName: sql<string>`reviewer_profile.display_name`,
+    })
+    .from(listings)
+    .innerJoin(categories, eq(listings.categoryId, categories.id))
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .leftJoin(sql`reviewer`, eq(sql`reviewer.id`, listings.reviewedBy))
+    .leftJoin(
+      sql`reviewer_profile`,
+      eq(sql`reviewer_profile.id`, sql`reviewer.id`)
+    )
+    .where(where)
+    .orderBy(desc(listings.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  return {
+    items: rows.map((r) => ({
+      id: r.listing.id,
+      title: r.listing.title,
+      price: r.listing.price,
+      condition: r.listing.condition,
+      categoryName: r.categoryName,
+      sellerName: r.sellerName ?? r.sellerEmail,
+      status: r.listing.status,
+      monetizationStatus: r.listing.monetizationStatus,
+      monetizationType: r.listing.monetizationType,
+      reviewerName: r.reviewerName,
+      rejectionReason: r.listing.rejectionReason,
+      createdAt: r.listing.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
 const CONFIG_DEFAULTS: Record<string, string | number | boolean | object> = {
   listing_fee_cents: 100,
   commission_bps: 500,
@@ -872,6 +1367,8 @@ export async function getPlatformConfigAll() {
       updatedAt: row?.updatedAt ?? null,
       updatedBy: row?.updatedBy ?? null,
       description: row?.description ?? null,
+      effectiveFrom: row?.effectiveFrom ?? null,
+      effectiveUntil: row?.effectiveUntil ?? null,
     };
   });
 }

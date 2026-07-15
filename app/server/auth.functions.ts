@@ -158,8 +158,20 @@ export const fetchAllPermissions = createServerFn({ method: "GET" }).handler(
   async () => listPermissions()
 );
 
+const INTERNAL_ROLES = [
+  "buyer",
+  "seller",
+  "admin",
+  "super_admin",
+  "listing_review_officer",
+  "seller_verification_officer",
+  "finance_officer",
+  "support_officer",
+  "auditor",
+] as const;
+
 const rolePermissionsQuerySchema = z.object({
-  role: z.enum(["buyer", "seller", "admin", "super_admin"]),
+  role: z.enum(INTERNAL_ROLES),
 });
 
 export const fetchRolePermissions = createServerFn({ method: "GET" })
@@ -167,7 +179,7 @@ export const fetchRolePermissions = createServerFn({ method: "GET" })
   .handler(async ({ data }) => getRolePermissions(data.role));
 
 const updateRolePermissionsSchema = z.object({
-  role: z.enum(["buyer", "seller", "admin", "super_admin"]),
+  role: z.enum(INTERNAL_ROLES),
   permissionKeys: z.array(z.string()),
 });
 

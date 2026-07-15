@@ -80,11 +80,13 @@ export async function getSellerListingEligibility(sellerId: string) {
     sellerId,
     sub.subscription.startedAt
   );
-  const remaining = Math.max(0, sub.package.listingAllowance - used);
+  const remaining = sub.package.isUnlimited
+    ? null
+    : Math.max(0, sub.package.listingAllowance - used);
 
   return {
     sellerType,
-    canList: remaining > 0,
+    canList: sub.package.isUnlimited || (remaining !== null && remaining > 0),
     requiresPayment: false,
     feeCents: null,
     remainingListings: remaining,
@@ -94,7 +96,13 @@ export async function getSellerListingEligibility(sellerId: string) {
 
 export async function assignSellerPackage(
   sellerId: string,
-  packageId: string
+  packageId: string,
+  options?: {
+    assignedBy?: string;
+    assignmentSource?: string;
+    paymentReference?: string;
+    pricePaidCents?: number;
+  }
 ) {
   const pkg = await db
     .select()
@@ -113,6 +121,10 @@ export async function assignSellerPackage(
     startedAt,
     expiresAt,
     status: "active",
+    assignedBy: options?.assignedBy,
+    assignmentSource: options?.assignmentSource,
+    paymentReference: options?.paymentReference,
+    pricePaidCents: options?.pricePaidCents,
   });
 
   return getActiveSellerSubscription(sellerId);
@@ -133,6 +145,10 @@ export async function createListingPackage(input: {
   durationDays: number;
   price: number;
   currency?: string;
+  isUnlimited?: boolean;
+  featuredAllowance?: number;
+  autoRenew?: boolean;
+  gracePeriodDays?: number;
 }) {
   const [pkg] = await db
     .insert(listingPackages)
@@ -140,9 +156,13 @@ export async function createListingPackage(input: {
       name: input.name,
       description: input.description,
       listingAllowance: input.listingAllowance,
+      isUnlimited: input.isUnlimited ?? false,
       durationDays: input.durationDays,
       price: input.price,
       currency: input.currency ?? "USD",
+      featuredAllowance: input.featuredAllowance,
+      autoRenew: input.autoRenew,
+      gracePeriodDays: input.gracePeriodDays,
     })
     .returning();
   return pkg;
@@ -154,9 +174,13 @@ export async function updateListingPackage(
     name: string;
     description: string;
     listingAllowance: number;
+    isUnlimited: boolean;
+    featuredAllowance: number;
     durationDays: number;
     price: number;
     currency: string;
+    autoRenew: boolean;
+    gracePeriodDays: number;
     isActive: boolean;
   }>
 ) {
@@ -192,9 +216,14 @@ export async function getCurrentSellerSubscription(sellerId: string) {
   );
   return {
     packageName: sub.package.name,
-    listingAllowance: sub.package.listingAllowance,
+    listingAllowance: sub.package.isUnlimited
+      ? null
+      : sub.package.listingAllowance,
+    isUnlimited: sub.package.isUnlimited,
     used,
-    remaining: Math.max(0, sub.package.listingAllowance - used),
+    remaining: sub.package.isUnlimited
+      ? null
+      : Math.max(0, sub.package.listingAllowance - used),
     expiresAt: sub.subscription.expiresAt,
   };
 }

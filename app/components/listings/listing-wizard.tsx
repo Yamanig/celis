@@ -29,14 +29,17 @@ import {
   submitShopListing,
 } from "~/server/listings.functions";
 import {
-  ITEM_CONDITIONS,
-  DELIVERY_METHODS,
-  MONETIZATION_TYPES,
-} from "~/db/schema";
+  fetchCategoryConditions,
+  type CategoryConditionItem,
+} from "~/server/categories.functions";
+import { getListingPricingPreview } from "~/server/config.functions";
+import { DELIVERY_METHODS, MONETIZATION_TYPES } from "~/db/schema";
 import { formatPrice } from "~/lib/format";
 import {
   calculateListingPricing,
   type ListingTiersConfig,
+  type ListingPricing,
+  type MonetizationModel,
 } from "~/lib/pricing";
 import { ChevronLeft, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
 import type { CategoryListItem } from "~/server/categories.functions";
@@ -45,6 +48,7 @@ interface ListingWizardProps {
   sellerId: string;
   categories: CategoryListItem[];
   tiersConfig: ListingTiersConfig;
+  monetizationModel: MonetizationModel;
 }
 
 const STEPS = ["Details", "Pricing", "Photos", "Review"];
@@ -53,7 +57,7 @@ const emptyForm: ListingInput = {
   title: "",
   description: "",
   categoryId: "",
-  condition: "good",
+  condition: null,
   price: 0,
   monetizationType: "fixed_rate",
   deliveryMethod: "local_pickup",
@@ -61,9 +65,18 @@ const emptyForm: ListingInput = {
   metadata: {},
 };
 
-export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWizardProps) {
+export function ListingWizard({
+  sellerId,
+  categories,
+  tiersConfig,
+  monetizationModel,
+}: ListingWizardProps) {
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState<ListingInput>(emptyForm);
+  const [form, setForm] = useState<ListingInput>({
+    ...emptyForm,
+    monetizationType:
+      monetizationModel === "commission_only" ? "commission" : "fixed_rate",
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [createdListingId, setCreatedListingId] = useState<string | null>(null);
@@ -75,10 +88,36 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
     requiresPayment: boolean;
     remainingListings: number | null;
   } | null>(null);
+  const [categoryConditions, setCategoryConditions] = useState<
+    CategoryConditionItem[]
+  >([]);
 
   useEffect(() => {
     fetchSellerListingEligibility({ data: { sellerId } }).then(setEligibility);
   }, [sellerId]);
+
+  useEffect(() => {
+    if (!form.categoryId) {
+      setCategoryConditions([]);
+      return;
+    }
+    fetchCategoryConditions({ data: { categoryId: form.categoryId } }).then(
+      setCategoryConditions
+    );
+  }, [form.categoryId]);
+
+  useEffect(() => {
+    setForm((prev) => {
+      if (!prev.condition) return prev;
+      if (
+        categoryConditions.length > 0 &&
+        !categoryConditions.some((c) => c.code === prev.condition)
+      ) {
+        return { ...prev, condition: null };
+      }
+      return prev;
+    });
+  }, [categoryConditions]);
 
   const updateField = <K extends keyof ListingInput>(key: K, value: ListingInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -117,10 +156,32 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
     return true;
   }, [step, form]);
 
-  const preview = useMemo(
-    () => calculateListingPricing(form.price, form.condition, tiersConfig),
-    [form.price, form.condition, tiersConfig]
+  const [preview, setPreview] = useState<ListingPricing>(() =>
+    calculateListingPricing(form.price, form.condition, tiersConfig, {
+      monetizationModel,
+    })
   );
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!form.categoryId) {
+        setPreview(
+          calculateListingPricing(form.price, form.condition, tiersConfig, {
+            monetizationModel,
+          })
+        );
+        return;
+      }
+      getListingPricingPreview({
+        data: {
+          price: form.price,
+          condition: form.condition ?? undefined,
+          categoryId: form.categoryId,
+        },
+      }).then(setPreview);
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [form.price, form.condition, form.categoryId, tiersConfig, monetizationModel]);
 
   const handleNext = () => {
     if (step < STEPS.length - 1) {
@@ -235,21 +296,33 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="condition">Condition</Label>
-                <Select value={form.condition} onValueChange={(v) => updateField("condition", v as typeof form.condition)}>
-                  <SelectTrigger id="condition">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ITEM_CONDITIONS.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {categoryConditions.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="condition">Condition</Label>
+                  <Select
+                    value={form.condition ?? ""}
+                    onValueChange={(v) =>
+                      updateField("condition", v ? (v as typeof form.condition) : null)
+                    }
+                  >
+                    <SelectTrigger id="condition">
+                      <SelectValue placeholder="Select a condition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryConditions.map((c) => (
+                        <SelectItem key={c.code} value={c.code}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {categoryConditions[0]?.description && (
+                    <p className="text-xs text-celis-ink-secondary">
+                      {categoryConditions[0].description}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
@@ -289,24 +362,26 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
                 {errors.price && <p className="text-sm text-celis-destructive">{errors.price}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="monetizationType">Listing type</Label>
-                <Select
-                  value={form.monetizationType}
-                  onValueChange={(v) => updateField("monetizationType", v as typeof form.monetizationType)}
-                >
-                  <SelectTrigger id="monetizationType">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MONETIZATION_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t === "fixed_rate" ? "Fixed-rate listing" : "Commission on sale"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {monetizationModel === "hybrid" && (
+                <div className="space-y-2">
+                  <Label htmlFor="monetizationType">Listing type</Label>
+                  <Select
+                    value={form.monetizationType}
+                    onValueChange={(v) => updateField("monetizationType", v as typeof form.monetizationType)}
+                  >
+                    <SelectTrigger id="monetizationType">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONETIZATION_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t === "fixed_rate" ? "Fixed-rate listing" : "Commission on sale"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="deliveryMethod">Delivery</Label>
@@ -331,17 +406,35 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
                 <p className="font-medium text-celis-ink">
                   {preview.tierLabel} tier
                 </p>
-                <p>
-                  Listing fee:{" "}
-                  <strong className="text-celis-ink">
-                    {formatPrice(preview.feeCents)}
-                  </strong>{" "}
-                  {preview.baseFeeCents !== preview.feeCents && (
-                    <span className="text-xs">
-                      ({formatPrice(preview.baseFeeCents)} × condition multiplier)
-                    </span>
-                  )}
-                </p>
+                {preview.feeCents > 0 && (
+                  <p>
+                    Listing fee:{" "}
+                    <strong className="text-celis-ink">
+                      {formatPrice(preview.feeCents)}
+                    </strong>{" "}
+                    {preview.baseFeeCents !== preview.feeCents && (
+                      <span className="text-xs">
+                        ({formatPrice(preview.baseFeeCents)} × condition multiplier)
+                      </span>
+                    )}
+                  </p>
+                )}
+                {preview.commissionAmountCents !== null && preview.commissionAmountCents > 0 && (
+                  <p>
+                    Commission ({(preview.commissionBps ?? 0) / 100}%):{" "}
+                    <strong className="text-celis-ink">
+                      {formatPrice(preview.commissionAmountCents)}
+                    </strong>
+                  </p>
+                )}
+                {preview.totalFeeCents > 0 && (
+                  <p>
+                    Total charge:{" "}
+                    <strong className="text-celis-ink">
+                      {formatPrice(preview.totalFeeCents)}
+                    </strong>
+                  </p>
+                )}
                 <p>Expires on {preview.expiresAt.toLocaleDateString()}.</p>
               </div>
             </div>
@@ -374,7 +467,11 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Condition</dt>
-                  <dd className="font-medium">{form.condition.replace(/_/g, " ")}</dd>
+                  <dd className="font-medium">
+                    {categoryConditions.find((c) => c.code === form.condition)?.label ??
+                      form.condition?.replace(/_/g, " ") ??
+                      "—"}
+                  </dd>
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Price</dt>
@@ -386,8 +483,18 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Listing fee</dt>
-                  <dd className="font-medium">{formatPrice(preview.feeCents)}</dd>
+                  <dd className="font-medium">
+                    {preview.feeCents > 0 ? formatPrice(preview.feeCents) : "—"}
+                  </dd>
                 </div>
+                {preview.commissionAmountCents !== null && preview.commissionAmountCents > 0 && (
+                  <div className="flex justify-between py-2">
+                    <dt className="text-celis-ink-secondary">Commission</dt>
+                    <dd className="font-medium">
+                      {formatPrice(preview.commissionAmountCents)} ({(preview.commissionBps ?? 0) / 100}%)
+                    </dd>
+                  </div>
+                )}
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Expires</dt>
                   <dd className="font-medium">
@@ -439,9 +546,13 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {eligibility?.requiresPayment
-                ? `Publish & pay ${formatPrice(preview.feeCents)}`
+                ? `Publish & pay ${formatPrice(preview.totalFeeCents)}`
                 : eligibility?.sellerType === "shop"
-                ? `Publish (package: ${eligibility?.remainingListings ?? 0} left)`
+                ? `Publish (package: ${
+                    eligibility?.remainingListings === null
+                      ? "Unlimited"
+                      : `${eligibility?.remainingListings} left`
+                  })`
                 : "Publish"}
             </Button>
           )}
@@ -453,7 +564,7 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
         onOpenChange={setPaymentOpen}
         userId={sellerId}
         listingId={createdListingId}
-        amountCents={preview.feeCents}
+        amountCents={preview.totalFeeCents}
         onSuccess={() => setFinished(true)}
       />
     </>

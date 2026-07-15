@@ -21,6 +21,8 @@ export const platformConfigs = pgTable(
     key: varchar("key", { length: 100 }).notNull().unique(),
     value: jsonb("value").notNull(),
     description: text("description"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }),
+    effectiveUntil: timestamp("effective_until", { withTimezone: true }),
     updatedBy: uuid("updated_by").references(() => users.id),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -40,6 +42,8 @@ export const categoryFees = pgTable(
     amount: integer("amount").notNull().default(0), // USD cents
     percentage: integer("percentage").notNull().default(0), // basis points (100 = 1%)
     isActive: boolean("is_active").notNull().default(true),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }),
+    effectiveUntil: timestamp("effective_until", { withTimezone: true }),
     startsAt: timestamp("starts_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

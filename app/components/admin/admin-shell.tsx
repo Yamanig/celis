@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   ScrollText,
   Briefcase,
+  UserCheck,
 } from "lucide-react";
 
 interface AdminShellProps {
@@ -30,6 +31,12 @@ const nav = [
     permission: "admin:access",
   },
   { to: "/admin/users", label: "Users", icon: Users, permission: "users:read" },
+  {
+    to: "/admin/verifications",
+    label: "Verifications",
+    icon: UserCheck,
+    permission: "seller:verify",
+  },
   {
     to: "/admin/listings",
     label: "Listings",

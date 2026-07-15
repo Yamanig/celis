@@ -1,9 +1,22 @@
 import { db } from "~/db";
-import { categories, categoryClosure, listings } from "~/db/schema";
-import { eq, isNull, count, sql } from "drizzle-orm";
+import { categories, categoryClosure, categoryConditions, listings } from "~/db/schema";
+import { eq, isNull, count, sql, and, asc } from "drizzle-orm";
 
 export async function getRootCategories() {
   return db.select().from(categories).where(isNull(categories.parentId));
+}
+
+export async function getCategoryConditions(categoryId: string) {
+  return db
+    .select()
+    .from(categoryConditions)
+    .where(
+      and(
+        eq(categoryConditions.categoryId, categoryId),
+        eq(categoryConditions.isActive, true)
+      )
+    )
+    .orderBy(asc(categoryConditions.sortOrder), asc(categoryConditions.label));
 }
 
 export async function getCategoryPath(categoryId: string) {

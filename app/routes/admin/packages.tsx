@@ -27,6 +27,7 @@ import {
   updateAdminListingPackage,
   assignAdminSellerPackage,
 } from "~/server/admin.functions";
+import { formatPrice } from "~/lib/format";
 
 export const Route = createFileRoute("/admin/packages")({
   component: AdminPackagesPage,
@@ -45,18 +46,26 @@ interface PackageForm {
   name: string;
   description: string;
   listingAllowance: number;
+  isUnlimited: boolean;
+  featuredAllowance: number;
   durationDays: number;
   price: number;
   currency: string;
+  autoRenew: boolean;
+  gracePeriodDays: number;
 }
 
 const emptyForm: PackageForm = {
   name: "",
   description: "",
   listingAllowance: 10,
+  isUnlimited: false,
+  featuredAllowance: 0,
   durationDays: 30,
   price: 0,
   currency: "USD",
+  autoRenew: false,
+  gracePeriodDays: 0,
 };
 
 function AdminPackagesPage() {
@@ -69,6 +78,9 @@ function AdminPackagesPage() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignEmail, setAssignEmail] = useState("");
   const [assignPackageId, setAssignPackageId] = useState("");
+  const [assignSource, setAssignSource] = useState("admin");
+  const [assignPaymentRef, setAssignPaymentRef] = useState("");
+  const [assignPricePaid, setAssignPricePaid] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
 
   const reset = () => {
@@ -87,9 +99,13 @@ function AdminPackagesPage() {
       name: pkg.name,
       description: pkg.description ?? "",
       listingAllowance: pkg.listingAllowance,
+      isUnlimited: pkg.isUnlimited,
+      featuredAllowance: pkg.featuredAllowance ?? 0,
       durationDays: pkg.durationDays,
       price: pkg.price,
       currency: pkg.currency,
+      autoRenew: pkg.autoRenew,
+      gracePeriodDays: pkg.gracePeriodDays ?? 0,
     });
     setOpen(true);
   };
@@ -119,12 +135,21 @@ function AdminPackagesPage() {
     setAssignLoading(true);
     try {
       await assignAdminSellerPackage({
-        data: { sellerEmail: assignEmail, packageId: assignPackageId },
+        data: {
+          sellerEmail: assignEmail,
+          packageId: assignPackageId,
+          assignmentSource: assignSource,
+          paymentReference: assignPaymentRef || undefined,
+          pricePaidCents: assignPricePaid ? Number(assignPricePaid) : undefined,
+        },
       });
       await router.invalidate();
       setAssignOpen(false);
       setAssignEmail("");
       setAssignPackageId("");
+      setAssignSource("admin");
+      setAssignPaymentRef("");
+      setAssignPricePaid("");
     } finally {
       setAssignLoading(false);
     }
@@ -167,7 +192,18 @@ function AdminPackagesPage() {
                 key: "allowance",
                 header: "Listings",
                 cell: (p) => (
-                  <span className="tabular-nums">{p.listingAllowance}</span>
+                  <span className="tabular-nums">
+                    {p.isUnlimited ? "Unlimited" : p.listingAllowance}
+                  </span>
+                ),
+              },
+              {
+                key: "featured",
+                header: "Featured",
+                cell: (p) => (
+                  <span className="tabular-nums">
+                    {p.featuredAllowance ?? "—"}
+                  </span>
                 ),
               },
               {
@@ -182,7 +218,17 @@ function AdminPackagesPage() {
                 header: "Price",
                 cell: (p) => (
                   <span className="tabular-nums">
-                    {p.price / 100} {p.currency}
+                    {formatPrice(p.price, p.currency)}
+                  </span>
+                ),
+              },
+              {
+                key: "renewal",
+                header: "Renewal",
+                cell: (p) => (
+                  <span className="text-xs">
+                    {p.autoRenew ? "Auto" : "Manual"}
+                    {p.gracePeriodDays ? ` · ${p.gracePeriodDays}d grace` : ""}
                   </span>
                 ),
               },
@@ -201,7 +247,7 @@ function AdminPackagesPage() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editing ? "Edit package" : "Add package"}
@@ -234,6 +280,7 @@ function AdminPackagesPage() {
                   id="allowance"
                   type="number"
                   min={1}
+                  disabled={form.isUnlimited}
                   value={form.listingAllowance}
                   onChange={(e) =>
                     setForm((f) => ({
@@ -244,6 +291,35 @@ function AdminPackagesPage() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="featured">Featured allowance</Label>
+                <Input
+                  id="featured"
+                  type="number"
+                  min={0}
+                  value={form.featuredAllowance}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      featuredAllowance: Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="unlimited"
+                checked={form.isUnlimited}
+                onCheckedChange={(checked) =>
+                  setForm((f) => ({ ...f, isUnlimited: checked }))
+                }
+              />
+              <Label htmlFor="unlimited" className="cursor-pointer">
+                Unlimited listings
+              </Label>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label htmlFor="duration">Duration (days)</Label>
                 <Input
                   id="duration"
@@ -252,6 +328,21 @@ function AdminPackagesPage() {
                   value={form.durationDays}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, durationDays: Number(e.target.value) }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="grace">Grace period (days)</Label>
+                <Input
+                  id="grace"
+                  type="number"
+                  min={0}
+                  value={form.gracePeriodDays}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      gracePeriodDays: Number(e.target.value),
+                    }))
                   }
                 />
               </div>
@@ -279,6 +370,18 @@ function AdminPackagesPage() {
                   }
                 />
               </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="autoRenew"
+                checked={form.autoRenew}
+                onCheckedChange={(checked) =>
+                  setForm((f) => ({ ...f, autoRenew: checked }))
+                }
+              />
+              <Label htmlFor="autoRenew" className="cursor-pointer">
+                Auto-renew
+              </Label>
             </div>
             {editing && (
               <div className="flex items-center gap-2">
@@ -334,12 +437,49 @@ function AdminPackagesPage() {
                 <SelectContent>
                   {packages.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name} ({p.listingAllowance} listings / {p.durationDays}{" "}
+                      {p.name} ({p.isUnlimited ? "Unlimited" : `${p.listingAllowance} listings`} / {p.durationDays}{" "}
                       days)
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="assignSource">Assignment source</Label>
+              <Select
+                value={assignSource}
+                onValueChange={setAssignSource}
+              >
+                <SelectTrigger id="assignSource">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin assignment</SelectItem>
+                  <SelectItem value="payment">Payment</SelectItem>
+                  <SelectItem value="promotion">Promotion</SelectItem>
+                  <SelectItem value="migration">Migration</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paymentRef">Payment reference</Label>
+              <Input
+                id="paymentRef"
+                value={assignPaymentRef}
+                onChange={(e) => setAssignPaymentRef(e.target.value)}
+                placeholder="Optional transaction ID"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pricePaid">Price paid (cents)</Label>
+              <Input
+                id="pricePaid"
+                type="number"
+                min={0}
+                value={assignPricePaid}
+                onChange={(e) => setAssignPricePaid(e.target.value)}
+                placeholder="Optional"
+              />
             </div>
             <DialogFooter>
               <Button

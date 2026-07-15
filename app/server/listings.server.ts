@@ -23,7 +23,7 @@ export type ListingPublic = {
   description: string;
   categoryId: string;
   categoryName: string;
-  condition: string;
+  condition: ItemCondition | null;
   price: number;
   monetizationType: string;
   deliveryMethod: string;
@@ -191,7 +191,11 @@ export async function approveListing(id: string, reviewerId: string) {
     throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
   }
 
-  const pricing = await getListingPricing(listing.price, listing.condition);
+  const pricing = await getListingPricing(
+    listing.price,
+    listing.condition,
+    listing.categoryId
+  );
 
   const [updated] = await db
     .update(listings)
@@ -200,6 +204,10 @@ export async function approveListing(id: string, reviewerId: string) {
       reviewedAt: new Date(),
       reviewedBy: reviewerId,
       expiresAt: pricing.expiresAt,
+      appliedFeeRuleId: pricing.appliedFeeRuleId,
+      feeAmountCents: pricing.feeCents,
+      commissionBps: pricing.commissionBps,
+      currency: pricing.currency,
       updatedAt: new Date(),
     })
     .where(eq(listings.id, id))

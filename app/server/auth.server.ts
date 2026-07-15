@@ -11,7 +11,12 @@ export interface CurrentUser {
   displayName: string | null;
   phone: string | null;
   isVerified: boolean;
+  verificationStatus: import("~/db/schema").VerificationStatus;
   isSuperAdmin: boolean;
+  isInternal: boolean;
+  department: string | null;
+  mfaEnabled: boolean;
+  lastLoginAt: Date | null;
 }
 
 export async function getAuthUser() {
@@ -47,8 +52,14 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     role: row.user.role,
     displayName: row.profile?.displayName ?? null,
     phone: row.user.walletPhone ?? row.profile?.phone ?? null,
-    isVerified: row.user.verifiedAt !== null,
+    isVerified:
+      row.user.verificationStatus === "approved" || row.user.verifiedAt !== null,
+    verificationStatus: row.user.verificationStatus,
     isSuperAdmin: row.user.isSuperAdmin,
+    isInternal: row.user.isInternal || row.user.role === "admin",
+    department: row.user.department ?? null,
+    mfaEnabled: row.user.mfaEnabled,
+    lastLoginAt: row.user.lastLoginAt,
   };
 }
 
@@ -83,8 +94,14 @@ export async function getCurrentUserProfile() {
     businessAddress: row.profile?.businessAddress ?? null,
     businessLogoUrl: row.profile?.businessLogoUrl ?? null,
     shopSlug: row.profile?.shopSlug ?? null,
-    isVerified: row.user.verifiedAt !== null,
+    isVerified:
+      row.user.verificationStatus === "approved" || row.user.verifiedAt !== null,
+    verificationStatus: row.user.verificationStatus,
     isSuperAdmin: row.user.isSuperAdmin,
+    isInternal: row.user.isInternal || row.user.role === "admin",
+    department: row.user.department ?? null,
+    mfaEnabled: row.user.mfaEnabled,
+    lastLoginAt: row.user.lastLoginAt,
   };
 }
 
@@ -172,6 +189,36 @@ export async function requireAdmin(): Promise<CurrentUser> {
   return requirePermission("admin:access");
 }
 
+/**
+ * Returns true for roles that are part of the internal staff domain.
+ * External customers are buyer and seller.
+ */
+export function isInternalRole(role: UserRole): boolean {
+  return (
+    role === "admin" ||
+    role === "listing_review_officer" ||
+    role === "seller_verification_officer" ||
+    role === "finance_officer" ||
+    role === "support_officer" ||
+    role === "auditor"
+  );
+}
+
+/**
+ * Maker-checker control: an officer should not approve/reject a record
+ * they created or last materially modified.
+ */
+export function canReviewRecord(
+  officerId: string,
+  recordCreatedById?: string | null,
+  recordUpdatedById?: string | null
+): boolean {
+  if (!recordCreatedById && !recordUpdatedById) return true;
+  return (
+    recordCreatedById !== officerId && recordUpdatedById !== officerId
+  );
+}
+
 export async function setRolePermissions(
   role: string,
   permissionKeys: string[],
@@ -209,6 +256,14 @@ export async function ensureLocalUserRecord(
     .where(eq(users.id, id))
     .limit(1);
 
+  const isInternal =
+    role === "admin" ||
+    role === "listing_review_officer" ||
+    role === "seller_verification_officer" ||
+    role === "finance_officer" ||
+    role === "support_officer" ||
+    role === "auditor";
+
   if (existing.length === 0) {
     // Ensure the auth mirror row exists so the users FK is satisfied.
     const existingMirror = await db
@@ -220,7 +275,7 @@ export async function ensureLocalUserRecord(
       await db.insert(authUsers).values({ id, email });
     }
 
-    await db.insert(users).values({ id, email, role });
+    await db.insert(users).values({ id, email, role, isInternal });
     await db.insert(profiles).values({
       id,
       displayName: email.split("@")[0],
@@ -234,6 +289,11 @@ export async function ensureLocalUserRecord(
     displayName: email.split("@")[0],
     phone: null,
     isVerified: false,
+    verificationStatus: "pending" as import("~/db/schema").VerificationStatus,
     isSuperAdmin: false,
+    isInternal,
+    department: null,
+    mfaEnabled: false,
+    lastLoginAt: null,
   };
 }

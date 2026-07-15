@@ -56,9 +56,10 @@ function DashboardPage() {
   const [listings, setListings] = useState(items);
   const [subscription, setSubscription] = useState<{
     packageName: string;
-    listingAllowance: number;
+    listingAllowance: number | null;
+    isUnlimited: boolean;
     used: number;
-    remaining: number;
+    remaining: number | null;
     expiresAt: Date;
   } | null>(null);
 
@@ -133,7 +134,9 @@ function DashboardPage() {
                   <Calendar className="h-5 w-5 text-celis-primary" />
                   {subscription ? (
                     <span>
-                      {subscription.remaining} / {subscription.listingAllowance}
+                      {subscription.isUnlimited
+                        ? "Unlimited"
+                        : `${subscription.remaining} / ${subscription.listingAllowance}`}
                     </span>
                   ) : (
                     <span className="text-base font-normal text-celis-ink-secondary">

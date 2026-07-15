@@ -8,10 +8,14 @@ import {
   updateUserRole,
   toggleUserVerification,
   toggleUserSuperAdmin,
+  getUnverifiedSellers,
+  reviewSellerVerification,
   getAdminListings,
   updateListingStatus,
   approveListing,
   rejectListing,
+  extendListingExpiry,
+  notifyExpiringSeller,
   getAdminCategories,
   createCategory,
   updateCategory,
@@ -22,6 +26,9 @@ import {
   markPayoutCompleted,
   getAdminLedger,
   exportAdminLedger,
+  getFailedPaymentsReport,
+  getNewUsersReport,
+  getNewListingsReport,
   getPlatformConfigAll,
   updatePlatformConfig,
   runListingExpirySweep,
@@ -49,6 +56,7 @@ const usersQuerySchema = z
   .object({
     search: z.string().optional(),
     role: userRoleSchema.optional(),
+    domain: z.enum(["customer", "internal"]).optional(),
     page: z.coerce.number().int().min(1).optional().default(1),
     limit: z.coerce.number().int().min(1).max(100).optional().default(10),
   })
@@ -68,7 +76,10 @@ const updateRoleSchema = z.object({
 export const updateAdminUserRole = createServerFn({ method: "POST" })
   .validator(updateRoleSchema)
   .handler(async ({ data }) => {
-    return updateUserRole(data.id, data.role as UserRole);
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    return updateUserRole(data.id, data.role as UserRole, user.id);
   });
 
 const userIdSchema = z.object({ id: z.string().uuid() });
@@ -85,10 +96,44 @@ export const toggleAdminUserSuperAdmin = createServerFn({ method: "POST" })
     return toggleUserSuperAdmin(data.id);
   });
 
+const unverifiedSellersQuerySchema = z
+  .object({
+    search: z.string().optional(),
+    status: z.enum(["pending", "rejected", "suspended"]).optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+  })
+  .default({});
+
+export const fetchUnverifiedSellers = createServerFn({ method: "GET" })
+  .validator(unverifiedSellersQuerySchema)
+  .handler(async ({ data }) => {
+    return getUnverifiedSellers(data);
+  });
+
+const reviewSellerVerificationSchema = z.object({
+  id: z.string().uuid(),
+  action: z.enum(["approve", "reject", "suspend"]),
+  reason: z.string().optional(),
+});
+
+export const reviewAdminSellerVerification = createServerFn({ method: "POST" })
+  .validator(reviewSellerVerificationSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    return reviewSellerVerification(data.id, data.action, data.reason ?? "", user.id);
+  });
+
 const listingsQuerySchema = z
   .object({
     status: z.string().optional(),
     categoryId: z.string().uuid().optional(),
+    sellerId: z.string().uuid().optional(),
+    expiryWindow: z.coerce.number().int().min(0).optional(),
+    packageId: z.string().uuid().optional(),
+    paymentStatus: z.string().optional(),
     page: z.coerce.number().int().min(1).optional().default(1),
     limit: z.coerce.number().int().min(1).max(100).optional().default(10),
   })
@@ -112,6 +157,35 @@ const listingStatusSchema = z.object({
     "suspended",
   ]),
 });
+
+const extendExpirySchema = z.object({
+  id: z.string().uuid(),
+  days: z.coerce.number().int().min(1),
+  reason: z.string().min(1),
+});
+
+export const extendAdminListingExpiry = createServerFn({ method: "POST" })
+  .validator(extendExpirySchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    return extendListingExpiry(data.id, data.days, data.reason, user.id);
+  });
+
+const notifySellerSchema = z.object({
+  id: z.string().uuid(),
+  channel: z.enum(["sms", "email", "push"]).default("sms"),
+});
+
+export const notifyAdminExpiringSeller = createServerFn({ method: "POST" })
+  .validator(notifySellerSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    return notifyExpiringSeller(data.id, data.channel, user.id);
+  });
 
 export const updateAdminListingStatus = createServerFn({ method: "POST" })
   .validator(listingStatusSchema)
@@ -279,6 +353,45 @@ export const exportAdminLedgerCsv = createServerFn({ method: "GET" })
     return exportAdminLedger(data);
   });
 
+const failedPaymentsQuerySchema = z
+  .object({
+    from: z.string().optional(),
+    to: z.string().optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+  })
+  .default({});
+
+export const fetchFailedPaymentsReport = createServerFn({ method: "GET" })
+  .validator(failedPaymentsQuerySchema)
+  .handler(async ({ data }) => {
+    return getFailedPaymentsReport(data);
+  });
+
+const newUsersQuerySchema = z.object({
+  date: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+});
+
+export const fetchNewUsersReport = createServerFn({ method: "GET" })
+  .validator(newUsersQuerySchema)
+  .handler(async ({ data }) => {
+    return getNewUsersReport(data);
+  });
+
+const newListingsQuerySchema = z.object({
+  date: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+});
+
+export const fetchNewListingsReport = createServerFn({ method: "GET" })
+  .validator(newListingsQuerySchema)
+  .handler(async ({ data }) => {
+    return getNewListingsReport(data);
+  });
+
 const auditLogQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(25),
@@ -322,9 +435,13 @@ const packageSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(500).optional(),
   listingAllowance: z.coerce.number().int().min(1),
+  isUnlimited: z.boolean().optional(),
+  featuredAllowance: z.coerce.number().int().min(0).optional(),
   durationDays: z.coerce.number().int().min(1),
   price: z.coerce.number().int().min(0),
   currency: z.string().max(3).optional(),
+  autoRenew: z.boolean().optional(),
+  gracePeriodDays: z.coerce.number().int().min(0).optional(),
 });
 
 export const fetchAdminListingPackages = createServerFn({ method: "GET" }).handler(
@@ -359,6 +476,9 @@ export const updateAdminListingPackage = createServerFn({ method: "POST" })
 const assignPackageSchema = z.object({
   sellerEmail: z.string().email(),
   packageId: z.string().uuid(),
+  assignmentSource: z.string().max(50).optional(),
+  paymentReference: z.string().max(255).optional(),
+  pricePaidCents: z.coerce.number().int().min(0).optional(),
 });
 
 export const assignAdminSellerPackage = createServerFn({ method: "POST" })
@@ -368,11 +488,18 @@ export const assignAdminSellerPackage = createServerFn({ method: "POST" })
     const { db } = await import("~/db");
     const { users } = await import("~/db/schema");
     const { eq } = await import("drizzle-orm");
+    const { getCurrentUser } = await import("./auth.server");
+    const actor = await getCurrentUser();
     const rows = await db
       .select({ id: users.id })
       .from(users)
       .where(eq(users.email, data.sellerEmail))
       .limit(1);
     if (!rows[0]) throw new Error("Seller not found");
-    return assignSellerPackage(rows[0].id, data.packageId);
+    return assignSellerPackage(rows[0].id, data.packageId, {
+      assignedBy: actor?.id,
+      assignmentSource: data.assignmentSource,
+      paymentReference: data.paymentReference,
+      pricePaidCents: data.pricePaidCents,
+    });
   });

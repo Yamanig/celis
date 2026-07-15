@@ -157,7 +157,7 @@ function ListingDetailPage() {
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{listing.categoryName}</Badge>
                 <Badge variant="outline">
-                  {listing.condition.replace(/_/g, " ")}
+                  {listing.condition?.replace(/_/g, " ") ?? "N/A"}
                 </Badge>
               </div>
               <h1 className="text-2xl font-semibold leading-tight text-celis-ink sm:text-3xl">

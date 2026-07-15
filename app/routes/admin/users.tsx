@@ -5,6 +5,7 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Pagination } from "~/components/ui/pagination";
 import {
   Select,
@@ -34,6 +35,7 @@ const roleSchema = z.enum(["buyer", "seller", "admin"]);
 const usersSearchSchema = z.object({
   search: z.string().optional(),
   role: roleSchema.optional(),
+  domain: z.enum(["customer", "internal"]).optional().default("customer"),
   page: z.coerce.number().int().min(1).optional().default(1),
 });
 
@@ -55,6 +57,7 @@ export const Route = createFileRoute("/admin/users")({
         data: {
           search: search.search,
           role: search.role,
+          domain: search.domain,
           page: search.page,
           limit: 10,
         },
@@ -158,12 +161,46 @@ function AdminUsersPage() {
     }
   };
 
+  const domain = search.domain ?? "customer";
+  const customerRoleOptions = [
+    { value: "buyer", label: "Buyer" },
+    { value: "seller", label: "Seller" },
+  ];
+  const internalRoleOptions = [
+    { value: "admin", label: "Admin" },
+    { value: "listing_review_officer", label: "Listing Review Officer" },
+    { value: "seller_verification_officer", label: "Seller Verification Officer" },
+    { value: "finance_officer", label: "Finance Officer" },
+    { value: "support_officer", label: "Support Officer" },
+    { value: "auditor", label: "Auditor" },
+  ];
+  const roleOptions = domain === "customer" ? customerRoleOptions : internalRoleOptions;
+
+  const handleDomainChange = (next: "customer" | "internal") => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        domain: next,
+        role: undefined,
+        page: 1,
+      }),
+    });
+    setRole(undefined);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Users"
-        description="Manage buyer, seller and admin accounts"
+        description="Manage customer accounts and internal staff separately"
       />
+
+      <Tabs value={domain} onValueChange={(v) => handleDomainChange(v as "customer" | "internal")}>
+        <TabsList className="bg-celis-surface-inset">
+          <TabsTrigger value="customer">Customers</TabsTrigger>
+          <TabsTrigger value="internal">Internal Users</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <Card className="border-celis-border bg-celis-surface-base">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row">
@@ -177,9 +214,9 @@ function AdminUsersPage() {
             />
           </div>
           <Select
-            value={role}
+            value={role ?? ""}
             onValueChange={(value) => {
-              const next = value as z.infer<typeof usersSearchSchema>["role"];
+              const next = value as z.infer<typeof usersSearchSchema>["role"] | undefined;
               setRole(next);
               navigate({
                 search: (prev) => ({
@@ -195,9 +232,11 @@ function AdminUsersPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All roles</SelectItem>
-              <SelectItem value="buyer">Buyer</SelectItem>
-              <SelectItem value="seller">Seller</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              {roleOptions.map((r) => (
+                <SelectItem key={r.value} value={r.value}>
+                  {r.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           {!canManageUsers && (
@@ -227,28 +266,32 @@ function AdminUsersPage() {
               </div>
             ),
           },
-          {
-            key: "type",
-            header: "Type",
-            cell: (u) => (
-              <div className="text-sm">
-                {u.role === "seller" && u.sellerType === "shop" ? (
-                  <>
-                    <span className="font-medium text-celis-primary">Shop</span>
-                    {u.businessName && (
-                      <p className="text-xs text-celis-ink-secondary">
-                        {u.businessName}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-celis-ink-secondary">
-                    {u.role.charAt(0).toUpperCase() + u.role.slice(1)}
-                  </span>
-                )}
-              </div>
-            ),
-          },
+          ...(domain === "customer"
+            ? [
+                {
+                  key: "type" as const,
+                  header: "Type",
+                  cell: (u: (typeof optimisticUsers)[number]) => (
+                    <div className="text-sm">
+                      {u.role === "seller" && u.sellerType === "shop" ? (
+                        <>
+                          <span className="font-medium text-celis-primary">Shop</span>
+                          {u.businessName && (
+                            <p className="text-xs text-celis-ink-secondary">
+                              {u.businessName}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-celis-ink-secondary">
+                          {u.role.charAt(0).toUpperCase() + u.role.slice(1)}
+                        </span>
+                      )}
+                    </div>
+                  ),
+                },
+              ]
+            : []),
           {
             key: "role",
             header: "Role",
@@ -258,13 +301,15 @@ function AdminUsersPage() {
                 disabled={!canManageUsers || loadingId === u.id}
                 onValueChange={(v) => handleRoleChange(u.id, v)}
               >
-                <SelectTrigger className="h-8 w-28">
+                <SelectTrigger className="h-8 w-full sm:w-36">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="buyer">Buyer</SelectItem>
-                  <SelectItem value="seller">Seller</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  {roleOptions.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             ),
@@ -274,17 +319,21 @@ function AdminUsersPage() {
             header: "Verified",
             cell: (u) => <VerificationBadge verified={u.isVerified} />,
           },
-          {
-            key: "superadmin",
-            header: "Super admin",
-            cell: (u) => (
-              <Switch
-                checked={u.isSuperAdmin}
-                disabled={!canManageUsers || !isCurrentUserSuper || loadingId === u.id}
-                onCheckedChange={() => handleSuperAdmin(u.id)}
-              />
-            ),
-          },
+          ...(domain === "internal"
+            ? [
+                {
+                  key: "superadmin" as const,
+                  header: "Super admin",
+                  cell: (u: (typeof optimisticUsers)[number]) => (
+                    <Switch
+                      checked={u.isSuperAdmin}
+                      disabled={!canManageUsers || !isCurrentUserSuper || loadingId === u.id}
+                      onCheckedChange={() => handleSuperAdmin(u.id)}
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             key: "joined",
             header: "Joined",
@@ -294,20 +343,24 @@ function AdminUsersPage() {
               </span>
             ),
           },
-          {
-            key: "actions",
-            header: "",
-            cell: (u) => (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!canManageUsers || loadingId === u.id}
-                onClick={() => handleVerify(u.id)}
-              >
-                {u.isVerified ? "Unverify" : "Verify"}
-              </Button>
-            ),
-          },
+          ...(domain === "customer"
+            ? [
+                {
+                  key: "actions" as const,
+                  header: "",
+                  cell: (u: (typeof optimisticUsers)[number]) => (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!canManageUsers || loadingId === u.id}
+                      onClick={() => handleVerify(u.id)}
+                    >
+                      {u.isVerified ? "Unverify" : "Verify"}
+                    </Button>
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
 

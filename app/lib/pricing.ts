@@ -1,5 +1,15 @@
 import { ITEM_CONDITIONS, type ItemCondition } from "~/db/schema";
 
+export type MonetizationModel = "fixed_only" | "commission_only" | "hybrid";
+
+export interface FeeRuleInput {
+  id?: string;
+  feeType: "listing_fee" | "commission" | "featured_fee";
+  amount?: number; // cents
+  percentage?: number; // basis points (100 = 1%)
+  currency: string;
+}
+
 export interface PricingTier {
   label: string;
   minCents: number;
@@ -47,6 +57,10 @@ export const DEFAULT_LISTING_TIERS: ListingTiersConfig = {
     good: 1.0,
     fair: 1.1,
     poor: 1.25,
+    brand_new: 1.0,
+    used: 1.0,
+    refurbished: 1.0,
+    local_used: 1.0,
   },
 };
 
@@ -91,16 +105,37 @@ export interface ListingPricing {
   tierLabel: string;
   baseFeeCents: number;
   feeCents: number;
+  commissionBps: number | null;
+  commissionAmountCents: number | null;
+  totalFeeCents: number;
   expiryDays: number;
   expiresAt: Date;
+  currency: string;
+  appliedFeeRuleId: string | null;
+  monetizationModel: MonetizationModel;
+}
+
+export interface CalculateListingPricingOptions {
+  monetizationModel?: MonetizationModel;
+  listingFeeRule?: FeeRuleInput;
+  commissionRule?: FeeRuleInput;
+  currency?: string;
 }
 
 export function calculateListingPricing(
   priceCents: number,
-  condition: ItemCondition,
+  condition: ItemCondition | null | undefined,
   config: ListingTiersConfig,
+  options: CalculateListingPricingOptions = {},
   referenceDate: Date = new Date()
 ): ListingPricing {
+  const {
+    monetizationModel = "fixed_only",
+    listingFeeRule,
+    commissionRule,
+    currency = config.currency,
+  } = options;
+
   const tier =
     config.tiers.find((t) => {
       const aboveMin = priceCents >= t.minCents;
@@ -108,9 +143,39 @@ export function calculateListingPricing(
       return aboveMin && belowMax;
     }) ?? config.tiers[config.tiers.length - 1];
 
-  const multiplier = config.conditionMultipliers[condition] ?? 1;
+  const multiplier = condition ? config.conditionMultipliers[condition] ?? 1 : 1;
   const baseFeeCents = tier.feeCents;
-  const feeCents = Math.round(baseFeeCents * multiplier);
+  const tierFeeCents = Math.round(baseFeeCents * multiplier);
+
+  let feeCents = 0;
+  let commissionBps: number | null = null;
+  let commissionAmountCents: number | null = null;
+  let appliedFeeRuleId: string | null = null;
+
+  if (
+    monetizationModel === "fixed_only" ||
+    monetizationModel === "hybrid"
+  ) {
+    if (listingFeeRule?.amount !== undefined) {
+      feeCents = listingFeeRule.amount;
+      appliedFeeRuleId = listingFeeRule.id ?? null;
+    } else {
+      feeCents = tierFeeCents;
+    }
+  }
+
+  if (
+    monetizationModel === "commission_only" ||
+    monetizationModel === "hybrid"
+  ) {
+    commissionBps = commissionRule?.percentage ?? 0;
+    commissionAmountCents = Math.round((priceCents * commissionBps) / 10_000);
+    if (!appliedFeeRuleId && commissionRule?.id) {
+      appliedFeeRuleId = commissionRule.id;
+    }
+  }
+
+  const totalFeeCents = feeCents + (commissionAmountCents ?? 0);
 
   const expiresAt = new Date(referenceDate);
   expiresAt.setDate(expiresAt.getDate() + tier.expiryDays);
@@ -119,7 +184,13 @@ export function calculateListingPricing(
     tierLabel: tier.label,
     baseFeeCents,
     feeCents,
+    commissionBps,
+    commissionAmountCents,
+    totalFeeCents,
     expiryDays: tier.expiryDays,
     expiresAt,
+    currency,
+    appliedFeeRuleId,
+    monetizationModel,
   };
 }

@@ -22,6 +22,11 @@ import {
 import {
   fetchCurrentUserPermissions,
 } from "~/server/auth.functions";
+import {
+  fetchCategoryConditions,
+  saveCategoryConditions,
+} from "~/server/categories.functions";
+import { ITEM_CONDITIONS } from "~/db/schema";
 import { formatRelativeDate } from "~/lib/format";
 
 const categoriesSearchSchema = z.object({
@@ -82,6 +87,21 @@ function AdminCategoriesPage() {
     sortOrder: 0,
   });
   const [loading, setLoading] = useState(false);
+  const [conditionsOpen, setConditionsOpen] = useState(false);
+  const [conditionsCategory, setConditionsCategory] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [conditions, setConditions] = useState<
+    Array<{
+      code: string;
+      label: string;
+      description: string;
+      sortOrder: number;
+      isActive: boolean;
+    }>
+  >([]);
+  const [conditionsLoading, setConditionsLoading] = useState(false);
 
   const reset = () => {
     setEditing(null);
@@ -136,6 +156,46 @@ function AdminCategoriesPage() {
       reset();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openConditions = async (cat: (typeof items)[number]) => {
+    setConditionsCategory({ id: cat.id, name: cat.name });
+    setConditionsLoading(true);
+    try {
+      const rows = await fetchCategoryConditions({ data: { categoryId: cat.id } });
+      setConditions(
+        rows.map((r) => ({
+          code: r.code,
+          label: r.label,
+          description: r.description ?? "",
+          sortOrder: r.sortOrder,
+          isActive: true,
+        }))
+      );
+      setConditionsOpen(true);
+    } finally {
+      setConditionsLoading(false);
+    }
+  };
+
+  const handleSaveConditions = async () => {
+    if (!conditionsCategory || !canManage) return;
+    setConditionsLoading(true);
+    try {
+      await saveCategoryConditions({
+        data: {
+          categoryId: conditionsCategory.id,
+          conditions: conditions.map((c) => ({
+            ...c,
+            description: c.description || undefined,
+          })),
+        },
+      });
+      await router.invalidate();
+      setConditionsOpen(false);
+    } finally {
+      setConditionsLoading(false);
     }
   };
 
@@ -194,14 +254,24 @@ function AdminCategoriesPage() {
             key: "actions",
             header: "",
             cell: (c) => (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!canManage}
-                onClick={() => openEdit(c)}
-              >
-                Edit
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canManage}
+                  onClick={() => openEdit(c)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canManage}
+                  onClick={() => openConditions(c)}
+                >
+                  Conditions
+                </Button>
+              </div>
             ),
           },
         ]}
@@ -279,6 +349,149 @@ function AdminCategoriesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={conditionsOpen} onOpenChange={setConditionsOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Conditions for {conditionsCategory?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {conditionsLoading && conditions.length === 0 ? (
+            <p className="text-sm text-celis-ink-secondary">Loading...</p>
+          ) : (
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto py-2">
+              {conditions.length === 0 && (
+                <p className="text-sm text-celis-ink-secondary">
+                  No conditions configured. The listing form will hide the
+                  condition field for this category.
+                </p>
+              )}
+              {conditions.map((c, idx) => (
+                <div
+                  key={idx}
+                  className="grid gap-2 rounded-md border border-celis-border p-3 sm:grid-cols-[1fr_1fr_auto]"
+                >
+                  <div>
+                    <Label className="text-xs">Code</Label>
+                    <select
+                      className="h-10 w-full rounded-md border border-celis-border bg-celis-surface-inset px-2 text-sm"
+                      value={c.code}
+                      disabled={!canManage}
+                      onChange={(e) =>
+                        setConditions((prev) =>
+                          prev.map((cond, i) =>
+                            i === idx ? { ...cond, code: e.target.value } : cond
+                          )
+                        )
+                      }
+                    >
+                      {ITEM_CONDITIONS.map((ic) => (
+                        <option key={ic} value={ic}>
+                          {ic.replace(/_/g, " ")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Label</Label>
+                    <Input
+                      value={c.label}
+                      disabled={!canManage}
+                      onChange={(e) =>
+                        setConditions((prev) =>
+                          prev.map((cond, i) =>
+                            i === idx ? { ...cond, label: e.target.value } : cond
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <Input
+                      type="number"
+                      className="w-20"
+                      value={c.sortOrder}
+                      disabled={!canManage}
+                      onChange={(e) =>
+                        setConditions((prev) =>
+                          prev.map((cond, i) =>
+                            i === idx
+                              ? { ...cond, sortOrder: Number(e.target.value) || 0 }
+                              : cond
+                          )
+                        )
+                      }
+                    />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={!canManage}
+                      onClick={() =>
+                        setConditions((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                    >
+                      ×
+                    </Button>
+                  </div>
+                  <div className="sm:col-span-3">
+                    <Label className="text-xs">Description</Label>
+                    <Input
+                      value={c.description}
+                      disabled={!canManage}
+                      onChange={(e) =>
+                        setConditions((prev) =>
+                          prev.map((cond, i) =>
+                            i === idx
+                              ? { ...cond, description: e.target.value }
+                              : cond
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+              {canManage && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setConditions((prev) => [
+                      ...prev,
+                      {
+                        code: ITEM_CONDITIONS[0],
+                        label: "",
+                        description: "",
+                        sortOrder: prev.length + 1,
+                        isActive: true,
+                      },
+                    ])
+                  }
+                >
+                  Add condition
+                </Button>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConditionsOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!canManage || conditionsLoading}
+              onClick={handleSaveConditions}
+            >
+              {conditionsLoading ? "Saving..." : "Save conditions"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
