@@ -26,13 +26,6 @@ const SEED: SeedCategory[] = [
     fields: [
       { key: "brand", type: "text", label: "Brand", required: true },
       { key: "model", type: "text", label: "Model", required: true },
-      {
-        key: "condition",
-        type: "select",
-        label: "Condition",
-        required: true,
-        options: ["Brand New", "Used", "Refurbished"],
-      },
       { key: "storage", type: "text", label: "Storage", required: false },
       { key: "color", type: "text", label: "Color", required: false },
       {
@@ -55,13 +48,6 @@ const SEED: SeedCategory[] = [
     fields: [
       { key: "brand", type: "text", label: "Brand", required: true },
       { key: "model", type: "text", label: "Model", required: true },
-      {
-        key: "condition",
-        type: "select",
-        label: "Condition",
-        required: true,
-        options: ["Brand New", "Used", "Refurbished"],
-      },
       { key: "storage", type: "text", label: "Storage", required: false },
       { key: "color", type: "text", label: "Color", required: false },
       {
