@@ -57,6 +57,13 @@
       "when": 1784050817381,
       "tag": "0007_change_request_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784118398619,
+      "tag": "0008_wealthy_ghost_rider",
+      "breakpoints": true
     }
   ]
 }
