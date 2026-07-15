@@ -98,8 +98,11 @@ const SelectContent = React.forwardRef<
     window.addEventListener("popstate", handler);
     return () => {
       window.removeEventListener("popstate", handler);
+      // If our pushed entry is still current, the dropdown was closed by a
+      // selection rather than the back button. Replace the marker so we do not
+      // navigate backwards; a real back event already moved to the prior entry.
       if (window.history.state?.celisSelectClose === token) {
-        window.history.back();
+        window.history.replaceState(null, document.title, window.location.href);
       }
     };
   }, [isOpen, isMobile]);
@@ -128,7 +131,9 @@ const SelectContent = React.forwardRef<
         className={cn(
           "relative z-50 min-w-[8rem] overflow-hidden rounded-md border border-celis-border bg-celis-surface-elevated text-celis-ink shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           "max-h-[min(24rem,var(--radix-select-content-available-height))]",
-          "overflow-y-auto pb-[env(safe-area-inset-bottom)]",
+          // Mobile bottom-sheet: fixed to the bottom of the viewport, full
+          // width, capped height, safe-area padding, and no popper transform.
+          "max-sm:!fixed max-sm:!bottom-0 max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!transform-none max-sm:max-h-[80dvh] max-sm:w-full max-sm:rounded-b-none max-sm:rounded-t-xl max-sm:border-x-0 max-sm:border-b-0 max-sm:shadow-2xl max-sm:pb-[env(safe-area-inset-bottom)]",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className
@@ -141,7 +146,8 @@ const SelectContent = React.forwardRef<
           className={cn(
             "p-1",
             position === "popper" &&
-              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"
+              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+            "max-sm:h-auto max-sm:w-full max-sm:min-w-0 max-sm:max-h-[calc(80dvh-3rem)] max-sm:touch-pan-y"
           )}
         >
           {children}
