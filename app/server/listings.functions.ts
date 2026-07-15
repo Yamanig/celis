@@ -18,6 +18,8 @@ import {
   getSellerListingEligibility,
   getCurrentSellerSubscription,
 } from "./seller-packages.server";
+import { getCategoryMetadataSchema } from "./categories.server";
+import { validateMetadata } from "~/lib/category-metadata";
 import { ITEM_CONDITIONS } from "~/db/schema";
 
 const createListingSchema = z.object({
@@ -74,6 +76,15 @@ export const createListing = createServerFn({ method: "POST" })
     const user = await getCurrentUser();
     if (!user?.phone) {
       throw new Error("Add a phone number to your account before listing an item.");
+    }
+    const metadataSchema = await getCategoryMetadataSchema(data.listing.categoryId);
+    const metadataErrors = validateMetadata(metadataSchema, data.listing.metadata);
+    if (Object.keys(metadataErrors).length > 0) {
+      throw new Error(
+        Object.entries(metadataErrors)
+          .map(([_, msg]) => msg)
+          .join("; ")
+      );
     }
     const listing = await insertDraftListing(data.sellerId, data.listing);
     return { id: listing.id, status: listing.status };

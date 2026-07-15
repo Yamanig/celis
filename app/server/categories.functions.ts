@@ -5,12 +5,15 @@ import {
   getCategoryCounts,
   getMinMaxPrices,
   getCategoryConditions as getCategoryConditionsDb,
+  getCategoryMetadataSchema,
+  updateCategoryMetadataSchema,
 } from "./categories.server";
 import { db } from "~/db";
 import { categoryConditions } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { requirePermission } from "./auth.server";
 import type { ItemCondition } from "~/db/schema";
+import type { CategoryMetadataSchema } from "~/lib/category-metadata";
 
 export type CategoryListItem = {
   id: string;
@@ -102,5 +105,34 @@ export const saveCategoryConditions = createServerFn({ method: "POST" })
         );
       }
     });
+    return { success: true };
+  });
+
+export const fetchCategoryMetadataSchema = createServerFn({ method: "GET" })
+  .validator(categoryIdSchema)
+  .handler(async ({ data }) => {
+    return getCategoryMetadataSchema(data.categoryId);
+  });
+
+const saveMetadataSchemaValidator = z.object({
+  categoryId: z.string().uuid(),
+  schema: z.object({
+    fields: z.array(
+      z.object({
+        key: z.string().min(1),
+        type: z.enum(["text", "number", "boolean", "select"]),
+        label: z.string().min(1),
+        required: z.boolean().optional(),
+        options: z.array(z.string()).optional(),
+      })
+    ),
+  }),
+});
+
+export const saveCategoryMetadataSchema = createServerFn({ method: "POST" })
+  .validator(saveMetadataSchemaValidator)
+  .handler(async ({ data }) => {
+    await requirePermission("categories:manage");
+    await updateCategoryMetadataSchema(data.categoryId, data.schema as CategoryMetadataSchema);
     return { success: true };
   });

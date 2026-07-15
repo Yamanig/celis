@@ -25,9 +25,22 @@ import {
 import {
   fetchCategoryConditions,
   saveCategoryConditions,
+  fetchCategoryMetadataSchema,
+  saveCategoryMetadataSchema,
 } from "~/server/categories.functions";
 import { ITEM_CONDITIONS } from "~/db/schema";
 import { formatRelativeDate } from "~/lib/format";
+import type {
+  MetadataField,
+  CategoryMetadataSchema,
+} from "~/lib/category-metadata";
+
+const FIELD_TYPES = [
+  { value: "text", label: "Text" },
+  { value: "number", label: "Number" },
+  { value: "boolean", label: "Yes / No" },
+  { value: "select", label: "Select" },
+] as const;
 
 const categoriesSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -102,6 +115,13 @@ function AdminCategoriesPage() {
     }>
   >([]);
   const [conditionsLoading, setConditionsLoading] = useState(false);
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [fieldsCategory, setFieldsCategory] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [fields, setFields] = useState<MetadataField[]>([]);
+  const [fieldsLoading, setFieldsLoading] = useState(false);
 
   const reset = () => {
     setEditing(null);
@@ -199,6 +219,38 @@ function AdminCategoriesPage() {
     }
   };
 
+  const openFields = async (cat: (typeof items)[number]) => {
+    setFieldsCategory({ id: cat.id, name: cat.name });
+    setFieldsLoading(true);
+    try {
+      const schema = await fetchCategoryMetadataSchema({ data: { categoryId: cat.id } });
+      setFields(schema?.fields ?? []);
+      setFieldsOpen(true);
+    } finally {
+      setFieldsLoading(false);
+    }
+  };
+
+  const handleSaveFields = async () => {
+    if (!fieldsCategory || !canManage) return;
+    setFieldsLoading(true);
+    try {
+      const schema: CategoryMetadataSchema = {
+        fields: fields.map((f) => ({
+          ...f,
+          options: f.type === "select" ? f.options : undefined,
+        })),
+      };
+      await saveCategoryMetadataSchema({
+        data: { categoryId: fieldsCategory.id, schema },
+      });
+      await router.invalidate();
+      setFieldsOpen(false);
+    } finally {
+      setFieldsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -270,6 +322,14 @@ function AdminCategoriesPage() {
                   onClick={() => openConditions(c)}
                 >
                   Conditions
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canManage}
+                  onClick={() => openFields(c)}
+                >
+                  Fields
                 </Button>
               </div>
             ),
@@ -490,6 +550,182 @@ function AdminCategoriesPage() {
               onClick={handleSaveConditions}
             >
               {conditionsLoading ? "Saving..." : "Save conditions"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={fieldsOpen} onOpenChange={setFieldsOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Fields for {fieldsCategory?.name}</DialogTitle>
+          </DialogHeader>
+          {fieldsLoading && fields.length === 0 ? (
+            <p className="text-sm text-celis-ink-secondary">Loading...</p>
+          ) : (
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto py-2">
+              {fields.length === 0 && (
+                <p className="text-sm text-celis-ink-secondary">
+                  No custom fields configured. Sellers will only see the standard
+                  title, description, price, and condition for this category.
+                </p>
+              )}
+              {fields.map((f, idx) => (
+                <div
+                  key={idx}
+                  className="grid gap-2 rounded-md border border-celis-border p-3"
+                >
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-xs">Label</Label>
+                      <Input
+                        value={f.label}
+                        disabled={!canManage}
+                        onChange={(e) =>
+                          setFields((prev) =>
+                            prev.map((field, i) =>
+                              i === idx ? { ...field, label: e.target.value } : field
+                            )
+                          )
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Key</Label>
+                      <Input
+                        value={f.key}
+                        disabled={!canManage}
+                        onChange={(e) =>
+                          setFields((prev) =>
+                            prev.map((field, i) =>
+                              i === idx
+                                ? {
+                                    ...field,
+                                    key: e.target.value
+                                      .toLowerCase()
+                                      .replace(/[^a-z0-9_]/g, "_"),
+                                  }
+                                : field
+                            )
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-xs">Type</Label>
+                      <select
+                        className="h-10 w-full rounded-md border border-celis-border bg-celis-surface-inset px-2 text-sm"
+                        value={f.type}
+                        disabled={!canManage}
+                        onChange={(e) =>
+                          setFields((prev) =>
+                            prev.map((field, i) =>
+                              i === idx
+                                ? {
+                                    ...field,
+                                    type: e.target.value as MetadataField["type"],
+                                    options:
+                                      e.target.value === "select" ? field.options ?? [""] : undefined,
+                                  }
+                                : field
+                            )
+                          )
+                        }
+                      >
+                        {FIELD_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={f.required ?? false}
+                          disabled={!canManage}
+                          onChange={(e) =>
+                            setFields((prev) =>
+                              prev.map((field, i) =>
+                                i === idx ? { ...field, required: e.target.checked } : field
+                              )
+                            )
+                          }
+                        />
+                        Required
+                      </label>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={!canManage}
+                        onClick={() =>
+                          setFields((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  </div>
+                  {f.type === "select" && (
+                    <div>
+                      <Label className="text-xs">Options (one per line)</Label>
+                      <textarea
+                        className="h-20 w-full rounded-md border border-celis-border bg-celis-surface-inset px-2 py-1 text-sm"
+                        value={(f.options ?? []).join("\n")}
+                        disabled={!canManage}
+                        onChange={(e) =>
+                          setFields((prev) =>
+                            prev.map((field, i) =>
+                              i === idx
+                                ? {
+                                    ...field,
+                                    options: e.target.value
+                                      .split("\n")
+                                      .map((s) => s.trim())
+                                      .filter(Boolean),
+                                  }
+                                : field
+                            )
+                          )
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+              {canManage && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFields((prev) => [
+                      ...prev,
+                      { key: "", type: "text", label: "", required: false },
+                    ])
+                  }
+                >
+                  Add field
+                </Button>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFieldsOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!canManage || fieldsLoading}
+              onClick={handleSaveFields}
+            >
+              {fieldsLoading ? "Saving..." : "Save fields"}
             </Button>
           </DialogFooter>
         </DialogContent>

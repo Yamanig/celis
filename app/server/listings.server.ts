@@ -16,6 +16,8 @@ import { CelisError } from "~/lib/errors";
 import type { listings as listingsTable, ItemCondition } from "~/db/schema";
 import { getSellerListingEligibility } from "./seller-packages.server";
 
+export type ListingMetadata = Record<string, string | number | boolean | null>;
+
 export type ListingPublic = {
   id: string;
   sellerId: string;
@@ -29,6 +31,7 @@ export type ListingPublic = {
   deliveryMethod: string;
   status: string;
   images: string[];
+  metadata: ListingMetadata;
   expiresAt: Date | null;
   reviewedAt: Date | null;
   reviewedBy: string | null;
@@ -66,6 +69,7 @@ function mapListingPublic(
     deliveryMethod: row.deliveryMethod,
     status: row.status,
     images: row.images,
+    metadata: (row.metadata as ListingMetadata) ?? {},
     expiresAt: row.expiresAt,
     reviewedAt: row.reviewedAt,
     reviewedBy: row.reviewedBy,

@@ -24,7 +24,9 @@ import {
   createListingReview,
   fetchSimilarListings,
 } from "~/server/listings.functions";
+import { fetchCategoryMetadataSchema } from "~/server/categories.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
+import { formatMetadataValue } from "~/lib/category-metadata";
 import {
   MapPin,
   Package,
@@ -44,13 +46,14 @@ export const Route = createFileRoute("/listings/$id")({
     if (!listing || listing.status !== "active") {
       throw new Error("Listing not found");
     }
-    const [reviews, similar] = await Promise.all([
+    const [reviews, similar, metadataSchema] = await Promise.all([
       fetchListingReviews({ data: { id: params.id } }),
       fetchSimilarListings({
         data: { listingId: listing.id, categoryId: listing.categoryId },
       }),
+      fetchCategoryMetadataSchema({ data: { categoryId: listing.categoryId } }),
     ]);
-    return { listing, reviews, similar };
+    return { listing, reviews, similar, metadataSchema };
   },
   head: ({ loaderData }) => {
     const listing = loaderData?.listing;
@@ -102,7 +105,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function ListingDetailPage() {
-  const { listing, reviews, similar } = Route.useLoaderData();
+  const { listing, reviews, similar, metadataSchema } = Route.useLoaderData();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [showContact, setShowContact] = useState(false);
@@ -340,6 +343,22 @@ function ListingDetailPage() {
                     <MapPin className="h-4 w-4" />
                     <span>Location: seller&apos;s area</span>
                   </div>
+                  {metadataSchema &&
+                    metadataSchema.fields.map((field) => {
+                      const value = listing.metadata[field.key];
+                      if (value === undefined || value === null || value === "") return null;
+                      return (
+                        <div
+                          key={field.key}
+                          className="flex items-center justify-between gap-2 text-celis-ink-secondary"
+                        >
+                          <span>{field.label}</span>
+                          <span className="font-medium text-celis-ink">
+                            {formatMetadataValue(field, value)}
+                          </span>
+                        </div>
+                      );
+                    })}
                 </div>
               </CardContent>
             </Card>

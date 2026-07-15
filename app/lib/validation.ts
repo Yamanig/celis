@@ -44,7 +44,7 @@ export const listingSchema = z.object({
     })
     .optional(),
   images: z.array(listingImageSchema).min(1, "Upload at least one image").max(8),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).default({}),
 });
 
 export const walletPaymentSchema = z.object({

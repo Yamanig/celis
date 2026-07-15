@@ -30,6 +30,7 @@ import {
 } from "~/server/listings.functions";
 import {
   fetchCategoryConditions,
+  fetchCategoryMetadataSchema,
   type CategoryConditionItem,
 } from "~/server/categories.functions";
 import { getListingPricingPreview } from "~/server/config.functions";
@@ -41,6 +42,13 @@ import {
   type ListingPricing,
   type MonetizationModel,
 } from "~/lib/pricing";
+import {
+  validateMetadata,
+  normalizeMetadataValue,
+  formatMetadataValue,
+  type MetadataField,
+  type CategoryMetadataSchema,
+} from "~/lib/category-metadata";
 import { ChevronLeft, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
 import type { CategoryListItem } from "~/server/categories.functions";
 
@@ -91,6 +99,7 @@ export function ListingWizard({
   const [categoryConditions, setCategoryConditions] = useState<
     CategoryConditionItem[]
   >([]);
+  const [metadataSchema, setMetadataSchema] = useState<CategoryMetadataSchema | null>(null);
 
   useEffect(() => {
     fetchSellerListingEligibility({ data: { sellerId } }).then(setEligibility);
@@ -99,10 +108,14 @@ export function ListingWizard({
   useEffect(() => {
     if (!form.categoryId) {
       setCategoryConditions([]);
+      setMetadataSchema(null);
       return;
     }
     fetchCategoryConditions({ data: { categoryId: form.categoryId } }).then(
       setCategoryConditions
+    );
+    fetchCategoryMetadataSchema({ data: { categoryId: form.categoryId } }).then(
+      setMetadataSchema
     );
   }, [form.categoryId]);
 
@@ -128,14 +141,37 @@ export function ListingWizard({
     });
   };
 
+  const updateMetadata = (key: string, value: unknown) => {
+    const field = metadataSchema?.fields.find((f) => f.key === key);
+    const normalized = field
+      ? normalizeMetadataValue(field.type, value)
+      : value === null || value === undefined
+      ? null
+      : typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+      ? value
+      : null;
+    setForm((prev) => ({
+      ...prev,
+      metadata: { ...prev.metadata, [key]: normalized },
+    }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   const validateStep = () => {
     const result = listingSchema.safeParse(form);
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.issues.forEach((issue) => {
-        const path = issue.path[0] as string;
-        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
-      });
+    const metadataErrors = validateMetadata(metadataSchema, form.metadata);
+    if (!result.success || Object.keys(metadataErrors).length > 0) {
+      const fieldErrors: Record<string, string> = { ...metadataErrors };
+      if (!result.success) {
+        result.error.issues.forEach((issue) => {
+          const path = issue.path[0] as string;
+          if (!fieldErrors[path]) fieldErrors[path] = issue.message;
+        });
+      }
       setErrors(fieldErrors);
       return false;
     }
@@ -337,6 +373,23 @@ export function ListingWizard({
                   <p className="text-sm text-celis-destructive">{errors.description}</p>
                 )}
               </div>
+
+              {metadataSchema && metadataSchema.fields.length > 0 && (
+                <div className="space-y-4 rounded-lg border border-celis-border bg-celis-surface-inset p-4">
+                  <h3 className="text-sm font-medium text-celis-ink">
+                    Category details
+                  </h3>
+                  {metadataSchema.fields.map((field) => (
+                    <MetadataFieldInput
+                      key={field.key}
+                      field={field}
+                      value={form.metadata[field.key]}
+                      error={errors[field.key]}
+                      onChange={(value) => updateMetadata(field.key, value)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -473,6 +526,15 @@ export function ListingWizard({
                       "—"}
                   </dd>
                 </div>
+                {metadataSchema &&
+                  metadataSchema.fields.map((field) => (
+                    <div key={field.key} className="flex justify-between py-2">
+                      <dt className="text-celis-ink-secondary">{field.label}</dt>
+                      <dd className="font-medium">
+                        {formatMetadataValue(field, form.metadata[field.key])}
+                      </dd>
+                    </div>
+                  ))}
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Price</dt>
                   <dd className="font-medium">{formatPrice(form.price)}</dd>
@@ -568,5 +630,76 @@ export function ListingWizard({
         onSuccess={() => setFinished(true)}
       />
     </>
+  );
+}
+
+function MetadataFieldInput({
+  field,
+  value,
+  error,
+  onChange,
+}: {
+  field: MetadataField;
+  value: unknown;
+  error?: string;
+  onChange: (value: unknown) => void;
+}) {
+  const normalized = normalizeMetadataValue(field.type, value);
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={`meta-${field.key}`}>
+        {field.label}
+        {field.required && <span className="text-celis-destructive"> *</span>}
+      </Label>
+      {field.type === "text" && (
+        <Input
+          id={`meta-${field.key}`}
+          value={normalized as string}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+      {field.type === "number" && (
+        <Input
+          id={`meta-${field.key}`}
+          type="number"
+          value={normalized as number}
+          onChange={(e) =>
+            onChange(
+              e.target.value === "" ? "" : Number(e.target.value)
+            )
+          }
+        />
+      )}
+      {field.type === "boolean" && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={normalized as boolean}
+            onChange={(e) => onChange(e.target.checked)}
+            className="h-4 w-4 rounded border-celis-border"
+          />
+          Yes
+        </label>
+      )}
+      {field.type === "select" && (
+        <Select
+          value={normalized as string}
+          onValueChange={(v) => onChange(v)}
+        >
+          <SelectTrigger id={`meta-${field.key}`}>
+            <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {(field.options ?? []).map((opt) => (
+              <SelectItem key={opt} value={opt}>
+                {opt}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {error && <p className="text-sm text-celis-destructive">{error}</p>}
+    </div>
   );
 }
