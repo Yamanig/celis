@@ -48,17 +48,7 @@ import {
 } from "./seller-packages.server";
 import { requirePermission } from "./auth.server";
 
-const userRoleSchema = z.enum([
-  "buyer",
-  "seller",
-  "admin",
-  "listing_review_officer",
-  "seller_verification_officer",
-  "listing_review_and_verification_officer",
-  "finance_officer",
-  "support_officer",
-  "auditor",
-]);
+const userRoleSchema = z.string();
 
 export const fetchAdminStats = createServerFn({ method: "GET" }).handler(async () => {
   return getAdminDashboardStats();

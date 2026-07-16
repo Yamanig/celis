@@ -35,25 +35,14 @@ import {
 import {
   fetchCurrentUser,
   fetchCurrentUserPermissions,
+  fetchRoles,
 } from "~/server/auth.functions";
 import { formatRelativeDate } from "~/lib/format";
 import { Search, Copy, Check } from "lucide-react";
 
-const roleSchema = z.enum([
-  "buyer",
-  "seller",
-  "admin",
-  "listing_review_officer",
-  "seller_verification_officer",
-  "listing_review_and_verification_officer",
-  "finance_officer",
-  "support_officer",
-  "auditor",
-]);
-
 const usersSearchSchema = z.object({
   search: z.string().optional(),
-  role: roleSchema.optional(),
+  role: z.string().optional(),
   domain: z.enum(["customer", "internal"]).optional().default("customer"),
   page: z.coerce.number().int().min(1).optional().default(1),
 });
@@ -71,7 +60,7 @@ export const Route = createFileRoute("/admin/users")({
   validateSearch: usersSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {
-    const [result, currentUser, permissions] = await Promise.all([
+    const [result, currentUser, permissions, roles] = await Promise.all([
       fetchAdminUsers({
         data: {
           search: search.search,
@@ -83,21 +72,20 @@ export const Route = createFileRoute("/admin/users")({
       }),
       fetchCurrentUser(),
       fetchCurrentUserPermissions(),
+      fetchRoles(),
     ]);
-    return { result, currentUser, permissions };
+    return { result, currentUser, permissions, roles };
   },
 });
 
 function AdminUsersPage() {
-  const { result, currentUser, permissions } = Route.useLoaderData();
+  const { result, currentUser, permissions, roles } = Route.useLoaderData();
   const { items, page, totalPages } = result;
   const search = Route.useSearch();
   const router = useRouter();
   const navigate = useNavigate({ from: "/admin/users" });
   const [searchInput, setSearchInput] = useState(search.search ?? "");
-  const [role, setRole] = useState<z.infer<typeof usersSearchSchema>["role"]>(
-    search.role
-  );
+  const [role, setRole] = useState<string | undefined>(search.role);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -105,7 +93,7 @@ function AdminUsersPage() {
   const [createForm, setCreateForm] = useState({
     email: "",
     password: "",
-    role: "listing_review_and_verification_officer" as z.infer<typeof roleSchema>,
+    role: "listing_review_and_verification_officer",
     department: "",
   });
   const [createLoading, setCreateLoading] = useState(false);
@@ -198,19 +186,12 @@ function AdminUsersPage() {
   };
 
   const domain = search.domain ?? "customer";
-  const customerRoleOptions = [
-    { value: "buyer", label: "Buyer" },
-    { value: "seller", label: "Seller" },
-  ];
-  const internalRoleOptions = [
-    { value: "admin", label: "Admin" },
-    { value: "listing_review_and_verification_officer", label: "Listing Review & Verification Officer" },
-    { value: "listing_review_officer", label: "Listing Review Officer (legacy)" },
-    { value: "seller_verification_officer", label: "Seller Verification Officer (legacy)" },
-    { value: "finance_officer", label: "Finance Officer" },
-    { value: "support_officer", label: "Support Officer" },
-    { value: "auditor", label: "Auditor" },
-  ];
+  const customerRoleOptions = roles
+    .filter((r) => r.domain === "customer")
+    .map((r) => ({ value: r.key, label: r.label }));
+  const internalRoleOptions = roles
+    .filter((r) => r.domain === "internal")
+    .map((r) => ({ value: r.key, label: r.label }));
   const roleOptions = domain === "customer" ? customerRoleOptions : internalRoleOptions;
 
   const handleDomainChange = (next: "customer" | "internal") => {
@@ -497,7 +478,7 @@ function AdminUsersPage() {
               <Select
                 value={createForm.role}
                 onValueChange={(v) =>
-                  setCreateForm((f) => ({ ...f, role: v as z.infer<typeof roleSchema> }))
+                  setCreateForm((f) => ({ ...f, role: v }))
                 }
               >
                 <SelectTrigger id="ci-role" className="w-full">

@@ -1,5 +1,5 @@
 import { db } from "~/db";
-import { users, profiles, authUsers, permissions, rolePermissions } from "~/db/schema";
+import { users, profiles, authUsers, permissions, rolePermissions, roles } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { getSupabaseServerClient } from "~/lib/supabase/server";
 import {
@@ -196,20 +196,105 @@ export async function requireAdmin(): Promise<CurrentUser> {
   return requirePermission("admin:access");
 }
 
+export interface RoleRecord {
+  id: string;
+  key: string;
+  label: string;
+  description: string | null;
+  domain: "customer" | "internal";
+  isSystem: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function slugifyRoleKey(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export async function listRoles(): Promise<RoleRecord[]> {
+  return db.select().from(roles).orderBy(roles.domain, roles.label);
+}
+
+export async function getRoleByKey(key: string): Promise<RoleRecord | null> {
+  const [row] = await db.select().from(roles).where(eq(roles.key, key)).limit(1);
+  return row ?? null;
+}
+
+export async function createRole(input: {
+  key: string;
+  label: string;
+  description?: string;
+  domain: "customer" | "internal";
+}) {
+  await requirePermission("settings:manage");
+
+  const key = slugifyRoleKey(input.key);
+  if (!key) throw new Error("Role key is required");
+  const existing = await getRoleByKey(key);
+  if (existing) throw new Error("Role key already exists");
+
+  const [created] = await db
+    .insert(roles)
+    .values({
+      key,
+      label: input.label.trim(),
+      description: input.description?.trim() || null,
+      domain: input.domain,
+    })
+    .returning();
+  return created;
+}
+
+export async function updateRole(
+  key: string,
+  input: { label: string; description?: string; domain: "customer" | "internal" }
+) {
+  await requirePermission("settings:manage");
+
+  const [updated] = await db
+    .update(roles)
+    .set({
+      label: input.label.trim(),
+      description: input.description?.trim() || null,
+      domain: input.domain,
+      updatedAt: new Date(),
+    })
+    .where(eq(roles.key, key))
+    .returning();
+  if (!updated) throw new Error("Role not found");
+  return updated;
+}
+
+export async function deleteRole(key: string) {
+  await requirePermission("settings:manage");
+
+  const role = await getRoleByKey(key);
+  if (!role) throw new Error("Role not found");
+  if (role.isSystem) throw new Error("System roles cannot be deleted");
+
+  const [userUsingRole] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.role, key))
+    .limit(1);
+  if (userUsingRole) throw new Error("Role is assigned to one or more users");
+
+  await db.delete(rolePermissions).where(eq(rolePermissions.role, key));
+  await db.delete(roles).where(eq(roles.key, key));
+  return { success: true };
+}
+
 /**
  * Returns true for roles that are part of the internal staff domain.
  * External customers are buyer and seller.
  */
-export function isInternalRole(role: UserRole): boolean {
-  return (
-    role === "admin" ||
-    role === "listing_review_officer" ||
-    role === "seller_verification_officer" ||
-    role === "listing_review_and_verification_officer" ||
-    role === "finance_officer" ||
-    role === "support_officer" ||
-    role === "auditor"
-  );
+export async function isInternalRole(role: UserRole): Promise<boolean> {
+  const row = await getRoleByKey(role);
+  return row?.domain === "internal";
 }
 
 /**
@@ -264,14 +349,7 @@ export async function ensureLocalUserRecord(
     .where(eq(users.id, id))
     .limit(1);
 
-  const isInternal =
-    role === "admin" ||
-    role === "listing_review_officer" ||
-    role === "seller_verification_officer" ||
-    role === "listing_review_and_verification_officer" ||
-    role === "finance_officer" ||
-    role === "support_officer" ||
-    role === "auditor";
+  const isInternal = await isInternalRole(role);
 
   if (existing.length === 0) {
     // Ensure the auth mirror row exists so the users FK is satisfied.

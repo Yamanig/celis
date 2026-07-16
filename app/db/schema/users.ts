@@ -10,7 +10,6 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import {
-  userRoleEnum,
   sellerTypeEnum,
   verificationStatusEnum,
 } from "./enums";
@@ -30,7 +29,7 @@ export const users = pgTable("users", {
     .primaryKey()
     .references(() => authUsers.id, { onDelete: "cascade" }),
   email: varchar("email", { length: 255 }).notNull(),
-  role: userRoleEnum("role").notNull().default("buyer"),
+  role: text("role").notNull().default("buyer"),
   isInternal: boolean("is_internal").notNull().default(false),
   createdBy: uuid("created_by").references(
     (): AnyPgColumn => users.id,

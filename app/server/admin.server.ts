@@ -12,6 +12,7 @@ import {
   listingPackages,
   sellerSubscriptions,
   categoryFees,
+  roles,
 } from "~/db/schema";
 import {
   eq,
@@ -25,6 +26,7 @@ import {
   gte,
   lte,
   sum,
+  inArray,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireAdmin, requirePermission, isInternalRole } from "./auth.server";
@@ -276,12 +278,16 @@ export async function getAdminUsers(options?: {
     conditions.push(eq(users.role, options.role));
   }
   if (options?.domain) {
-    if (options.domain === "customer") {
-      conditions.push(or(eq(users.role, "buyer"), eq(users.role, "seller")));
+    const domainRoles = await db
+      .select({ key: roles.key })
+      .from(roles)
+      .where(eq(roles.domain, options.domain));
+    const roleKeys = domainRoles.map((r) => r.key);
+    if (roleKeys.length > 0) {
+      conditions.push(inArray(users.role, roleKeys));
     } else {
-      conditions.push(
-        sql`${users.role} IN ('admin', 'listing_review_officer', 'seller_verification_officer', 'listing_review_and_verification_officer', 'finance_officer', 'support_officer', 'auditor')`
-      );
+      // No roles in this domain; return empty result.
+      conditions.push(sql`1 = 0`);
     }
   }
 
@@ -330,15 +336,12 @@ export async function getAdminUsers(options?: {
 export async function updateUserRole(id: string, role: UserRole, actorId: string) {
   await requirePermission("users:manage");
 
-  const internalRoles = new Set<UserRole>([
-    "admin",
-    "listing_review_officer",
-    "seller_verification_officer",
-    "listing_review_and_verification_officer",
-    "finance_officer",
-    "support_officer",
-    "auditor",
-  ]);
+  const roleRecord = await db
+    .select({ key: roles.key, domain: roles.domain })
+    .from(roles)
+    .where(eq(roles.key, role))
+    .limit(1);
+  if (!roleRecord[0]) throw new Error("Role not found");
 
   const [user] = await db
     .select({ role: users.role, isInternal: users.isInternal })
@@ -349,7 +352,7 @@ export async function updateUserRole(id: string, role: UserRole, actorId: string
 
   // Prevent promoting an external customer to an internal role through the
   // simple role dropdown. Internal users must be created via the invite flow.
-  if (internalRoles.has(role) && !user.isInternal && user.role !== "admin") {
+  if (roleRecord[0].domain === "internal" && !user.isInternal && user.role !== "admin") {
     throw new Error(
       "External customers cannot be converted to internal staff via role change. Use the invite internal user flow."
     );
@@ -373,7 +376,7 @@ export async function createInternalUser(input: {
 }) {
   await requirePermission("users:manage");
 
-  if (!isInternalRole(input.role as UserRole)) {
+  if (!(await isInternalRole(input.role as UserRole))) {
     throw new Error("Selected role is not an internal staff role");
   }
 

@@ -31,6 +31,12 @@ const userRoleVariants: Record<string, string> = {
   admin: "destructive",
   seller: "default",
   buyer: "secondary",
+  listing_review_officer: "default",
+  seller_verification_officer: "default",
+  listing_review_and_verification_officer: "default",
+  finance_officer: "default",
+  support_officer: "default",
+  auditor: "default",
 };
 
 export function ListingStatusBadge({ status }: { status: string }) {

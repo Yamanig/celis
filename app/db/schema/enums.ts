@@ -179,7 +179,7 @@ export const DISPUTE_REASONS = [
 ] as const;
 export const disputeReasonEnum = pgEnum("dispute_reason", DISPUTE_REASONS);
 
-export type UserRole = (typeof USER_ROLES)[number];
+export type UserRole = string;
 export type SellerType = (typeof SELLER_TYPES)[number];
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export type ItemCondition = (typeof ITEM_CONDITIONS)[number];
