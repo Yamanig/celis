@@ -203,5 +203,12 @@ export const interactionTypeEnum = pgEnum(
   INTERACTION_TYPES
 );
 
+export const NOTIFICATION_STATUSES = ["unread", "read"] as const;
+export const notificationStatusEnum = pgEnum(
+  "notification_status",
+  NOTIFICATION_STATUSES
+);
+
 export type DisputeReason = (typeof DISPUTE_REASONS)[number];
 export type InteractionType = (typeof INTERACTION_TYPES)[number];
+export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];

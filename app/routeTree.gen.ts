@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SellRouteImport } from './routes/sell'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BrowseRouteImport } from './routes/browse'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -43,6 +44,11 @@ const SellRoute = SellRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -167,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/browse': typeof BrowseRoute
   '/dashboard': typeof DashboardRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
@@ -193,6 +200,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/browse': typeof BrowseRoute
   '/dashboard': typeof DashboardRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
@@ -221,6 +229,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/browse': typeof BrowseRoute
   '/dashboard': typeof DashboardRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
@@ -250,6 +259,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/browse'
     | '/dashboard'
+    | '/notifications'
     | '/search'
     | '/sell'
     | '/admin/audit-log'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/browse'
     | '/dashboard'
+    | '/notifications'
     | '/search'
     | '/sell'
     | '/admin/audit-log'
@@ -303,6 +314,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/browse'
     | '/dashboard'
+    | '/notifications'
     | '/search'
     | '/sell'
     | '/admin/audit-log'
@@ -331,6 +343,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   BrowseRoute: typeof BrowseRoute
   DashboardRoute: typeof DashboardRoute
+  NotificationsRoute: typeof NotificationsRoute
   SearchRoute: typeof SearchRoute
   SellRoute: typeof SellRoute
   AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
@@ -355,6 +368,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -559,6 +579,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   BrowseRoute: BrowseRoute,
   DashboardRoute: DashboardRoute,
+  NotificationsRoute: NotificationsRoute,
   SearchRoute: SearchRoute,
   SellRoute: SellRoute,
   AuthForgotPasswordRoute: AuthForgotPasswordRoute,

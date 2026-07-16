@@ -29,6 +29,7 @@ import {
 import { alias } from "drizzle-orm/pg-core";
 import { requireAdmin, requirePermission, isInternalRole } from "./auth.server";
 import { insertAuditLog } from "./audit.server";
+import { createNotification } from "./notifications.server";
 import type { UserRole, ListingStatus, VerificationStatus } from "~/db/schema";
 import { getServiceSupabase } from "~/lib/supabase/server";
 import {
@@ -566,6 +567,34 @@ export async function reviewSellerVerification(
     },
   });
 
+  const notificationType =
+    action === "approve"
+      ? "seller_verification_approved"
+      : action === "reject"
+      ? "seller_verification_rejected"
+      : "seller_verification_suspended";
+  const title =
+    action === "approve"
+      ? "Seller verification approved"
+      : action === "reject"
+      ? "Seller verification rejected"
+      : "Seller verification suspended";
+  const body =
+    action === "approve"
+      ? "Your seller verification has been approved. You can now publish listings."
+      : reason
+      ? `Your seller verification was ${action}ed. Reason: ${reason}`
+      : `Your seller verification was ${action}ed.`;
+
+  await createNotification({
+    userId: id,
+    type: notificationType,
+    title,
+    body,
+    link: "/dashboard",
+    metadata: { previousStatus, newStatus: updates.verificationStatus, reason },
+  });
+
   return { success: true, status: updates.verificationStatus };
 }
 
@@ -771,13 +800,12 @@ export async function notifyExpiringSeller(
 ) {
   await requirePermission("listings:moderate");
   const [listing] = await db
-    .select({ sellerId: listings.sellerId, title: listings.title })
+    .select({ sellerId: listings.sellerId, title: listings.title, expiresAt: listings.expiresAt })
     .from(listings)
     .where(eq(listings.id, listingId))
     .limit(1);
   if (!listing) throw new Error("Listing not found");
 
-  // Placeholder: in production this would send an SMS/push/email.
   const result = `queued_${channel}`;
   const entry = {
     channel,
@@ -792,6 +820,17 @@ export async function notifyExpiringSeller(
       updatedAt: new Date(),
     })
     .where(eq(listings.id, listingId));
+
+  await createNotification({
+    userId: listing.sellerId,
+    type: "listing_expiring_soon",
+    title: "Your listing is expiring soon",
+    body: listing.expiresAt
+      ? `"${listing.title}" expires on ${new Date(listing.expiresAt).toLocaleDateString()}. Renew it to keep it visible.`
+      : `"${listing.title}" is expiring soon. Renew it to keep it visible.`,
+    link: `/dashboard`,
+    metadata: { listingId, channel, expiresAt: listing.expiresAt?.toISOString() },
+  });
 
   await insertAuditLog({
     action: "listing_expiry_notification_sent",
@@ -1205,6 +1244,12 @@ export async function retryPayout(id: string) {
 
 export async function markPayoutCompleted(id: string, note?: string) {
   await requirePermission("payouts:manage");
+  const [payout] = await db
+    .select({ userId: payouts.userId, amount: payouts.amount, currency: payouts.currency })
+    .from(payouts)
+    .where(eq(payouts.id, id))
+    .limit(1);
+
   await db
     .update(payouts)
     .set({
@@ -1213,12 +1258,26 @@ export async function markPayoutCompleted(id: string, note?: string) {
       updatedAt: new Date(),
     })
     .where(eq(payouts.id, id));
+
   await insertAuditLog({
     action: "payout_completed",
     resourceType: "payout",
     resourceId: id,
     metadata: note ? { note } : undefined,
   });
+
+  if (payout) {
+    const amount = (payout.amount / 100).toFixed(2);
+    await createNotification({
+      userId: payout.userId,
+      type: "payout_completed",
+      title: "Payout completed",
+      body: `Your payout of ${amount} ${payout.currency ?? "USD"} has been sent.`,
+      link: "/dashboard",
+      metadata: { payoutId: id, amount: payout.amount, currency: payout.currency, note },
+    });
+  }
+
   return { success: true };
 }
 

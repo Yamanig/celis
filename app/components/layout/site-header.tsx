@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useAuth } from "~/lib/auth-context";
 import { useTheme } from "~/lib/theme-provider";
 import { CelisLogo } from "~/components/branding/celis-logo";
+import { NotificationBell } from "~/components/notifications/notification-bell";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
@@ -21,6 +22,7 @@ import {
   Sun,
   Moon,
   Menu,
+  Bell,
 } from "lucide-react";
 
 interface SiteHeaderProps {
@@ -97,6 +99,7 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
           <div className="hidden items-center gap-1 md:flex md:gap-2">
             {user ? (
               <>
+                <NotificationBell />
                 <Button variant="ghost" size="sm" asChild>
                   <Link to="/account">
                     <User className="mr-2 h-4 w-4" />
@@ -168,6 +171,12 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
             <Separator />
             {user ? (
               <>
+                <Button variant="ghost" asChild className="justify-start">
+                  <Link to="/notifications" onClick={() => setMenuOpen(false)}>
+                    <Bell className="mr-2 h-4 w-4" />
+                    Notifications
+                  </Link>
+                </Button>
                 <Button variant="ghost" asChild className="justify-start">
                   <Link to="/account" onClick={() => setMenuOpen(false)}>
                     <User className="mr-2 h-4 w-4" />

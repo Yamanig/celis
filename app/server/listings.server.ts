@@ -15,6 +15,7 @@ import type { ListingInput } from "~/lib/validation";
 import { CelisError } from "~/lib/errors";
 import type { listings as listingsTable, ItemCondition } from "~/db/schema";
 import { getSellerListingEligibility } from "./seller-packages.server";
+import { createNotification } from "./notifications.server";
 
 export type ListingMetadata = Record<string, string | number | boolean | null>;
 
@@ -247,6 +248,16 @@ export async function approveListing(id: string, reviewerId: string) {
     })
     .where(eq(listings.id, id))
     .returning();
+
+  await createNotification({
+    userId: listing.sellerId,
+    type: "listing_approved",
+    title: "Your listing is live",
+    body: `"${listing.title}" has been approved and is now visible to buyers.`,
+    link: `/listings/${listing.id}`,
+    metadata: { listingId: listing.id, title: listing.title },
+  });
+
   return updated;
 }
 
@@ -255,6 +266,15 @@ export async function rejectListing(
   reviewerId: string,
   reason: string
 ) {
+  const [listing] = await db
+    .select()
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+
   const [updated] = await db
     .update(listings)
     .set({
@@ -266,9 +286,18 @@ export async function rejectListing(
     })
     .where(eq(listings.id, id))
     .returning();
-  if (!updated) {
-    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
-  }
+
+  await createNotification({
+    userId: listing.sellerId,
+    type: "listing_rejected",
+    title: "Your listing was not approved",
+    body: reason
+      ? `"${listing.title}" was rejected. Reason: ${reason}`
+      : `"${listing.title}" was rejected.`,
+    link: `/dashboard`,
+    metadata: { listingId: listing.id, title: listing.title, reason },
+  });
+
   return updated;
 }
 
