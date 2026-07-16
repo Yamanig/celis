@@ -29,6 +29,9 @@ import {
   getFailedPaymentsReport,
   getNewUsersReport,
   getNewListingsReport,
+  exportFailedPaymentsReport,
+  exportNewUsersReport,
+  exportNewListingsReport,
   getPlatformConfigAll,
   updatePlatformConfig,
   runListingExpirySweep,
@@ -390,14 +393,16 @@ export const exportAdminLedgerCsv = createServerFn({ method: "GET" })
     return exportAdminLedger(data);
   });
 
-const failedPaymentsQuerySchema = z
-  .object({
-    from: z.string().optional(),
-    to: z.string().optional(),
-    page: z.coerce.number().int().min(1).optional().default(1),
-    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
-  })
-  .default({});
+const failedPaymentsBaseSchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  includePending: z.coerce.boolean().optional().default(false),
+});
+
+const failedPaymentsQuerySchema = failedPaymentsBaseSchema.extend({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+});
 
 export const fetchFailedPaymentsReport = createServerFn({ method: "GET" })
   .validator(failedPaymentsQuerySchema)
@@ -405,28 +410,44 @@ export const fetchFailedPaymentsReport = createServerFn({ method: "GET" })
     return getFailedPaymentsReport(data);
   });
 
-const newUsersQuerySchema = z.object({
-  date: z.string().optional(),
+export const exportFailedPaymentsReportCsv = createServerFn({ method: "GET" })
+  .validator(failedPaymentsBaseSchema)
+  .handler(async ({ data }) => {
+    return exportFailedPaymentsReport(data);
+  });
+
+const dateRangeBaseSchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+});
+
+const dateRangeQuerySchema = dateRangeBaseSchema.extend({
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(10),
 });
 
 export const fetchNewUsersReport = createServerFn({ method: "GET" })
-  .validator(newUsersQuerySchema)
+  .validator(dateRangeQuerySchema)
   .handler(async ({ data }) => {
     return getNewUsersReport(data);
   });
 
-const newListingsQuerySchema = z.object({
-  date: z.string().optional(),
-  page: z.coerce.number().int().min(1).optional().default(1),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
-});
+export const exportNewUsersReportCsv = createServerFn({ method: "GET" })
+  .validator(dateRangeBaseSchema)
+  .handler(async ({ data }) => {
+    return exportNewUsersReport(data);
+  });
 
 export const fetchNewListingsReport = createServerFn({ method: "GET" })
-  .validator(newListingsQuerySchema)
+  .validator(dateRangeQuerySchema)
   .handler(async ({ data }) => {
     return getNewListingsReport(data);
+  });
+
+export const exportNewListingsReportCsv = createServerFn({ method: "GET" })
+  .validator(dateRangeBaseSchema)
+  .handler(async ({ data }) => {
+    return exportNewListingsReport(data);
   });
 
 const auditLogQuerySchema = z.object({

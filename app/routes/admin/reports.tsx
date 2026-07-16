@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { Switch } from "~/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -21,18 +22,63 @@ import {
   fetchAdminLedger,
   exportAdminLedgerCsv,
   fetchFailedPaymentsReport,
+  exportFailedPaymentsReportCsv,
   fetchNewUsersReport,
+  exportNewUsersReportCsv,
   fetchNewListingsReport,
+  exportNewListingsReportCsv,
 } from "~/server/admin.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 import { exportToCsv } from "~/lib/csv";
 import { Download } from "lucide-react";
 
+type FailedPaymentExportRow = {
+  id: string;
+  merchantRef: string;
+  walletRef: string | null;
+  userEmail: string;
+  userName: string | null;
+  amount: number;
+  currency: string;
+  provider: string;
+  status: string;
+  retryCount: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type NewUserExportRow = {
+  id: string;
+  email: string;
+  displayName: string | null;
+  phone: string | null;
+  role: string;
+  sellerType: string;
+  isVerified: boolean;
+  createdAt: Date;
+};
+
+type NewListingExportRow = {
+  id: string;
+  title: string;
+  price: number;
+  condition: string | null;
+  categoryName: string;
+  sellerName: string;
+  status: string;
+  monetizationStatus: string;
+  monetizationType: string;
+  reviewerName: string | null;
+  createdAt: Date;
+};
+
 const reportsSearchSchema = z.object({
   tab: z.enum(["ledger", "failed-payments", "new-users", "new-listings"]).optional().default("ledger"),
   from: z.string().optional(),
   to: z.string().optional(),
-  date: z.string().optional(),
+  includePending: z.coerce.boolean().optional().default(false),
   type: z.enum(["all", "payment", "payout", "refund"]).optional().default("all"),
   page: z.coerce.number().int().min(1).optional().default(1),
 });
@@ -51,7 +97,6 @@ export const Route = createFileRoute("/admin/reports")({
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {
     const common = { page: search.page, limit: 10 };
-    const today = new Date().toISOString().slice(0, 10);
 
     const [ledger, failedPayments, newUsers, newListings] = await Promise.all([
       fetchAdminLedger({
@@ -66,14 +111,15 @@ export const Route = createFileRoute("/admin/reports")({
         data: {
           from: search.from,
           to: search.to,
+          includePending: search.includePending,
           ...common,
         },
       }),
       fetchNewUsersReport({
-        data: { date: search.date ?? today, ...common },
+        data: { from: search.from, to: search.to, ...common },
       }),
       fetchNewListingsReport({
-        data: { date: search.date ?? today, ...common },
+        data: { from: search.from, to: search.to, ...common },
       }),
     ]);
 
@@ -95,7 +141,7 @@ function AdminReportsPage() {
   const [from, setFrom] = useState(search.from ?? "");
   const [to, setTo] = useState(search.to ?? "");
   const [type, setType] = useState<string>(search.type ?? "all");
-  const [date, setDate] = useState(search.date ?? new Date().toISOString().slice(0, 10));
+  const [includePending, setIncludePending] = useState(search.includePending ?? false);
   const [exporting, setExporting] = useState(false);
   const [activeTab, setActiveTab] = useState(search.tab ?? "ledger");
 
@@ -112,8 +158,8 @@ function AdminReportsPage() {
   }, [search.type]);
 
   useEffect(() => {
-    setDate(search.date ?? new Date().toISOString().slice(0, 10));
-  }, [search.date]);
+    setIncludePending(search.includePending ?? false);
+  }, [search.includePending]);
 
   useEffect(() => {
     setActiveTab(search.tab ?? "ledger");
@@ -137,34 +183,133 @@ function AdminReportsPage() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const { rows } = await exportAdminLedgerCsv({
-        data: {
-          from: search.from,
-          to: search.to,
-          type: search.type,
-        },
-      });
-      exportToCsv(
-        rows.map((r) => ({
-          date: new Date(r.date).toISOString(),
-          type: r.type,
-          party: r.party,
-          amount: formatPrice(r.amount),
-          currency: r.currency,
-          status: r.status,
-          reference: r.reference ?? "",
-        })),
-        [
-          { key: "date", label: "Date" },
-          { key: "type", label: "Type" },
-          { key: "party", label: "Party" },
-          { key: "amount", label: "Amount" },
-          { key: "currency", label: "Currency" },
-          { key: "status", label: "Status" },
-          { key: "reference", label: "Reference" },
-        ],
-        `celis-ledger-${new Date().toISOString().slice(0, 10)}.csv`
-      );
+      if (activeTab === "ledger") {
+        const { rows } = await exportAdminLedgerCsv({
+          data: {
+            from: search.from,
+            to: search.to,
+            type: search.type,
+          },
+        });
+        exportToCsv(
+          rows.map((r) => ({
+            date: new Date(r.date).toISOString(),
+            type: r.type,
+            party: r.party,
+            amount: formatPrice(r.amount),
+            currency: r.currency,
+            status: r.status,
+            reference: r.reference ?? "",
+          })),
+          [
+            { key: "date", label: "Date" },
+            { key: "type", label: "Type" },
+            { key: "party", label: "Party" },
+            { key: "amount", label: "Amount" },
+            { key: "currency", label: "Currency" },
+            { key: "status", label: "Status" },
+            { key: "reference", label: "Reference" },
+          ],
+          `celis-ledger-${new Date().toISOString().slice(0, 10)}.csv`
+        );
+      } else if (activeTab === "failed-payments") {
+        const rows = (await exportFailedPaymentsReportCsv({
+          data: {
+            from: search.from,
+            to: search.to,
+            includePending: search.includePending,
+          },
+        })) as FailedPaymentExportRow[];
+        exportToCsv(
+          rows.map((r) => ({
+            merchantRef: r.merchantRef,
+            walletRef: r.walletRef ?? "",
+            userEmail: r.userEmail,
+            userName: r.userName ?? "",
+            amount: formatPrice(r.amount, r.currency),
+            currency: r.currency,
+            provider: r.provider,
+            status: r.status,
+            retryCount: r.retryCount,
+            errorCode: r.errorCode ?? "",
+            errorMessage: r.errorMessage ?? "",
+            attemptedAt: new Date(r.createdAt).toISOString(),
+            updatedAt: new Date(r.updatedAt).toISOString(),
+          })),
+          [
+            { key: "merchantRef", label: "Reference" },
+            { key: "walletRef", label: "Wallet Ref" },
+            { key: "userEmail", label: "Email" },
+            { key: "userName", label: "Name" },
+            { key: "amount", label: "Amount" },
+            { key: "currency", label: "Currency" },
+            { key: "provider", label: "Provider" },
+            { key: "status", label: "Status" },
+            { key: "retryCount", label: "Retries" },
+            { key: "errorCode", label: "Error Code" },
+            { key: "errorMessage", label: "Error Message" },
+            { key: "attemptedAt", label: "Attempted" },
+            { key: "updatedAt", label: "Updated" },
+          ],
+          `celis-failed-payments-${new Date().toISOString().slice(0, 10)}.csv`
+        );
+      } else if (activeTab === "new-users") {
+        const rows = (await exportNewUsersReportCsv({
+          data: { from: search.from, to: search.to },
+        })) as NewUserExportRow[];
+        exportToCsv(
+          rows.map((r) => ({
+            email: r.email,
+            name: r.displayName ?? "",
+            phone: r.phone ?? "",
+            role: r.role,
+            sellerType: r.sellerType.replace(/_/g, " "),
+            verified: r.isVerified ? "Yes" : "No",
+            registeredAt: new Date(r.createdAt).toISOString(),
+          })),
+          [
+            { key: "email", label: "Email" },
+            { key: "name", label: "Name" },
+            { key: "phone", label: "Phone" },
+            { key: "role", label: "Role" },
+            { key: "sellerType", label: "Seller Type" },
+            { key: "verified", label: "Verified" },
+            { key: "registeredAt", label: "Registered" },
+          ],
+          `celis-new-users-${new Date().toISOString().slice(0, 10)}.csv`
+        );
+      } else if (activeTab === "new-listings") {
+        const rows = (await exportNewListingsReportCsv({
+          data: { from: search.from, to: search.to },
+        })) as NewListingExportRow[];
+        exportToCsv(
+          rows.map((r) => ({
+            title: r.title,
+            category: r.categoryName,
+            seller: r.sellerName,
+            price: formatPrice(r.price),
+            condition: r.condition?.replace(/_/g, " ") ?? "",
+            status: r.status.replace(/_/g, " "),
+            monetizationType: r.monetizationType.replace(/_/g, " "),
+            monetizationStatus: r.monetizationStatus.replace(/_/g, " "),
+            reviewer: r.reviewerName ?? "",
+            createdAt: new Date(r.createdAt).toISOString(),
+          })),
+          [
+            { key: "title", label: "Title" },
+            { key: "category", label: "Category" },
+            { key: "seller", label: "Seller" },
+            { key: "price", label: "Price" },
+            { key: "condition", label: "Condition" },
+            { key: "status", label: "Status" },
+            { key: "monetizationType", label: "Monetization Type" },
+            { key: "monetizationStatus", label: "Monetization Status" },
+            { key: "reviewer", label: "Reviewer" },
+            { key: "createdAt", label: "Created" },
+          ],
+          `celis-new-listings-${new Date().toISOString().slice(0, 10)}.csv`
+        );
+      }
     } finally {
       setExporting(false);
     }
@@ -176,12 +321,10 @@ function AdminReportsPage() {
         title="Reports"
         description="Financial ledger and operational reports"
         action={
-          activeTab === "ledger" && (
-            <Button onClick={handleExport} disabled={exporting || ledger.items.length === 0}>
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
-          )
+          <Button onClick={handleExport} disabled={exporting}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
         }
       />
 
@@ -358,6 +501,19 @@ function AdminReportsPage() {
                   }}
                 />
               </div>
+              <div className="flex items-center gap-2 pb-2">
+                <Switch
+                  id="fp-include-pending"
+                  checked={includePending}
+                  onCheckedChange={(checked) => {
+                    setIncludePending(checked);
+                    updateSearch({ includePending: checked || undefined });
+                  }}
+                />
+                <Label htmlFor="fp-include-pending" className="cursor-pointer">
+                  Include pending
+                </Label>
+              </div>
             </CardContent>
           </Card>
 
@@ -374,6 +530,15 @@ function AdminReportsPage() {
                     <p className="font-mono text-xs text-celis-ink">{r.merchantRef}</p>
                     <p className="text-xs text-celis-ink-secondary">{r.provider}</p>
                   </div>
+                ),
+              },
+              {
+                key: "walletRef",
+                header: "Wallet Ref",
+                cell: (r) => (
+                  <span className="font-mono text-xs text-celis-ink-secondary">
+                    {r.walletRef ?? "—"}
+                  </span>
                 ),
               },
               {
@@ -410,6 +575,15 @@ function AdminReportsPage() {
                 cell: (r) => <span className="tabular-nums">{r.retryCount}</span>,
               },
               {
+                key: "errorCode",
+                header: "Error Code",
+                cell: (r) => (
+                  <span className="font-mono text-xs text-celis-ink-secondary">
+                    {r.errorCode ?? "—"}
+                  </span>
+                ),
+              },
+              {
                 key: "error",
                 header: "Error / Note",
                 cell: (r) => (
@@ -427,6 +601,15 @@ function AdminReportsPage() {
                   </span>
                 ),
               },
+              {
+                key: "updatedAt",
+                header: "Updated",
+                cell: (r) => (
+                  <span className="text-xs text-celis-ink-secondary">
+                    {formatRelativeDate(r.updatedAt)}
+                  </span>
+                ),
+              },
             ]}
           />
 
@@ -441,14 +624,26 @@ function AdminReportsPage() {
           <Card className="border-celis-border bg-celis-surface-base">
             <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
               <div className="space-y-2">
-                <Label htmlFor="nu-date">Date</Label>
+                <Label htmlFor="nu-from">From</Label>
                 <Input
-                  id="nu-date"
+                  id="nu-from"
                   type="date"
-                  value={date}
+                  value={from}
                   onChange={(e) => {
-                    setDate(e.target.value);
-                    updateSearch({ date: e.target.value || undefined });
+                    setFrom(e.target.value);
+                    updateSearch({ from: e.target.value || undefined });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nu-to">To</Label>
+                <Input
+                  id="nu-to"
+                  type="date"
+                  value={to}
+                  onChange={(e) => {
+                    setTo(e.target.value);
+                    updateSearch({ to: e.target.value || undefined });
                   }}
                 />
               </div>
@@ -458,7 +653,7 @@ function AdminReportsPage() {
           <AdminTable
             rows={newUsers.items}
             keyExtractor={(r) => r.id}
-            emptyMessage="No new users on the selected date."
+            emptyMessage="No new users in the selected range."
             columns={[
               {
                 key: "user",
@@ -517,14 +712,26 @@ function AdminReportsPage() {
           <Card className="border-celis-border bg-celis-surface-base">
             <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
               <div className="space-y-2">
-                <Label htmlFor="nl-date">Date</Label>
+                <Label htmlFor="nl-from">From</Label>
                 <Input
-                  id="nl-date"
+                  id="nl-from"
                   type="date"
-                  value={date}
+                  value={from}
                   onChange={(e) => {
-                    setDate(e.target.value);
-                    updateSearch({ date: e.target.value || undefined });
+                    setFrom(e.target.value);
+                    updateSearch({ from: e.target.value || undefined });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nl-to">To</Label>
+                <Input
+                  id="nl-to"
+                  type="date"
+                  value={to}
+                  onChange={(e) => {
+                    setTo(e.target.value);
+                    updateSearch({ to: e.target.value || undefined });
                   }}
                 />
               </div>
@@ -534,7 +741,7 @@ function AdminReportsPage() {
           <AdminTable
             rows={newListings.items}
             keyExtractor={(r) => r.id}
-            emptyMessage="No new listings on the selected date."
+            emptyMessage="No new listings in the selected range."
             columns={[
               {
                 key: "listing",

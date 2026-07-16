@@ -8,10 +8,13 @@ import {
   orders,
   payouts,
   platformConfigs,
+  listingPackages,
+  sellerSubscriptions,
 } from "~/db/schema";
 import {
   eq,
   desc,
+  asc,
   count,
   ilike,
   or,
@@ -549,8 +552,9 @@ export async function getAdminListings(options?: {
   if (options?.paymentStatus)
     conditions.push(eq(listings.monetizationStatus, options.paymentStatus as never));
 
+  const now = new Date();
+
   if (options?.expiryWindow !== undefined) {
-    const now = new Date();
     const threshold = new Date();
     threshold.setDate(now.getDate() + options.expiryWindow);
     if (options.expiryWindow === 0) {
@@ -566,13 +570,34 @@ export async function getAdminListings(options?: {
 
   const where = conditions.length ? and(...conditions) : undefined;
 
+  const activeSubscription = db
+    .select({
+      sellerId: sellerSubscriptions.sellerId,
+      packageId: sellerSubscriptions.packageId,
+    })
+    .from(sellerSubscriptions)
+    .where(
+      and(
+        eq(sellerSubscriptions.status, "active"),
+        gte(sellerSubscriptions.expiresAt, now)
+      )
+    )
+    .as("active_subscription");
+
   const [{ value: total }] = await db
     .select({ value: count() })
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .innerJoin(users, eq(listings.sellerId, users.id))
     .leftJoin(profiles, eq(users.id, profiles.id))
+    .leftJoin(activeSubscription, eq(activeSubscription.sellerId, listings.sellerId))
+    .leftJoin(listingPackages, eq(listingPackages.id, activeSubscription.packageId))
     .where(where);
+
+  const orderBy =
+    options?.expiryWindow !== undefined
+      ? asc(listings.expiresAt)
+      : desc(listings.createdAt);
 
   const rows = await db
     .select({
@@ -580,13 +605,16 @@ export async function getAdminListings(options?: {
       categoryName: categories.name,
       sellerName: profiles.displayName,
       sellerEmail: users.email,
+      packageName: listingPackages.name,
     })
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .innerJoin(users, eq(listings.sellerId, users.id))
     .leftJoin(profiles, eq(users.id, profiles.id))
+    .leftJoin(activeSubscription, eq(activeSubscription.sellerId, listings.sellerId))
+    .leftJoin(listingPackages, eq(listingPackages.id, activeSubscription.packageId))
     .where(where)
-    .orderBy(desc(listings.createdAt))
+    .orderBy(orderBy)
     .limit(limit)
     .offset((page - 1) * limit);
 
@@ -607,6 +635,7 @@ export async function getAdminListings(options?: {
         categoryName: r.categoryName,
         sellerName: r.sellerName ?? r.sellerEmail,
         sellerId: r.listing.sellerId,
+        packageName: r.packageName,
         tierLabel: pricing.tierLabel,
         monetizationStatus: r.listing.monetizationStatus,
         expiresAt: r.listing.expiresAt,
@@ -1148,6 +1177,7 @@ function endOfDay(date: Date) {
 export async function getFailedPaymentsReport(options?: {
   from?: string;
   to?: string;
+  includePending?: boolean;
   page?: number;
   limit?: number;
 }) {
@@ -1158,16 +1188,15 @@ export async function getFailedPaymentsReport(options?: {
   const from = options?.from ? startOfDay(new Date(options.from)) : undefined;
   const to = options?.to ? endOfDay(new Date(options.to)) : undefined;
 
-  const conditions = [
-    or(
-      eq(walletPayments.status, "failed"),
-      eq(walletPayments.status, "pending")
-    ),
-  ];
-  if (from) conditions.push(gte(walletPayments.createdAt, from));
-  if (to) conditions.push(lte(walletPayments.createdAt, to));
-
-  const where = and(...conditions);
+  const statusCondition = options?.includePending
+    ? or(eq(walletPayments.status, "failed"), eq(walletPayments.status, "pending"))
+    : eq(walletPayments.status, "failed");
+  const dateConditions = [
+    statusCondition,
+    from ? gte(walletPayments.createdAt, from) : undefined,
+    to ? lte(walletPayments.createdAt, to) : undefined,
+  ].filter(Boolean);
+  const where = and(...dateConditions);
 
   const [{ value: total }] = await db
     .select({ value: count() })
@@ -1191,22 +1220,26 @@ export async function getFailedPaymentsReport(options?: {
     .offset((page - 1) * limit);
 
   return {
-    items: rows.map((r) => ({
-      id: r.payment.id,
-      merchantRef: r.payment.merchantRef,
-      walletRef: r.payment.walletRef,
-      userEmail: r.userEmail,
-      userName: r.userName,
-      amount: r.payment.amount,
-      currency: r.payment.currency,
-      provider: r.payment.walletProvider,
-      status: r.payment.status,
-      retryCount: r.payment.retryCount,
-      errorMessage:
-        (r.payment.callbackPayload as { error?: string } | null)?.error ?? null,
-      createdAt: r.payment.createdAt,
-      updatedAt: r.payment.updatedAt,
-    })),
+    items: rows.map((r) => {
+      const payload = (r.payment.callbackPayload ?? {}) as Record<string, unknown>;
+      return {
+        id: r.payment.id,
+        merchantRef: r.payment.merchantRef,
+        walletRef: r.payment.walletRef,
+        userEmail: r.userEmail,
+        userName: r.userName,
+        amount: r.payment.amount,
+        currency: r.payment.currency,
+        provider: r.payment.walletProvider,
+        status: r.payment.status,
+        retryCount: r.payment.retryCount,
+        errorCode: typeof payload.code === "string" ? payload.code : null,
+        errorMessage:
+          typeof payload.error === "string" ? payload.error : null,
+        createdAt: r.payment.createdAt,
+        updatedAt: r.payment.updatedAt,
+      };
+    }),
     total,
     page,
     limit,
@@ -1214,8 +1247,22 @@ export async function getFailedPaymentsReport(options?: {
   };
 }
 
+export async function exportFailedPaymentsReport(options?: {
+  from?: string;
+  to?: string;
+  includePending?: boolean;
+}) {
+  const { items } = await getFailedPaymentsReport({
+    ...options,
+    page: 1,
+    limit: 10_000,
+  });
+  return items;
+}
+
 export async function getNewUsersReport(options?: {
-  date?: string;
+  from?: string;
+  to?: string;
   page?: number;
   limit?: number;
 }) {
@@ -1223,15 +1270,10 @@ export async function getNewUsersReport(options?: {
 
   const page = options?.page ?? 1;
   const limit = options?.limit ?? 10;
-  const day = options?.date ? new Date(options.date) : new Date();
-  const from = startOfDay(day);
-  const to = endOfDay(day);
+  const from = options?.from ? startOfDay(new Date(options.from)) : startOfDay(new Date());
+  const to = options?.to ? endOfDay(new Date(options.to)) : endOfDay(new Date());
 
-  const conditions = [
-    gte(users.createdAt, from),
-    lte(users.createdAt, to),
-  ];
-  const where = and(...conditions);
+  const where = and(gte(users.createdAt, from), lte(users.createdAt, to));
 
   const [{ value: total }] = await db
     .select({ value: count() })
@@ -1267,8 +1309,17 @@ export async function getNewUsersReport(options?: {
   };
 }
 
+export async function exportNewUsersReport(options?: {
+  from?: string;
+  to?: string;
+}) {
+  const { items } = await getNewUsersReport({ ...options, page: 1, limit: 10_000 });
+  return items;
+}
+
 export async function getNewListingsReport(options?: {
-  date?: string;
+  from?: string;
+  to?: string;
   page?: number;
   limit?: number;
 }) {
@@ -1276,15 +1327,10 @@ export async function getNewListingsReport(options?: {
 
   const page = options?.page ?? 1;
   const limit = options?.limit ?? 10;
-  const day = options?.date ? new Date(options.date) : new Date();
-  const from = startOfDay(day);
-  const to = endOfDay(day);
+  const from = options?.from ? startOfDay(new Date(options.from)) : startOfDay(new Date());
+  const to = options?.to ? endOfDay(new Date(options.to)) : endOfDay(new Date());
 
-  const conditions = [
-    gte(listings.createdAt, from),
-    lte(listings.createdAt, to),
-  ];
-  const where = and(...conditions);
+  const where = and(gte(listings.createdAt, from), lte(listings.createdAt, to));
 
   const [{ value: total }] = await db
     .select({ value: count() })
@@ -1341,6 +1387,14 @@ export async function getNewListingsReport(options?: {
     limit,
     totalPages: Math.ceil(total / limit),
   };
+}
+
+export async function exportNewListingsReport(options?: {
+  from?: string;
+  to?: string;
+}) {
+  const { items } = await getNewListingsReport({ ...options, page: 1, limit: 10_000 });
+  return items;
 }
 
 const CONFIG_DEFAULTS: Record<string, string | number | boolean | object> = {

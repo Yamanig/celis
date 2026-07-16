@@ -30,6 +30,8 @@ import {
   reviewAdminListing,
   extendAdminListingExpiry,
   notifyAdminExpiringSeller,
+  fetchAdminListingPackages,
+  runAdminExpirySweep,
 } from "~/server/admin.functions";
 import { listCategories } from "~/server/categories.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
@@ -37,6 +39,7 @@ import { formatPrice, formatRelativeDate } from "~/lib/format";
 const listingsSearchSchema = z.object({
   status: z.string().optional(),
   categoryId: z.string().uuid().optional(),
+  packageId: z.string().uuid().optional(),
   expiryWindow: z.coerce.number().int().min(0).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
 });
@@ -54,19 +57,23 @@ export const Route = createFileRoute("/admin/listings")({
   validateSearch: listingsSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {
-    const [listings, categories] = await Promise.all([
+    const [listings, categories, packages] = await Promise.all([
       fetchAdminListings({
         data: {
-          status: search.status,
+          status:
+            search.status ??
+            (search.expiryWindow !== undefined ? "active" : undefined),
           categoryId: search.categoryId,
+          packageId: search.packageId,
           expiryWindow: search.expiryWindow,
           page: search.page,
           limit: 10,
         },
       }),
       listCategories(),
+      fetchAdminListingPackages(),
     ]);
-    return { listings, categories };
+    return { listings, categories, packages };
   },
 });
 
@@ -97,17 +104,19 @@ const EXPIRY_WINDOWS = [
 ];
 
 function AdminListingsPage() {
-  const { listings, categories } = Route.useLoaderData();
+  const { listings, categories, packages } = Route.useLoaderData();
   const { items, page, totalPages } = listings;
   const search = Route.useSearch();
   const router = useRouter();
   const navigate = useNavigate({ from: "/admin/listings" });
   const [status, setStatus] = useState<string>(search.status ?? "");
   const [categoryId, setCategoryId] = useState<string>(search.categoryId ?? "");
+  const [packageId, setPackageId] = useState<string>(search.packageId ?? "");
   const [expiryWindow, setExpiryWindow] = useState<number | null>(
     search.expiryWindow ?? null
   );
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [sweepLoading, setSweepLoading] = useState(false);
   const [extendDialog, setExtendDialog] = useState<{
     open: boolean;
     id: string;
@@ -168,6 +177,16 @@ function AdminListingsPage() {
     setLoadingId(null);
   };
 
+  const handleRunSweep = async () => {
+    setSweepLoading(true);
+    try {
+      await runAdminExpirySweep();
+      await router.invalidate();
+    } finally {
+      setSweepLoading(false);
+    }
+  };
+
   const handleReject = async () => {
     if (!rejectDialog.reason.trim()) return;
     setLoadingId(rejectDialog.id);
@@ -185,7 +204,19 @@ function AdminListingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Listings" description="Moderate marketplace listings" />
+      <PageHeader
+        title="Listings"
+        description="Moderate marketplace listings"
+        action={
+          <Button
+            variant="outline"
+            onClick={handleRunSweep}
+            disabled={sweepLoading}
+          >
+            {sweepLoading ? "Running..." : "Run expiry sweep"}
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap gap-2">
         {FILTER_TABS.map((tab) => (
@@ -274,6 +305,25 @@ function AdminListingsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={packageId}
+            onValueChange={(value) => {
+              setPackageId(value);
+              updateSearch({ packageId: value || undefined });
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-52">
+              <SelectValue placeholder="All packages" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All packages</SelectItem>
+              {packages.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name} ({p.isUnlimited ? "Unlimited" : p.listingAllowance})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -291,6 +341,15 @@ function AdminListingsPage() {
                   {l.sellerName} · {l.categoryName}
                 </p>
               </div>
+            ),
+          },
+          {
+            key: "package",
+            header: "Package",
+            cell: (l) => (
+              <span className="text-xs text-celis-ink-secondary">
+                {l.packageName ?? "—"}
+              </span>
             ),
           },
           {
