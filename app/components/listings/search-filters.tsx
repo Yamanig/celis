@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -9,8 +9,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import type { CategoryListItem } from "~/server/categories.functions";
+import {
+  fetchCategoryMetadataSchema,
+  type CategoryListItem,
+} from "~/server/categories.functions";
 import { ITEM_CONDITIONS } from "~/db/schema";
+import type {
+  CategoryMetadataSchema,
+  MetadataField,
+} from "~/lib/category-metadata";
 
 export interface SearchFiltersState {
   query: string;
@@ -18,6 +25,7 @@ export interface SearchFiltersState {
   minPrice: string;
   maxPrice: string;
   condition: string;
+  metadata: Record<string, string>;
   sort: "newest" | "price_asc" | "price_desc";
 }
 
@@ -33,6 +41,7 @@ const DEFAULT_FILTERS: SearchFiltersState = {
   minPrice: "",
   maxPrice: "",
   condition: "",
+  metadata: {},
   sort: "newest",
 };
 
@@ -45,6 +54,24 @@ export function SearchFilters({
     ...DEFAULT_FILTERS,
     ...initial,
   });
+  const [metadataSchema, setMetadataSchema] =
+    useState<CategoryMetadataSchema | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+
+  useEffect(() => {
+    setFilters((prev) => ({ ...prev, ...initial }));
+  }, [initial]);
+
+  useEffect(() => {
+    if (!filters.categoryId) {
+      setMetadataSchema(null);
+      return;
+    }
+    setSchemaLoading(true);
+    fetchCategoryMetadataSchema({ data: { categoryId: filters.categoryId } })
+      .then((schema) => setMetadataSchema(schema))
+      .finally(() => setSchemaLoading(false));
+  }, [filters.categoryId]);
 
   const update = <K extends keyof SearchFiltersState>(
     key: K,
@@ -53,9 +80,87 @@ export function SearchFilters({
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  const updateMetadata = (key: string, value: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      metadata: { ...prev.metadata, [key]: value },
+    }));
+  };
+
+  const handleCategoryChange = (categoryId: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      categoryId,
+      metadata: {},
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSearch(filters);
+  };
+
+  const renderMetadataField = (field: MetadataField) => {
+    const value = filters.metadata[field.key] ?? "";
+    const id = `metadata-${field.key}`;
+
+    if (field.type === "boolean") {
+      return (
+        <div className="space-y-2" key={field.key}>
+          <Label htmlFor={id}>{field.label}</Label>
+          <Select
+            value={value}
+            onValueChange={(v) => updateMetadata(field.key, v)}
+          >
+            <SelectTrigger id={id}>
+              <SelectValue placeholder="Any" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Any</SelectItem>
+              <SelectItem value="true">Yes</SelectItem>
+              <SelectItem value="false">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+
+    if (field.type === "select" && field.options && field.options.length > 0) {
+      return (
+        <div className="space-y-2" key={field.key}>
+          <Label htmlFor={id}>{field.label}</Label>
+          <Select
+            value={value}
+            onValueChange={(v) => updateMetadata(field.key, v)}
+          >
+            <SelectTrigger id={id}>
+              <SelectValue placeholder={`Any ${field.label.toLowerCase()}`} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Any</SelectItem>
+              {field.options.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2" key={field.key}>
+        <Label htmlFor={id}>{field.label}</Label>
+        <Input
+          id={id}
+          type={field.type === "number" ? "number" : "text"}
+          placeholder={field.required ? `Enter ${field.label.toLowerCase()}` : "Any"}
+          value={value}
+          onChange={(e) => updateMetadata(field.key, e.target.value)}
+        />
+      </div>
+    );
   };
 
   return (
@@ -75,10 +180,7 @@ export function SearchFilters({
 
       <div className="space-y-2">
         <Label htmlFor="category">Category</Label>
-        <Select
-          value={filters.categoryId}
-          onValueChange={(v) => update("categoryId", v)}
-        >
+        <Select value={filters.categoryId} onValueChange={handleCategoryChange}>
           <SelectTrigger id="category">
             <SelectValue placeholder="All categories" />
           </SelectTrigger>
@@ -137,6 +239,17 @@ export function SearchFilters({
           </SelectContent>
         </Select>
       </div>
+
+      {schemaLoading && (
+        <p className="text-sm text-celis-ink-secondary">Loading filters...</p>
+      )}
+
+      {metadataSchema && metadataSchema.fields.length > 0 && (
+        <div className="space-y-4 border-t border-celis-border pt-4">
+          <p className="text-sm font-medium text-celis-ink">Category filters</p>
+          {metadataSchema.fields.map((field) => renderMetadataField(field))}
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="sort">Sort by</Label>

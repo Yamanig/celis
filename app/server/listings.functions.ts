@@ -116,6 +116,7 @@ const searchSchema = z.object({
   minPrice: z.coerce.number().int().min(0).optional(),
   maxPrice: z.coerce.number().int().min(0).optional(),
   condition: z.enum(ITEM_CONDITIONS).optional(),
+  metadata: z.record(z.string()).optional(),
   sort: z.enum(["newest", "price_asc", "price_desc"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),

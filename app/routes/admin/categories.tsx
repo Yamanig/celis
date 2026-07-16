@@ -233,6 +233,18 @@ function AdminCategoriesPage() {
 
   const handleSaveFields = async () => {
     if (!fieldsCategory || !canManage) return;
+    const invalid = fields.some((f) => !f.key.trim() || !f.label.trim());
+    if (invalid) {
+      alert("Each field needs a key and a label.");
+      return;
+    }
+    const selectWithoutOptions = fields.some(
+      (f) => f.type === "select" && (!f.options || f.options.length === 0)
+    );
+    if (selectWithoutOptions) {
+      alert("Select fields need at least one option.");
+      return;
+    }
     setFieldsLoading(true);
     try {
       const schema: CategoryMetadataSchema = {

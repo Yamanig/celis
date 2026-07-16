@@ -261,6 +261,7 @@ export interface SearchListingsFilters {
   minPrice?: number;
   maxPrice?: number;
   condition?: string;
+  metadataFilters?: Record<string, string>;
   sort?: "newest" | "price_asc" | "price_desc";
   page?: number;
   limit?: number;
@@ -273,6 +274,7 @@ export async function searchListings(filters: SearchListingsFilters) {
     minPrice,
     maxPrice,
     condition,
+    metadataFilters,
     sort = "newest",
     page = 1,
     limit = 24,
@@ -292,6 +294,15 @@ export async function searchListings(filters: SearchListingsFilters) {
   if (minPrice !== undefined) conditions.push(gte(listings.price, minPrice));
   if (maxPrice !== undefined) conditions.push(lte(listings.price, maxPrice));
   if (condition) conditions.push(eq(listings.condition, condition as ItemCondition));
+
+  if (metadataFilters && categoryId) {
+    for (const [key, value] of Object.entries(metadataFilters)) {
+      if (value === "" || value === undefined) continue;
+      conditions.push(
+        sql`(${listings.metadata} ->> ${key}) = ${value}`
+      );
+    }
+  }
 
   const orderBy =
     sort === "price_asc"
