@@ -2,6 +2,42 @@ import { db } from "~/db";
 import { profiles, users, listings, listingPackages, sellerSubscriptions } from "~/db/schema";
 import { eq, and, or, gte, lte, count, desc, isNull } from "drizzle-orm";
 
+function randomSellerNumber() {
+  // 8-digit number, padded with leading zeros.
+  return String(Math.floor(10000000 + Math.random() * 90000000));
+}
+
+export async function generateUniqueSellerNumber(): Promise<string> {
+  let attempts = 0;
+  while (attempts < 10) {
+    const candidate = randomSellerNumber();
+    const existing = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.sellerNumber, candidate))
+      .limit(1);
+    if (existing.length === 0) return candidate;
+    attempts++;
+  }
+  // Fallback: include timestamp to guarantee uniqueness.
+  return String(Date.now()).slice(-8);
+}
+
+export async function ensureProfileSellerNumber(profileId: string) {
+  const rows = await db
+    .select({ sellerNumber: profiles.sellerNumber })
+    .from(profiles)
+    .where(eq(profiles.id, profileId))
+    .limit(1);
+  if (rows[0]?.sellerNumber) return rows[0].sellerNumber;
+  const sellerNumber = await generateUniqueSellerNumber();
+  await db
+    .update(profiles)
+    .set({ sellerNumber, updatedAt: new Date() })
+    .where(eq(profiles.id, profileId));
+  return sellerNumber;
+}
+
 export async function getSellerProfile(sellerId: string) {
   const rows = await db
     .select({ profile: profiles, user: users })

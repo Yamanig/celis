@@ -80,6 +80,7 @@ function AdminPackagesPage() {
   const [form, setForm] = useState<PackageForm>(emptyForm);
   const [loading, setLoading] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [assignSellerNumber, setAssignSellerNumber] = useState("");
   const [assignEmail, setAssignEmail] = useState("");
   const [assignPackageId, setAssignPackageId] = useState("");
   const [assignSource, setAssignSource] = useState("admin");
@@ -148,11 +149,13 @@ function AdminPackagesPage() {
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignPackageId) return;
+    if (!assignSellerNumber && !assignEmail) return;
     setAssignLoading(true);
     try {
       await assignAdminSellerPackage({
         data: {
-          sellerEmail: assignEmail,
+          sellerNumber: assignSellerNumber || undefined,
+          sellerEmail: assignEmail || undefined,
           packageId: assignPackageId,
           assignmentSource: assignSource,
           paymentReference: assignPaymentRef || undefined,
@@ -161,6 +164,7 @@ function AdminPackagesPage() {
       });
       await router.invalidate();
       setAssignOpen(false);
+      setAssignSellerNumber("");
       setAssignEmail("");
       setAssignPackageId("");
       setAssignSource("admin");
@@ -466,13 +470,22 @@ function AdminPackagesPage() {
           </DialogHeader>
           <form onSubmit={handleAssign} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="sellerEmail">Seller email</Label>
+              <Label htmlFor="sellerNumber">Seller number</Label>
+              <Input
+                id="sellerNumber"
+                value={assignSellerNumber}
+                onChange={(e) => setAssignSellerNumber(e.target.value)}
+                placeholder="e.g. 12345678"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sellerEmail">Or seller email</Label>
               <Input
                 id="sellerEmail"
                 type="email"
                 value={assignEmail}
                 onChange={(e) => setAssignEmail(e.target.value)}
-                required
+                placeholder="Optional if seller number is provided"
               />
             </div>
             <div className="space-y-2">
@@ -539,7 +552,10 @@ function AdminPackagesPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={assignLoading || !assignPackageId}>
+              <Button
+                type="submit"
+                disabled={assignLoading || !assignPackageId || (!assignSellerNumber && !assignEmail)}
+              >
                 {assignLoading ? "Assigning..." : "Assign"}
               </Button>
             </DialogFooter>

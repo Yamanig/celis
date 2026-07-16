@@ -88,6 +88,11 @@ function DashboardPage() {
             <p className="text-sm text-celis-ink-secondary">
               {user?.role === "seller" ? "Seller dashboard" : "Buyer dashboard"}
             </p>
+            {user?.sellerNumber && (
+              <p className="mt-1 text-xs text-celis-ink-tertiary">
+                Seller number: <span className="font-mono">{user.sellerNumber}</span>
+              </p>
+            )}
           </div>
           <Button asChild>
             <Link to="/sell">List new item</Link>

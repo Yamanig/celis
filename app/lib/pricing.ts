@@ -68,16 +68,24 @@ export function parseListingTiersConfig(raw: unknown): ListingTiersConfig {
   if (!raw || typeof raw !== "object") return DEFAULT_LISTING_TIERS;
   const obj = raw as Partial<ListingTiersConfig>;
   const tiers = Array.isArray(obj.tiers)
-    ? obj.tiers.filter(
-        (t): t is PricingTier =>
-          typeof t === "object" &&
-          t !== null &&
-          typeof t.label === "string" &&
-          typeof t.minCents === "number" &&
-          (t.maxCents === null || typeof t.maxCents === "number") &&
-          typeof t.feeCents === "number" &&
-          typeof t.expiryDays === "number"
-      )
+    ? obj.tiers
+        .filter(
+          (t): t is PricingTier =>
+            typeof t === "object" &&
+            t !== null &&
+            typeof t.label === "string" &&
+            typeof t.minCents === "number" &&
+            (t.maxCents === null || typeof t.maxCents === "number") &&
+            typeof t.feeCents === "number" &&
+            typeof t.expiryDays === "number"
+        )
+        .map((t) => ({
+          ...t,
+          minCents: Math.round(t.minCents),
+          maxCents: t.maxCents === null ? null : Math.round(t.maxCents),
+          feeCents: Math.round(t.feeCents),
+          expiryDays: Math.round(t.expiryDays),
+        }))
     : [];
 
   const multipliers = ITEM_CONDITIONS.reduce((acc, condition) => {

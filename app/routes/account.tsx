@@ -139,6 +139,20 @@ function AccountPage() {
                 />
               </div>
 
+              {profile.sellerNumber && (
+                <div className="space-y-2">
+                  <Label htmlFor="sellerNumber">Seller number</Label>
+                  <Input
+                    id="sellerNumber"
+                    value={profile.sellerNumber}
+                    disabled
+                  />
+                  <p className="text-xs text-celis-ink-tertiary">
+                    Share this number with admins when assigning a package.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="displayName">Display name</Label>
                 <Input

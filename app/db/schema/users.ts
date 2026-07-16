@@ -62,6 +62,7 @@ export const profiles = pgTable(
       .primaryKey()
       .references(() => users.id, { onDelete: "cascade" }),
     displayName: varchar("display_name", { length: 60 }).notNull(),
+    sellerNumber: varchar("seller_number", { length: 20 }),
     avatarUrl: text("avatar_url"),
     bio: text("bio"),
     location: jsonb("location").$type<{
@@ -89,5 +90,8 @@ export const profiles = pgTable(
   },
   (table) => ({
     shopSlugIdx: uniqueIndex("idx_profiles_shop_slug").on(table.shopSlug),
+    sellerNumberIdx: uniqueIndex("idx_profiles_seller_number").on(
+      table.sellerNumber
+    ),
   })
 );

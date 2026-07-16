@@ -2,6 +2,10 @@ import { db } from "~/db";
 import { users, profiles, authUsers, permissions, rolePermissions } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { getSupabaseServerClient } from "~/lib/supabase/server";
+import {
+  generateUniqueSellerNumber,
+  ensureProfileSellerNumber,
+} from "./seller-packages.server";
 import type { UserRole } from "~/db/schema";
 
 export interface CurrentUser {
@@ -9,6 +13,7 @@ export interface CurrentUser {
   email: string;
   role: UserRole;
   displayName: string | null;
+  sellerNumber: string | null;
   phone: string | null;
   isVerified: boolean;
   verificationStatus: import("~/db/schema").VerificationStatus;
@@ -51,6 +56,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     email: row.user.email,
     role: row.user.role,
     displayName: row.profile?.displayName ?? null,
+    sellerNumber: row.profile?.sellerNumber ?? null,
     phone: row.user.walletPhone ?? row.profile?.phone ?? null,
     isVerified:
       row.user.verificationStatus === "approved" || row.user.verifiedAt !== null,
@@ -85,6 +91,7 @@ export async function getCurrentUserProfile() {
     email: row.user.email,
     role: row.user.role,
     displayName: row.profile?.displayName ?? null,
+    sellerNumber: row.profile?.sellerNumber ?? null,
     phone: row.user.walletPhone ?? row.profile?.phone ?? null,
     bio: row.profile?.bio ?? null,
     sellerType: row.profile?.sellerType ?? "individual",
@@ -281,14 +288,24 @@ export async function ensureLocalUserRecord(
     await db.insert(profiles).values({
       id,
       displayName: email.split("@")[0],
+      sellerNumber: await generateUniqueSellerNumber(),
     });
+  } else {
+    await ensureProfileSellerNumber(id);
   }
+
+  const profileRow = await db
+    .select({ displayName: profiles.displayName, sellerNumber: profiles.sellerNumber })
+    .from(profiles)
+    .where(eq(profiles.id, id))
+    .limit(1);
 
   return {
     id,
     email,
     role,
-    displayName: email.split("@")[0],
+    displayName: profileRow[0]?.displayName ?? email.split("@")[0],
+    sellerNumber: profileRow[0]?.sellerNumber ?? null,
     phone: null,
     isVerified: false,
     verificationStatus: "pending" as import("~/db/schema").VerificationStatus,

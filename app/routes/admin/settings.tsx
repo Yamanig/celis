@@ -201,6 +201,40 @@ function AdminSettingsPage() {
     [configs]
   );
 
+  const validateTiers = (value: unknown): string | null => {
+    if (!isListingTiersConfig(value)) return "Invalid tier configuration.";
+    for (const tier of value.tiers) {
+      if (!Number.isInteger(tier.minCents) || tier.minCents < 0) {
+        return `Tier ${tier.label}: min price must be a whole number of cents.`;
+      }
+      if (tier.maxCents !== null && (!Number.isInteger(tier.maxCents) || tier.maxCents < 0)) {
+        return `Tier ${tier.label}: max price must be a whole number of cents or empty.`;
+      }
+      if (!Number.isInteger(tier.feeCents) || tier.feeCents < 0) {
+        return `Tier ${tier.label}: fee must be a whole number of cents.`;
+      }
+      if (!Number.isInteger(tier.expiryDays) || tier.expiryDays < 1) {
+        return `Tier ${tier.label}: expiry days must be at least 1.`;
+      }
+      if (tier.maxCents !== null && tier.minCents > tier.maxCents) {
+        return `Tier ${tier.label}: min price cannot be greater than max price.`;
+      }
+    }
+    // Check for gaps and overlaps between consecutive tiers.
+    const sorted = [...value.tiers].sort((a, b) => a.minCents - b.minCents);
+    for (let i = 1; i < sorted.length; i++) {
+      const prevMax = sorted[i - 1].maxCents;
+      const currMin = sorted[i].minCents;
+      if (prevMax === null) {
+        return `Tier ${sorted[i - 1].label}: only the last tier can have no max price.`;
+      }
+      if (currMin !== prevMax + 1) {
+        return `Tiers must be contiguous with no gaps or overlaps (after ${sorted[i - 1].label}).`;
+      }
+    }
+    return null;
+  };
+
   const validate = (key: string, value: unknown): string | null => {
     if (key === "listing_fee_cents") {
       const n = Number(value);
@@ -213,6 +247,9 @@ function AdminSettingsPage() {
       if (!Number.isInteger(n)) return "Commission must be a whole number of basis points.";
       if (n > MAX_COMMISSION_BPS)
         return `Commission cannot exceed ${bpsToPercent(MAX_COMMISSION_BPS)}.`;
+    }
+    if (key === "listing_tiers") {
+      return validateTiers(value);
     }
     return null;
   };
@@ -684,9 +721,9 @@ function AdminSettingsPage() {
               <thead>
                 <tr className="border-b border-celis-border text-left text-celis-ink-secondary">
                   <th className="pb-2 font-medium">Label</th>
-                  <th className="pb-2 font-medium">Min price</th>
-                  <th className="pb-2 font-medium">Max price</th>
-                  <th className="pb-2 font-medium">Fee</th>
+                  <th className="pb-2 font-medium">Min price (cents)</th>
+                  <th className="pb-2 font-medium">Max price (cents)</th>
+                  <th className="pb-2 font-medium">Fee (cents)</th>
                   <th className="pb-2 font-medium">Expiry days</th>
                 </tr>
               </thead>
@@ -709,7 +746,7 @@ function AdminSettingsPage() {
                         value={tier.minCents}
                         onChange={(e) =>
                           updateTier(idx, {
-                            minCents: Number(e.target.value),
+                            minCents: Math.round(Number(e.target.value)) || 0,
                           })
                         }
                       />
@@ -726,7 +763,7 @@ function AdminSettingsPage() {
                             maxCents:
                               e.target.value === ""
                                 ? null
-                                : Number(e.target.value),
+                                : Math.round(Number(e.target.value)) || 0,
                           })
                         }
                       />
@@ -739,7 +776,7 @@ function AdminSettingsPage() {
                         value={tier.feeCents}
                         onChange={(e) =>
                           updateTier(idx, {
-                            feeCents: Number(e.target.value),
+                            feeCents: Math.round(Number(e.target.value)) || 0,
                           })
                         }
                       />
@@ -752,7 +789,7 @@ function AdminSettingsPage() {
                         value={tier.expiryDays}
                         onChange={(e) =>
                           updateTier(idx, {
-                            expiryDays: Number(e.target.value),
+                            expiryDays: Math.round(Number(e.target.value)) || 1,
                           })
                         }
                       />

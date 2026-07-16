@@ -30,6 +30,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { requireAdmin, requirePermission, isInternalRole } from "./auth.server";
 import { insertAuditLog } from "./audit.server";
 import { createNotification } from "./notifications.server";
+import { generateUniqueSellerNumber } from "./seller-packages.server";
 import type { UserRole, ListingStatus, VerificationStatus } from "~/db/schema";
 import { getServiceSupabase } from "~/lib/supabase/server";
 import {
@@ -409,6 +410,7 @@ export async function createInternalUser(input: {
   await db.insert(profiles).values({
     id,
     displayName: input.email.split("@")[0],
+    sellerNumber: await generateUniqueSellerNumber(),
   });
 
   await insertAuditLog({

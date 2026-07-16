@@ -628,7 +628,8 @@ export const updateAdminListingPackage = createServerFn({ method: "POST" })
   });
 
 const assignPackageSchema = z.object({
-  sellerEmail: z.string().email(),
+  sellerEmail: z.string().email().optional(),
+  sellerNumber: z.string().min(1).max(20).optional(),
   packageId: z.string().uuid(),
   assignmentSource: z.string().max(50).optional(),
   paymentReference: z.string().max(255).optional(),
@@ -640,17 +641,30 @@ export const assignAdminSellerPackage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requirePermission("users:manage");
     const { db } = await import("~/db");
-    const { users } = await import("~/db/schema");
+    const { users, profiles } = await import("~/db/schema");
     const { eq } = await import("drizzle-orm");
     const { getCurrentUser } = await import("./auth.server");
     const actor = await getCurrentUser();
-    const rows = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, data.sellerEmail))
-      .limit(1);
-    if (!rows[0]) throw new Error("Seller not found");
-    return assignSellerPackage(rows[0].id, data.packageId, {
+
+    let sellerId: string | undefined;
+    if (data.sellerNumber) {
+      const rows = await db
+        .select({ userId: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.sellerNumber, data.sellerNumber))
+        .limit(1);
+      sellerId = rows[0]?.userId;
+    } else if (data.sellerEmail) {
+      const rows = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, data.sellerEmail))
+        .limit(1);
+      sellerId = rows[0]?.id;
+    }
+
+    if (!sellerId) throw new Error("Seller not found");
+    return assignSellerPackage(sellerId, data.packageId, {
       assignedBy: actor?.id,
       assignmentSource: data.assignmentSource,
       paymentReference: data.paymentReference,
