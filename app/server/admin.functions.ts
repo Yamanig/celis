@@ -5,6 +5,7 @@ import {
   getAdminDashboardStats,
   getAdminRecentActivity,
   getAdminUsers,
+  createInternalUser,
   updateUserRole,
   toggleUserVerification,
   toggleUserSuperAdmin,
@@ -43,7 +44,17 @@ import {
 } from "./seller-packages.server";
 import { requirePermission } from "./auth.server";
 
-const userRoleSchema = z.enum(["buyer", "seller", "admin"]);
+const userRoleSchema = z.enum([
+  "buyer",
+  "seller",
+  "admin",
+  "listing_review_officer",
+  "seller_verification_officer",
+  "listing_review_and_verification_officer",
+  "finance_officer",
+  "support_officer",
+  "auditor",
+]);
 
 export const fetchAdminStats = createServerFn({ method: "GET" }).handler(async () => {
   return getAdminDashboardStats();
@@ -69,6 +80,19 @@ export const fetchAdminUsers = createServerFn({ method: "GET" })
   .validator(usersQuerySchema)
   .handler(async ({ data }) => {
     return getAdminUsers(data);
+  });
+
+const createInternalUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  role: userRoleSchema,
+  department: z.string().optional(),
+});
+
+export const createAdminInternalUser = createServerFn({ method: "POST" })
+  .validator(createInternalUserSchema)
+  .handler(async ({ data }) => {
+    return createInternalUser(data);
   });
 
 const updateRoleSchema = z.object({

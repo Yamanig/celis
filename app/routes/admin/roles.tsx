@@ -16,6 +16,12 @@ const ROLES = [
   { value: "buyer", label: "Buyer" },
   { value: "seller", label: "Seller" },
   { value: "admin", label: "Admin" },
+  { value: "listing_review_and_verification_officer", label: "Listing Review & Verification Officer" },
+  { value: "listing_review_officer", label: "Listing Review Officer (legacy)" },
+  { value: "seller_verification_officer", label: "Seller Verification Officer (legacy)" },
+  { value: "finance_officer", label: "Finance Officer" },
+  { value: "support_officer", label: "Support Officer" },
+  { value: "auditor", label: "Auditor" },
   { value: "super_admin", label: "Super admin" },
 ] as const;
 

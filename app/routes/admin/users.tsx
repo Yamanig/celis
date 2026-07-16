@@ -3,10 +3,18 @@ import { useEffect, useOptimistic, useState } from "react";
 import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Pagination } from "~/components/ui/pagination";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "~/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -19,6 +27,7 @@ import { PageHeader } from "~/components/admin/page-header";
 import { VerificationBadge } from "~/components/admin/status-badge";
 import {
   fetchAdminUsers,
+  createAdminInternalUser,
   updateAdminUserRole,
   toggleAdminUserVerification,
   toggleAdminUserSuperAdmin,
@@ -30,7 +39,17 @@ import {
 import { formatRelativeDate } from "~/lib/format";
 import { Search } from "lucide-react";
 
-const roleSchema = z.enum(["buyer", "seller", "admin"]);
+const roleSchema = z.enum([
+  "buyer",
+  "seller",
+  "admin",
+  "listing_review_officer",
+  "seller_verification_officer",
+  "listing_review_and_verification_officer",
+  "finance_officer",
+  "support_officer",
+  "auditor",
+]);
 
 const usersSearchSchema = z.object({
   search: z.string().optional(),
@@ -80,6 +99,16 @@ function AdminUsersPage() {
     search.role
   );
   const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    email: "",
+    password: "",
+    role: "listing_review_and_verification_officer" as z.infer<typeof roleSchema>,
+    department: "",
+  });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const canManageUsers = permissions.includes("users:manage");
   const isCurrentUserSuper = currentUser?.isSuperAdmin ?? false;
@@ -168,8 +197,9 @@ function AdminUsersPage() {
   ];
   const internalRoleOptions = [
     { value: "admin", label: "Admin" },
-    { value: "listing_review_officer", label: "Listing Review Officer" },
-    { value: "seller_verification_officer", label: "Seller Verification Officer" },
+    { value: "listing_review_and_verification_officer", label: "Listing Review & Verification Officer" },
+    { value: "listing_review_officer", label: "Listing Review Officer (legacy)" },
+    { value: "seller_verification_officer", label: "Seller Verification Officer (legacy)" },
     { value: "finance_officer", label: "Finance Officer" },
     { value: "support_officer", label: "Support Officer" },
     { value: "auditor", label: "Auditor" },
@@ -188,11 +218,45 @@ function AdminUsersPage() {
     setRole(undefined);
   };
 
+  const handleCreateInternal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManageUsers) return;
+    setCreateLoading(true);
+    setCreateError(null);
+    try {
+      await createAdminInternalUser({
+        data: {
+          email: createForm.email,
+          password: createForm.password,
+          role: createForm.role,
+          department: createForm.department || undefined,
+        },
+      });
+      await router.invalidate();
+      setCreateOpen(false);
+      setCreateForm({
+        email: "",
+        password: "",
+        role: "listing_review_and_verification_officer",
+        department: "",
+      });
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create user");
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Users"
         description="Manage customer accounts and internal staff separately"
+        action={
+          domain === "internal" && canManageUsers ? (
+            <Button onClick={() => setCreateOpen(true)}>Create internal user</Button>
+          ) : undefined
+        }
       />
 
       <Tabs value={domain} onValueChange={(v) => handleDomainChange(v as "customer" | "internal")}>
@@ -369,6 +433,87 @@ function AdminUsersPage() {
         totalPages={totalPages}
         onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
       />
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto p-4 sm:max-w-md md:p-6">
+          <DialogHeader>
+            <DialogTitle>Create internal user</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateInternal} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="ci-email">Email</Label>
+              <Input
+                id="ci-email"
+                type="email"
+                value={createForm.email}
+                onChange={(e) =>
+                  setCreateForm((f) => ({ ...f, email: e.target.value }))
+                }
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ci-password">Password</Label>
+              <Input
+                id="ci-password"
+                type="password"
+                value={createForm.password}
+                onChange={(e) =>
+                  setCreateForm((f) => ({ ...f, password: e.target.value }))
+                }
+                required
+                minLength={8}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ci-role">Role</Label>
+              <Select
+                value={createForm.role}
+                onValueChange={(v) =>
+                  setCreateForm((f) => ({ ...f, role: v as z.infer<typeof roleSchema> }))
+                }
+              >
+                <SelectTrigger id="ci-role" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent position="popper" className="max-h-[50vh]">
+                  {internalRoleOptions.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ci-department">Department</Label>
+              <Input
+                id="ci-department"
+                value={createForm.department}
+                onChange={(e) =>
+                  setCreateForm((f) => ({ ...f, department: e.target.value }))
+                }
+                placeholder="e.g. Operations"
+              />
+            </div>
+            {createError && (
+              <p className="text-sm text-destructive">{createError}</p>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createLoading}>
+                {createLoading ? "Creating..." : "Create user"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

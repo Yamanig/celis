@@ -2,6 +2,7 @@ import { db } from "~/db";
 import {
   users,
   profiles,
+  authUsers,
   listings,
   categories,
   walletPayments,
@@ -25,9 +26,10 @@ import {
   sum,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { requireAdmin, requirePermission } from "./auth.server";
+import { requireAdmin, requirePermission, isInternalRole } from "./auth.server";
 import { insertAuditLog } from "./audit.server";
 import type { UserRole, ListingStatus, VerificationStatus } from "~/db/schema";
+import { getServiceSupabase } from "~/lib/supabase/server";
 import {
   calculateListingPricing,
   DEFAULT_LISTING_TIERS,
@@ -274,7 +276,7 @@ export async function getAdminUsers(options?: {
       conditions.push(or(eq(users.role, "buyer"), eq(users.role, "seller")));
     } else {
       conditions.push(
-        sql`${users.role} IN ('admin', 'listing_review_officer', 'seller_verification_officer', 'finance_officer', 'support_officer', 'auditor')`
+        sql`${users.role} IN ('admin', 'listing_review_officer', 'seller_verification_officer', 'listing_review_and_verification_officer', 'finance_officer', 'support_officer', 'auditor')`
       );
     }
   }
@@ -327,6 +329,7 @@ export async function updateUserRole(id: string, role: UserRole, actorId: string
     "admin",
     "listing_review_officer",
     "seller_verification_officer",
+    "listing_review_and_verification_officer",
     "finance_officer",
     "support_officer",
     "auditor",
@@ -355,6 +358,65 @@ export async function updateUserRole(id: string, role: UserRole, actorId: string
     metadata: { previousRole: user.role, newRole: role, actorId },
   });
   return { success: true };
+}
+
+export async function createInternalUser(input: {
+  email: string;
+  password: string;
+  role: UserRole;
+  department?: string;
+}) {
+  await requirePermission("users:manage");
+
+  if (!isInternalRole(input.role as UserRole)) {
+    throw new Error("Selected role is not an internal staff role");
+  }
+
+  const supabase = getServiceSupabase();
+
+  // Create the Supabase Auth user. Do not send an email confirmation; internal
+  // users are provisioned directly by administrators.
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+  });
+
+  if (authError || !authData.user) {
+    throw new Error(authError?.message ?? "Failed to create auth user");
+  }
+
+  const id = authData.user.id;
+
+  // Mirror into auth.users so local FKs are satisfied.
+  await db
+    .insert(authUsers)
+    .values({ id, email: input.email })
+    .onConflictDoNothing({ target: authUsers.id });
+
+  await db.insert(users).values({
+    id,
+    email: input.email,
+    role: input.role as UserRole,
+    isInternal: true,
+    department: input.department || null,
+    verificationStatus: "approved",
+    verifiedAt: new Date(),
+  });
+
+  await db.insert(profiles).values({
+    id,
+    displayName: input.email.split("@")[0],
+  });
+
+  await insertAuditLog({
+    action: "internal_user_created",
+    resourceType: "user",
+    resourceId: id,
+    metadata: { email: input.email, role: input.role, department: input.department },
+  });
+
+  return { id, email: input.email };
 }
 
 export async function toggleUserVerification(id: string) {

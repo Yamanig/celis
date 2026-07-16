@@ -198,6 +198,7 @@ export function isInternalRole(role: UserRole): boolean {
     role === "admin" ||
     role === "listing_review_officer" ||
     role === "seller_verification_officer" ||
+    role === "listing_review_and_verification_officer" ||
     role === "finance_officer" ||
     role === "support_officer" ||
     role === "auditor"
@@ -260,6 +261,7 @@ export async function ensureLocalUserRecord(
     role === "admin" ||
     role === "listing_review_officer" ||
     role === "seller_verification_officer" ||
+    role === "listing_review_and_verification_officer" ||
     role === "finance_officer" ||
     role === "support_officer" ||
     role === "auditor";

@@ -6,6 +6,7 @@ export const USER_ROLES = [
   "admin",
   "listing_review_officer",
   "seller_verification_officer",
+  "listing_review_and_verification_officer",
   "finance_officer",
   "support_officer",
   "auditor",

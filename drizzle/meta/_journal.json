@@ -71,6 +71,13 @@
       "when": 1784123636973,
       "tag": "0009_next_marvel_apes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784186218293,
+      "tag": "0010_shiny_wonder_man",
+      "breakpoints": true
     }
   ]
 }
