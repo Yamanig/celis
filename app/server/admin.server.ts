@@ -24,6 +24,7 @@ import {
   lte,
   sum,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { requireAdmin, requirePermission } from "./auth.server";
 import { insertAuditLog } from "./audit.server";
 import type { UserRole, ListingStatus, VerificationStatus } from "~/db/schema";
@@ -1330,6 +1331,9 @@ export async function getNewListingsReport(options?: {
   const from = options?.from ? startOfDay(new Date(options.from)) : startOfDay(new Date());
   const to = options?.to ? endOfDay(new Date(options.to)) : endOfDay(new Date());
 
+  const reviewer = alias(users, "reviewer");
+  const reviewerProfile = alias(profiles, "reviewer_profile");
+
   const where = and(gte(listings.createdAt, from), lte(listings.createdAt, to));
 
   const [{ value: total }] = await db
@@ -1338,11 +1342,8 @@ export async function getNewListingsReport(options?: {
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .innerJoin(users, eq(listings.sellerId, users.id))
     .leftJoin(profiles, eq(users.id, profiles.id))
-    .leftJoin(sql`reviewer`, eq(sql`reviewer.id`, listings.reviewedBy))
-    .leftJoin(
-      sql`reviewer_profile`,
-      eq(sql`reviewer_profile.id`, sql`reviewer.id`)
-    )
+    .leftJoin(reviewer, eq(reviewer.id, listings.reviewedBy))
+    .leftJoin(reviewerProfile, eq(reviewerProfile.id, reviewer.id))
     .where(where);
 
   const rows = await db
@@ -1351,17 +1352,14 @@ export async function getNewListingsReport(options?: {
       categoryName: categories.name,
       sellerName: profiles.displayName,
       sellerEmail: users.email,
-      reviewerName: sql<string>`reviewer_profile.display_name`,
+      reviewerName: reviewerProfile.displayName,
     })
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .innerJoin(users, eq(listings.sellerId, users.id))
     .leftJoin(profiles, eq(users.id, profiles.id))
-    .leftJoin(sql`reviewer`, eq(sql`reviewer.id`, listings.reviewedBy))
-    .leftJoin(
-      sql`reviewer_profile`,
-      eq(sql`reviewer_profile.id`, sql`reviewer.id`)
-    )
+    .leftJoin(reviewer, eq(reviewer.id, listings.reviewedBy))
+    .leftJoin(reviewerProfile, eq(reviewerProfile.id, reviewer.id))
     .where(where)
     .orderBy(desc(listings.createdAt))
     .limit(limit)
