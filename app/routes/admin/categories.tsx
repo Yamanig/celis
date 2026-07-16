@@ -18,6 +18,10 @@ import {
   fetchAdminCategories,
   createAdminCategory,
   updateAdminCategory,
+  fetchAdminCategoryFees,
+  createAdminCategoryFee,
+  updateAdminCategoryFee,
+  deleteAdminCategoryFee,
 } from "~/server/admin.functions";
 import {
   fetchCurrentUserPermissions,
@@ -122,6 +126,23 @@ function AdminCategoriesPage() {
   } | null>(null);
   const [fields, setFields] = useState<MetadataField[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(false);
+  const [feesOpen, setFeesOpen] = useState(false);
+  const [feesCategory, setFeesCategory] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [fees, setFees] = useState<
+    Array<{
+      id?: string;
+      feeType: "listing_fee" | "commission";
+      amount: number;
+      percentage: number;
+      isActive: boolean;
+      effectiveFrom: string;
+      effectiveUntil: string;
+    }>
+  >([]);
+  const [feesLoading, setFeesLoading] = useState(false);
 
   const reset = () => {
     setEditing(null);
@@ -263,6 +284,85 @@ function AdminCategoriesPage() {
     }
   };
 
+  const openFees = async (cat: (typeof items)[number]) => {
+    setFeesCategory({ id: cat.id, name: cat.name });
+    setFeesLoading(true);
+    try {
+      const rows = await fetchAdminCategoryFees({ data: { categoryId: cat.id } });
+      setFees(
+        rows
+          .filter(
+            (r): r is typeof r & { feeType: "listing_fee" | "commission" } =>
+              r.feeType === "listing_fee" || r.feeType === "commission"
+          )
+          .map((r) => ({
+            id: r.id,
+            feeType: r.feeType,
+            amount: r.feeType === "listing_fee" ? r.amount : 0,
+            percentage: r.feeType === "commission" ? r.percentage : 0,
+            isActive: r.isActive,
+            effectiveFrom: r.effectiveFrom ? r.effectiveFrom.slice(0, 16) : "",
+            effectiveUntil: r.effectiveUntil ? r.effectiveUntil.slice(0, 16) : "",
+          }))
+      );
+      setFeesOpen(true);
+    } finally {
+      setFeesLoading(false);
+    }
+  };
+
+  const handleSaveFees = async () => {
+    if (!feesCategory || !canManage) return;
+    const invalid = fees.some((f) => {
+      if (f.feeType === "listing_fee") return f.amount < 0;
+      return f.percentage < 0 || f.percentage > 10000;
+    });
+    if (invalid) {
+      alert("Please enter valid fee values.");
+      return;
+    }
+    setFeesLoading(true);
+    try {
+      await Promise.all(
+        fees.map((f) => {
+          const input = {
+            categoryId: feesCategory.id,
+            feeType: f.feeType,
+            amount: f.feeType === "listing_fee" ? f.amount : 0,
+            percentage: f.feeType === "commission" ? f.percentage : 0,
+            isActive: f.isActive,
+            effectiveFrom: f.effectiveFrom || undefined,
+            effectiveUntil: f.effectiveUntil || undefined,
+          };
+          if (f.id) {
+            const { categoryId, ...updateInput } = input;
+            return updateAdminCategoryFee({ data: { id: f.id, ...updateInput } });
+          }
+          return createAdminCategoryFee({ data: input });
+        })
+      );
+      await router.invalidate();
+      setFeesOpen(false);
+    } finally {
+      setFeesLoading(false);
+    }
+  };
+
+  const handleDeleteFee = async (idx: number) => {
+    const fee = fees[idx];
+    if (!fee || !canManage) return;
+    if (fee.id && !confirm("Delete this fee rule?")) return;
+    if (fee.id) {
+      setFeesLoading(true);
+      try {
+        await deleteAdminCategoryFee({ data: { id: fee.id } });
+      } finally {
+        setFeesLoading(false);
+      }
+    }
+    setFees((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -342,6 +442,14 @@ function AdminCategoriesPage() {
                   onClick={() => openFields(c)}
                 >
                   Fields
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canManage}
+                  onClick={() => openFees(c)}
+                >
+                  Fees
                 </Button>
               </div>
             ),
@@ -738,6 +846,196 @@ function AdminCategoriesPage() {
               onClick={handleSaveFields}
             >
               {fieldsLoading ? "Saving..." : "Save fields"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={feesOpen} onOpenChange={setFeesOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Fees for {feesCategory?.name}</DialogTitle>
+          </DialogHeader>
+          {feesLoading && fees.length === 0 ? (
+            <p className="text-sm text-celis-ink-secondary">Loading...</p>
+          ) : (
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto py-2">
+              {fees.length === 0 && (
+                <p className="text-sm text-celis-ink-secondary">
+                  No custom fee rules. The platform default tiers and commission
+                  settings will apply.
+                </p>
+              )}
+              {fees.map((f, idx) => (
+                <div
+                  key={idx}
+                  className="grid gap-2 rounded-md border border-celis-border p-3"
+                >
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-xs">Fee type</Label>
+                      <select
+                        className="h-10 w-full rounded-md border border-celis-border bg-celis-surface-inset px-2 text-sm"
+                        value={f.feeType}
+                        disabled={!canManage}
+                        onChange={(e) =>
+                          setFees((prev) =>
+                            prev.map((fee, i) =>
+                              i === idx
+                                ? {
+                                    ...fee,
+                                    feeType: e.target.value as
+                                      | "listing_fee"
+                                      | "commission",
+                                  }
+                                : fee
+                            )
+                          )
+                        }
+                      >
+                        <option value="listing_fee">Listing fee</option>
+                        <option value="commission">Commission</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">
+                        {f.feeType === "listing_fee"
+                          ? "Amount (cents)"
+                          : "Percentage (bps)"}
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={f.feeType === "listing_fee" ? 1 : 1}
+                        value={
+                          f.feeType === "listing_fee" ? f.amount : f.percentage
+                        }
+                        disabled={!canManage}
+                        onChange={(e) =>
+                          setFees((prev) =>
+                            prev.map((fee, i) =>
+                              i === idx
+                                ? {
+                                    ...fee,
+                                    [f.feeType === "listing_fee"
+                                      ? "amount"
+                                      : "percentage"]:
+                                      Number(e.target.value) || 0,
+                                  }
+                                : fee
+                            )
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                  {f.feeType === "commission" && (
+                    <p className="text-xs text-celis-ink-secondary">
+                      Basis points: 100 = 1%, 500 = 5%, 1000 = 10%.
+                    </p>
+                  )}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-xs">Effective from</Label>
+                      <Input
+                        type="datetime-local"
+                        value={f.effectiveFrom}
+                        disabled={!canManage}
+                        onChange={(e) =>
+                          setFees((prev) =>
+                            prev.map((fee, i) =>
+                              i === idx
+                                ? { ...fee, effectiveFrom: e.target.value }
+                                : fee
+                            )
+                          )
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Effective until</Label>
+                      <Input
+                        type="datetime-local"
+                        value={f.effectiveUntil}
+                        disabled={!canManage}
+                        onChange={(e) =>
+                          setFees((prev) =>
+                            prev.map((fee, i) =>
+                              i === idx
+                                ? { ...fee, effectiveUntil: e.target.value }
+                                : fee
+                            )
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={f.isActive}
+                        disabled={!canManage}
+                        onChange={(e) =>
+                          setFees((prev) =>
+                            prev.map((fee, i) =>
+                              i === idx
+                                ? { ...fee, isActive: e.target.checked }
+                                : fee
+                            )
+                          )
+                        }
+                      />
+                      Active
+                    </label>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={!canManage}
+                      onClick={() => handleDeleteFee(idx)}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {canManage && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFees((prev) => [
+                      ...prev,
+                      {
+                        feeType: "listing_fee",
+                        amount: 0,
+                        percentage: 0,
+                        isActive: true,
+                        effectiveFrom: "",
+                        effectiveUntil: "",
+                      },
+                    ])
+                  }
+                >
+                  Add fee rule
+                </Button>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFeesOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!canManage || feesLoading}
+              onClick={handleSaveFees}
+            >
+              {feesLoading ? "Saving..." : "Save fees"}
             </Button>
           </DialogFooter>
         </DialogContent>

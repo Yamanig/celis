@@ -133,6 +133,7 @@ export function ListingWizard({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [createdListingId, setCreatedListingId] = useState<string | null>(null);
+  const [serverFeeCents, setServerFeeCents] = useState<number>(0);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [finished, setFinished] = useState(false);
   const [eligibility, setEligibility] = useState<{
@@ -283,6 +284,7 @@ export function ListingWizard({
         data: { sellerId, listing: form },
       });
       setCreatedListingId(result.id);
+      setServerFeeCents(result.feeCents ?? 0);
 
       if (eligibility.requiresPayment) {
         setPaymentOpen(true);
@@ -653,7 +655,7 @@ export function ListingWizard({
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {eligibility?.requiresPayment
-                ? `Publish & pay ${formatPrice(preview.totalFeeCents)}`
+                ? `Publish & pay ${formatPrice(serverFeeCents || preview.totalFeeCents)}`
                 : eligibility?.sellerType === "shop"
                 ? `Publish (package: ${
                     eligibility?.remainingListings === null
@@ -671,7 +673,7 @@ export function ListingWizard({
         onOpenChange={setPaymentOpen}
         userId={sellerId}
         listingId={createdListingId}
-        amountCents={preview.totalFeeCents}
+        amountCents={serverFeeCents || preview.totalFeeCents}
         enabledProviders={enabledWalletProviders}
         onSuccess={() => setFinished(true)}
       />

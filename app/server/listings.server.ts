@@ -152,6 +152,35 @@ export async function getListingById(id: string): Promise<ListingDetail | null> 
   };
 }
 
+export async function updateListingFees(
+  id: string,
+  pricing: {
+    feeCents: number;
+    commissionBps: number | null;
+    commissionAmountCents: number | null;
+    appliedFeeRuleId: string | null;
+    expiresAt: Date;
+    currency: string;
+  }
+) {
+  const [updated] = await db
+    .update(listings)
+    .set({
+      feeAmountCents: pricing.feeCents,
+      commissionBps: pricing.commissionBps,
+      appliedFeeRuleId: pricing.appliedFeeRuleId,
+      currency: pricing.currency,
+      expiresAt: pricing.expiresAt,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  if (!updated) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  return updated;
+}
+
 export async function submitListingForReview(id: string) {
   const [updated] = await db
     .update(listings)

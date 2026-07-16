@@ -87,7 +87,23 @@ export const createListing = createServerFn({ method: "POST" })
       );
     }
     const listing = await insertDraftListing(data.sellerId, data.listing);
-    return { id: listing.id, status: listing.status };
+
+    const { getListingPricing } = await import("./config.server");
+    const pricing = await getListingPricing(
+      data.listing.price,
+      data.listing.condition,
+      data.listing.categoryId
+    );
+
+    const { updateListingFees } = await import("./listings.server");
+    await updateListingFees(listing.id, pricing);
+
+    return {
+      id: listing.id,
+      status: listing.status,
+      feeCents: pricing.totalFeeCents,
+      expiresAt: pricing.expiresAt.toISOString(),
+    };
   });
 
 const listingIdSchema = z.object({ id: z.string().uuid() });

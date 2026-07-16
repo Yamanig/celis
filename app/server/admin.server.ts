@@ -11,6 +11,7 @@ import {
   platformConfigs,
   listingPackages,
   sellerSubscriptions,
+  categoryFees,
 } from "~/db/schema";
 import {
   eq,
@@ -911,6 +912,119 @@ export async function updateCategory(
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+export async function getAdminCategoryFees(categoryId: string) {
+  await requirePermission("categories:manage");
+  const rows = await db
+    .select({
+      fee: categoryFees,
+      categoryName: categories.name,
+    })
+    .from(categoryFees)
+    .leftJoin(categories, eq(categoryFees.categoryId, categories.id))
+    .where(eq(categoryFees.categoryId, categoryId))
+    .orderBy(categoryFees.feeType, categoryFees.createdAt);
+
+  return rows.map((r) => ({
+    id: r.fee.id,
+    categoryId: r.fee.categoryId,
+    categoryName: r.categoryName,
+    feeType: r.fee.feeType,
+    amount: r.fee.amount,
+    percentage: r.fee.percentage,
+    isActive: r.fee.isActive,
+    effectiveFrom: r.fee.effectiveFrom?.toISOString() ?? null,
+    effectiveUntil: r.fee.effectiveUntil?.toISOString() ?? null,
+    startsAt: r.fee.startsAt?.toISOString() ?? null,
+    endsAt: r.fee.endsAt?.toISOString() ?? null,
+    createdAt: r.fee.createdAt?.toISOString() ?? null,
+    updatedAt: r.fee.updatedAt?.toISOString() ?? null,
+  }));
+}
+
+export async function createCategoryFee(input: {
+  categoryId: string;
+  feeType: "listing_fee" | "commission";
+  amount?: number;
+  percentage?: number;
+  isActive?: boolean;
+  effectiveFrom?: Date;
+  effectiveUntil?: Date;
+}) {
+  await requirePermission("categories:manage");
+  const [row] = await db
+    .insert(categoryFees)
+    .values({
+      categoryId: input.categoryId,
+      feeType: input.feeType,
+      amount: input.feeType === "listing_fee" ? (input.amount ?? 0) : 0,
+      percentage: input.feeType === "commission" ? (input.percentage ?? 0) : 0,
+      isActive: input.isActive ?? true,
+      effectiveFrom: input.effectiveFrom ?? null,
+      effectiveUntil: input.effectiveUntil ?? null,
+    })
+    .returning();
+  await insertAuditLog({
+    action: "category_fee_created",
+    resourceType: "category_fee",
+    resourceId: row.id,
+    metadata: {
+      categoryId: row.categoryId,
+      feeType: row.feeType,
+      amount: row.amount,
+      percentage: row.percentage,
+    },
+  });
+  return row;
+}
+
+export async function updateCategoryFee(
+  id: string,
+  input: {
+    feeType?: "listing_fee" | "commission";
+    amount?: number;
+    percentage?: number;
+    isActive?: boolean;
+    effectiveFrom?: Date | null;
+    effectiveUntil?: Date | null;
+  }
+) {
+  await requirePermission("categories:manage");
+  const updates: Partial<typeof categoryFees.$inferInsert> = {
+    updatedAt: new Date(),
+  };
+  if (input.feeType !== undefined) updates.feeType = input.feeType;
+  if (input.amount !== undefined) updates.amount = input.amount;
+  if (input.percentage !== undefined) updates.percentage = input.percentage;
+  if (input.isActive !== undefined) updates.isActive = input.isActive;
+  if (input.effectiveFrom !== undefined) updates.effectiveFrom = input.effectiveFrom;
+  if (input.effectiveUntil !== undefined) updates.effectiveUntil = input.effectiveUntil;
+
+  const [row] = await db
+    .update(categoryFees)
+    .set(updates)
+    .where(eq(categoryFees.id, id))
+    .returning();
+  await insertAuditLog({
+    action: "category_fee_updated",
+    resourceType: "category_fee",
+    resourceId: id,
+    metadata: input,
+  });
+  return row;
+}
+
+export async function deleteCategoryFee(id: string) {
+  await requirePermission("categories:manage");
+  await db.delete(categoryFees).where(eq(categoryFees.id, id));
+  await insertAuditLog({
+    action: "category_fee_deleted",
+    resourceType: "category_fee",
+    resourceId: id,
+    metadata: {},
+  });
+  return { success: true };
 }
 
 export async function getAdminOrders(options?: {

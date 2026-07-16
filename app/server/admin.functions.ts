@@ -20,6 +20,10 @@ import {
   getAdminCategories,
   createCategory,
   updateCategory,
+  getAdminCategoryFees,
+  createCategoryFee,
+  updateCategoryFee,
+  deleteCategoryFee,
   getAdminOrders,
   updateOrderStatus,
   getAdminPayouts,
@@ -292,6 +296,64 @@ export const updateAdminCategory = createServerFn({ method: "POST" })
       slug: data.slug,
       sortOrder: data.sortOrder,
     });
+  });
+
+const categoryFeesQuerySchema = z.object({
+  categoryId: z.string().uuid(),
+});
+
+export const fetchAdminCategoryFees = createServerFn({ method: "GET" })
+  .validator(categoryFeesQuerySchema)
+  .handler(async ({ data }) => {
+    return getAdminCategoryFees(data.categoryId);
+  });
+
+const categoryFeeSchema = z.object({
+  categoryId: z.string().uuid(),
+  feeType: z.enum(["listing_fee", "commission"]),
+  amount: z.coerce.number().int().min(0).optional().default(0),
+  percentage: z.coerce.number().int().min(0).max(10000).optional().default(0),
+  isActive: z.boolean().optional().default(true),
+  effectiveFrom: z.string().datetime().optional(),
+  effectiveUntil: z.string().datetime().optional(),
+});
+
+export const createAdminCategoryFee = createServerFn({ method: "POST" })
+  .validator(categoryFeeSchema)
+  .handler(async ({ data }) => {
+    return createCategoryFee({
+      categoryId: data.categoryId,
+      feeType: data.feeType,
+      amount: data.amount,
+      percentage: data.percentage,
+      isActive: data.isActive,
+      effectiveFrom: data.effectiveFrom ? new Date(data.effectiveFrom) : undefined,
+      effectiveUntil: data.effectiveUntil ? new Date(data.effectiveUntil) : undefined,
+    });
+  });
+
+const updateCategoryFeeSchema = categoryFeeSchema
+  .omit({ categoryId: true })
+  .partial()
+  .extend({ id: z.string().uuid() });
+
+export const updateAdminCategoryFee = createServerFn({ method: "POST" })
+  .validator(updateCategoryFeeSchema)
+  .handler(async ({ data }) => {
+    const { id, ...input } = data;
+    return updateCategoryFee(id, {
+      ...input,
+      effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : null,
+      effectiveUntil: input.effectiveUntil ? new Date(input.effectiveUntil) : null,
+    });
+  });
+
+const categoryFeeIdSchema = z.object({ id: z.string().uuid() });
+
+export const deleteAdminCategoryFee = createServerFn({ method: "POST" })
+  .validator(categoryFeeIdSchema)
+  .handler(async ({ data }) => {
+    return deleteCategoryFee(data.id);
   });
 
 const ordersQuerySchema = z
