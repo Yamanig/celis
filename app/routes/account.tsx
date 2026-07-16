@@ -19,7 +19,7 @@ import {
   fetchCurrentUserProfile,
   updateCurrentUserProfile,
 } from "~/server/auth.functions";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Copy, Check } from "lucide-react";
 
 export const Route = createFileRoute("/account")({
   component: AccountPage,
@@ -73,8 +73,16 @@ function AccountPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const isSeller = profile.role === "seller";
+
+  const handleCopySellerNumber = async () => {
+    if (!profile.sellerNumber) return;
+    await navigator.clipboard.writeText(profile.sellerNumber);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,11 +150,27 @@ function AccountPage() {
               {profile.sellerNumber && (
                 <div className="space-y-2">
                   <Label htmlFor="sellerNumber">Seller number</Label>
-                  <Input
-                    id="sellerNumber"
-                    value={profile.sellerNumber}
-                    disabled
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="sellerNumber"
+                      value={profile.sellerNumber}
+                      disabled
+                      className="font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Copy seller number"
+                      onClick={handleCopySellerNumber}
+                    >
+                      {copied ? (
+                        <Check className="h-4 w-4 text-celis-success" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                   <p className="text-xs text-celis-ink-tertiary">
                     Share this number with admins when assigning a package.
                   </p>
