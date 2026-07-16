@@ -15,13 +15,24 @@ const DEFAULTS = {
   platformFeeCents: 0,
 };
 
-export async function getPlatformConfig<T>(key: string): Promise<T | undefined> {
+export async function getPlatformConfig<T>(
+  key: string,
+  at: Date = new Date()
+): Promise<T | undefined> {
   const rows = await db
-    .select({ value: platformConfigs.value })
+    .select({
+      value: platformConfigs.value,
+      effectiveFrom: platformConfigs.effectiveFrom,
+      effectiveUntil: platformConfigs.effectiveUntil,
+    })
     .from(platformConfigs)
     .where(eq(platformConfigs.key, key))
     .limit(1);
-  return rows[0]?.value as T | undefined;
+  const row = rows[0];
+  if (!row) return undefined;
+  if (row.effectiveFrom && row.effectiveFrom > at) return undefined;
+  if (row.effectiveUntil && row.effectiveUntil < at) return undefined;
+  return row.value as T | undefined;
 }
 
 export async function getListingFeeCents(): Promise<number> {

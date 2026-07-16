@@ -112,10 +112,10 @@ export function SearchFilters({
             value={value}
             onValueChange={(v) => updateMetadata(field.key, v)}
           >
-            <SelectTrigger id={id}>
+            <SelectTrigger id={id} className="w-full">
               <SelectValue placeholder="Any" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" className="max-h-[50vh]">
               <SelectItem value="">Any</SelectItem>
               <SelectItem value="true">Yes</SelectItem>
               <SelectItem value="false">No</SelectItem>
@@ -133,10 +133,10 @@ export function SearchFilters({
             value={value}
             onValueChange={(v) => updateMetadata(field.key, v)}
           >
-            <SelectTrigger id={id}>
+            <SelectTrigger id={id} className="w-full">
               <SelectValue placeholder={`Any ${field.label.toLowerCase()}`} />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" className="max-h-[50vh]">
               <SelectItem value="">Any</SelectItem>
               {field.options.map((option) => (
                 <SelectItem key={option} value={option}>
@@ -181,10 +181,10 @@ export function SearchFilters({
       <div className="space-y-2">
         <Label htmlFor="category">Category</Label>
         <Select value={filters.categoryId} onValueChange={handleCategoryChange}>
-          <SelectTrigger id="category">
+          <SelectTrigger id="category" className="w-full">
             <SelectValue placeholder="All categories" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" className="max-h-[50vh]">
             <SelectItem value="">All categories</SelectItem>
             {categories.map((cat) => (
               <SelectItem key={cat.id} value={cat.id}>
@@ -226,10 +226,10 @@ export function SearchFilters({
           value={filters.condition}
           onValueChange={(v) => update("condition", v)}
         >
-          <SelectTrigger id="condition">
+          <SelectTrigger id="condition" className="w-full">
             <SelectValue placeholder="Any condition" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" className="max-h-[50vh]">
             <SelectItem value="">Any condition</SelectItem>
             {ITEM_CONDITIONS.map((c) => (
               <SelectItem key={c} value={c}>
@@ -257,10 +257,10 @@ export function SearchFilters({
           value={filters.sort}
           onValueChange={(v) => update("sort", v as SearchFiltersState["sort"])}
         >
-          <SelectTrigger id="sort">
+          <SelectTrigger id="sort" className="w-full">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" className="max-h-[50vh]">
             <SelectItem value="newest">Newest</SelectItem>
             <SelectItem value="price_asc">Price: low to high</SelectItem>
             <SelectItem value="price_desc">Price: high to low</SelectItem>

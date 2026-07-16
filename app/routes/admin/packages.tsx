@@ -263,7 +263,7 @@ function AdminPackagesPage() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto p-4 sm:max-w-lg md:p-6">
           <DialogHeader>
             <DialogTitle>
               {editing ? "Edit package" : "Add package"}
@@ -289,7 +289,7 @@ function AdminPackagesPage() {
                 }
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="code">Code</Label>
                 <Input
@@ -312,10 +312,10 @@ function AdminPackagesPage() {
                     }))
                   }
                 >
-                  <SelectTrigger id="sellerType">
+                  <SelectTrigger id="sellerType" className="w-full">
                     <SelectValue placeholder="All seller types" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" className="max-h-[50vh]">
                     <SelectItem value="">All seller types</SelectItem>
                     <SelectItem value="individual">Individual</SelectItem>
                     <SelectItem value="shop">Shop</SelectItem>
@@ -323,7 +323,7 @@ function AdminPackagesPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="allowance">Listing allowance</Label>
                 <Input
@@ -368,7 +368,7 @@ function AdminPackagesPage() {
                 Unlimited listings
               </Label>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="duration">Duration (days)</Label>
                 <Input
@@ -397,7 +397,7 @@ function AdminPackagesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="price">Price (cents)</Label>
                 <Input
@@ -460,7 +460,7 @@ function AdminPackagesPage() {
       </Dialog>
 
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto p-4 sm:max-w-md md:p-6">
           <DialogHeader>
             <DialogTitle>Assign package to seller</DialogTitle>
           </DialogHeader>

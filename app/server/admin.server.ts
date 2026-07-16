@@ -1396,6 +1396,7 @@ export async function exportNewListingsReport(options?: {
 }
 
 const CONFIG_DEFAULTS: Record<string, string | number | boolean | object> = {
+  platform_monetization_model: "fixed_only",
   listing_fee_cents: 100,
   commission_bps: 500,
   local_pickup_enabled: true,
@@ -1420,7 +1421,7 @@ export async function getPlatformConfigAll() {
     const row = rows.find((r) => r.key === key);
     return {
       key,
-      value: value as string | number | boolean,
+      value: value as string | number | boolean | object,
       defaultValue,
       updatedAt: row?.updatedAt ?? null,
       updatedBy: row?.updatedBy ?? null,

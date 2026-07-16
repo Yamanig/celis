@@ -1,10 +1,17 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -52,7 +59,7 @@ function toDateTimeLocal(value: Date | string | null | undefined): string {
 
 interface ConfigItem {
   key: string;
-  value: string | number | boolean;
+  value: string | number | boolean | object;
   defaultValue: string | number | boolean | object;
   updatedAt: Date | null;
   updatedBy: string | null;
@@ -62,6 +69,7 @@ interface ConfigItem {
 }
 
 const LABELS: Record<string, string> = {
+  platform_monetization_model: "Monetization model",
   listing_fee_cents: "Listing fee",
   commission_bps: "Sales commission",
   local_pickup_enabled: "Local pickup",
@@ -75,6 +83,8 @@ const LABELS: Record<string, string> = {
 };
 
 const HELPERS: Record<string, string> = {
+  platform_monetization_model:
+    "Fixed Only charges listing fees; Commission Only takes a sale percentage; Hybrid uses both.",
   listing_fee_cents: "Fixed fee charged when a seller publishes or renews a listing.",
   commission_bps:
     "Percentage charged only when an order reaches the business-defined completed status.",
@@ -116,6 +126,19 @@ function bpsToPercent(bps: number): string {
   return `${(bps / 100).toFixed(2)}%`;
 }
 
+function valuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a === "number" && typeof b === "number" && Number.isNaN(a) && Number.isNaN(b))
+    return true;
+  if (
+    (typeof a === "object" && a !== null) ||
+    (typeof b === "object" && b !== null)
+  ) {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  return false;
+}
+
 function AdminSettingsPage() {
   const configs = Route.useLoaderData();
   const router = useRouter();
@@ -133,9 +156,34 @@ function AdminSettingsPage() {
         ])
       )
   );
+  const [touched, setTouched] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Sync local state with refreshed loader data for fields the user is not
+  // currently editing. This keeps saved values reflected after invalidate().
+  useEffect(() => {
+    setValues((prev) => {
+      const next: Record<string, unknown> = { ...prev };
+      for (const config of configs) {
+        if (touched.has(config.key)) continue;
+        next[config.key] = config.value;
+      }
+      return next;
+    });
+    setEffectiveDates((prev) => {
+      const next: Record<string, { from: string; until: string }> = { ...prev };
+      for (const config of configs) {
+        if (touched.has(config.key)) continue;
+        next[config.key] = {
+          from: toDateTimeLocal(config.effectiveFrom),
+          until: toDateTimeLocal(config.effectiveUntil),
+        };
+      }
+      return next;
+    });
+  }, [configs, touched]);
   const [sweepLoading, setSweepLoading] = useState(false);
   const [sweepResult, setSweepResult] = useState<{ expiredCount: number } | null>(
     null
@@ -187,6 +235,7 @@ function AdminSettingsPage() {
   const handleChange = (key: string, value: unknown) => {
     setValues((v) => ({ ...v, [key]: value }));
     setErrors((e) => ({ ...e, [key]: validate(key, value) }));
+    setTouched((prev) => new Set(prev).add(key));
     setSaved(false);
   };
 
@@ -224,6 +273,11 @@ function AdminSettingsPage() {
         },
       });
       await router.invalidate();
+      setTouched((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
       setSaved(true);
     } finally {
       setLoading(false);
@@ -260,6 +314,7 @@ function AdminSettingsPage() {
         })
       );
       await router.invalidate();
+      setTouched(new Set());
       setSaved(true);
     } finally {
       setLoading(false);
@@ -411,6 +466,31 @@ function AdminSettingsPage() {
       );
     }
 
+    if (config.key === "platform_monetization_model") {
+      return (
+        <div className="space-y-2">
+          <Select
+            value={String(value)}
+            onValueChange={(v) =>
+              handleChange(config.key, v as "fixed_only" | "commission_only" | "hybrid")
+            }
+          >
+            <SelectTrigger className="sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fixed_only">Fixed fee only</SelectItem>
+              <SelectItem value="commission_only">Commission only</SelectItem>
+              <SelectItem value="hybrid">Hybrid</SelectItem>
+            </SelectContent>
+          </Select>
+          {errors[config.key] && (
+            <p className="text-xs text-destructive">{errors[config.key]}</p>
+          )}
+        </div>
+      );
+    }
+
     return (
       <Input
         id={config.key}
@@ -522,7 +602,7 @@ function AdminSettingsPage() {
                     onClick={() => confirmSave(config.key)}
                     disabled={
                       loading ||
-                      values[config.key] === config.value ||
+                      valuesEqual(values[config.key], config.value) ||
                       Boolean(errors[config.key])
                     }
                   >
@@ -566,7 +646,7 @@ function AdminSettingsPage() {
                     onClick={() => confirmSave(config.key)}
                     disabled={
                       loading ||
-                      values[config.key] === config.value ||
+                      valuesEqual(values[config.key], config.value) ||
                       Boolean(errors[config.key])
                     }
                   >

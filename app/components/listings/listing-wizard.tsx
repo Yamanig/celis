@@ -361,10 +361,10 @@ export function ListingWizard({
               <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
                 <Select value={form.categoryId} onValueChange={(v) => updateField("categoryId", v)}>
-                  <SelectTrigger id="category">
+                  <SelectTrigger id="category" className="w-full">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" className="max-h-[50vh]">
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
@@ -386,10 +386,10 @@ export function ListingWizard({
                       updateField("condition", v ? (v as typeof form.condition) : null)
                     }
                   >
-                    <SelectTrigger id="condition">
+                    <SelectTrigger id="condition" className="w-full">
                       <SelectValue placeholder="Select a condition" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="max-h-[50vh]">
                       {categoryConditions.map((c) => (
                         <SelectItem key={c.code} value={c.code}>
                           {c.label}
@@ -467,10 +467,10 @@ export function ListingWizard({
                     value={form.monetizationType}
                     onValueChange={(v) => updateField("monetizationType", v as typeof form.monetizationType)}
                   >
-                    <SelectTrigger id="monetizationType">
+                    <SelectTrigger id="monetizationType" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="max-h-[50vh]">
                       {MONETIZATION_TYPES.map((t) => (
                         <SelectItem key={t} value={t}>
                           {t === "fixed_rate" ? "Fixed-rate listing" : "Commission on sale"}
@@ -487,10 +487,10 @@ export function ListingWizard({
                   value={form.deliveryMethod}
                   onValueChange={(v) => updateField("deliveryMethod", v as typeof form.deliveryMethod)}
                 >
-                  <SelectTrigger id="deliveryMethod">
+                  <SelectTrigger id="deliveryMethod" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" className="max-h-[50vh]">
                     {enabledDeliveryMethods.map((m) => (
                       <SelectItem key={m} value={m}>
                         {m.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
@@ -733,10 +733,10 @@ function MetadataFieldInput({
           value={normalized as string}
           onValueChange={(v) => onChange(v)}
         >
-          <SelectTrigger id={`meta-${field.key}`}>
+          <SelectTrigger id={`meta-${field.key}`} className="w-full">
             <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" className="max-h-[50vh]">
             {(field.options ?? []).map((opt) => (
               <SelectItem key={opt} value={opt}>
                 {opt}
