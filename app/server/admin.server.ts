@@ -267,7 +267,8 @@ export async function getAdminUsers(options?: {
       or(
         ilike(users.email, term),
         ilike(profiles.displayName, term),
-        ilike(users.walletPhone, term)
+        ilike(users.walletPhone, term),
+        ilike(profiles.sellerNumber, term)
       )
     );
   }
@@ -316,6 +317,7 @@ export async function getAdminUsers(options?: {
       isSuperAdmin: r.user.isSuperAdmin,
       sellerType: r.profile?.sellerType ?? "individual",
       businessName: r.profile?.businessName ?? null,
+      sellerNumber: r.profile?.sellerNumber ?? null,
       createdAt: r.user.createdAt,
     })),
     total,

@@ -37,7 +37,7 @@ import {
   fetchCurrentUserPermissions,
 } from "~/server/auth.functions";
 import { formatRelativeDate } from "~/lib/format";
-import { Search } from "lucide-react";
+import { Search, Copy, Check } from "lucide-react";
 
 const roleSchema = z.enum([
   "buyer",
@@ -99,6 +99,7 @@ function AdminUsersPage() {
     search.role
   );
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -190,6 +191,12 @@ function AdminUsersPage() {
     }
   };
 
+  const handleCopySellerNumber = async (id: string, sellerNumber: string) => {
+    await navigator.clipboard.writeText(sellerNumber);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 1500);
+  };
+
   const domain = search.domain ?? "customer";
   const customerRoleOptions = [
     { value: "buyer", label: "Buyer" },
@@ -271,7 +278,7 @@ function AdminUsersPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-celis-ink-tertiary" />
             <Input
-              placeholder="Search by email, name or phone"
+              placeholder="Search by email, name, phone or seller number"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="pl-9"
@@ -326,6 +333,26 @@ function AdminUsersPage() {
                 <p className="text-xs text-celis-ink-secondary">{u.email}</p>
                 {u.phone && (
                   <p className="text-xs text-celis-ink-tertiary">{u.phone}</p>
+                )}
+                {u.sellerNumber && (
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="rounded bg-celis-surface-inset px-1.5 py-0.5 text-xs font-mono text-celis-ink-secondary">
+                      {u.sellerNumber}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      aria-label="Copy seller number"
+                      onClick={() => handleCopySellerNumber(u.id, u.sellerNumber!)}
+                    >
+                      {copiedId === u.id ? (
+                        <Check className="h-3 w-3 text-celis-success" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
                 )}
               </div>
             ),
