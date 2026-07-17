@@ -122,18 +122,6 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
             {user ? (
               <>
                 <NotificationBell />
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/account">
-                    <User className="mr-2 h-4 w-4" />
-                    Account
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to={user.role === "admin" ? "/admin" : "/dashboard"}>
-                    <LayoutDashboard className="mr-2 h-4 w-4" />
-                    Dashboard
-                  </Link>
-                </Button>
                 <Button size="sm" asChild>
                   <Link to="/sell">
                     <Plus className="mr-1 h-4 w-4" />

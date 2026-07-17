@@ -102,13 +102,13 @@ function AdminUsersPage() {
 
   const canManageUsers = permissions.includes("users:manage");
   const isCurrentUserSuper = currentUser?.isSuperAdmin ?? false;
-  const roleOptions = [
+  const baseUserRoleOptions = [
     { value: "", label: "All roles" },
     { value: "buyer", label: "Buyer" },
     { value: "seller", label: "Seller" },
     { value: "admin", label: "Admin" },
   ];
-  const userRoleOptions = roleOptions.filter((option) => option.value);
+  const userRoleOptions = baseUserRoleOptions.filter((option) => option.value);
 
   useEffect(() => {
     setSearchInput(search.search ?? "");

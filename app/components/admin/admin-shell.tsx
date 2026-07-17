@@ -2,6 +2,7 @@ import { Link, useRouterState, Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
 import { CelisLogo } from "~/components/branding/celis-logo";
+import { AdminPendingContentScope } from "~/components/layout/route-pending";
 import { ThemeToggle } from "~/components/theme/theme-toggle";
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
@@ -255,8 +256,10 @@ export function AdminShell({ permissions }: AdminShellProps) {
           collapsed ? "md:pl-20" : "md:pl-64"
         )}
       >
-        <div className="mx-auto max-w-7xl p-4 md:p-8">
-          <Outlet />
+        <div className="w-full px-4 py-4 md:px-5 md:py-6 xl:px-6">
+          <AdminPendingContentScope>
+            <Outlet />
+          </AdminPendingContentScope>
         </div>
       </main>
     </div>

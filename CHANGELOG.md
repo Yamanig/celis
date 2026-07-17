@@ -2,6 +2,16 @@
 
 All notable changes to Celis will be documented in this file.
 
+## [v0.1.1] - 2026-07-17
+
+### Fixed
+
+- Reduced admin content gutter and removed the centered max-width wrapper so pages use the remaining width when the sidebar is expanded or collapsed.
+- Aligned the home route skeleton with the real full-bleed hero layout and changed admin pending UI so static sidebar chrome renders immediately while content loads.
+- Fixed search filters duplicate `CategoryListItem` type import that broke Vite React Babel transforms.
+- Removed duplicate public header Account/Dashboard actions by keeping them inside the signed-in account dropdown.
+- Fixed route loading skeletons so public pages use page-specific placeholders and admin loading keeps the sidebar shell instead of flashing a standalone content skeleton.
+
 ## [v0.1.0] - 2026-07-10
 
 ### Added

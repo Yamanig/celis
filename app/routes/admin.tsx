@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AdminShell } from "~/components/admin/admin-shell";
+import { AdminShellPending } from "~/components/layout/route-pending";
 import {
   fetchCurrentUser,
   fetchCurrentUserPermissions,
@@ -7,6 +8,7 @@ import {
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
+  pendingComponent: AdminShellPending,
   head: () => ({
     meta: [
       { title: "Admin | Celis" },
