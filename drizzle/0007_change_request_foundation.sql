@@ -304,10 +304,10 @@ INSERT INTO "public"."category_conditions" ("category_id", "code", "label", "sor
 SELECT c.id, v.code, v.label, v.sort_order
 FROM "public"."categories" c
 CROSS JOIN (VALUES
-  ('new_with_tags', 'New with tags', 1),
-  ('like_new', 'Like new', 2),
-  ('good', 'Good', 3),
-  ('fair', 'Fair', 4),
-  ('poor', 'Poor', 5)
+  ('new_with_tags'::"public"."item_condition", 'New with tags', 1),
+  ('like_new'::"public"."item_condition", 'Like new', 2),
+  ('good'::"public"."item_condition", 'Good', 3),
+  ('fair'::"public"."item_condition", 'Fair', 4),
+  ('poor'::"public"."item_condition", 'Poor', 5)
 ) AS v(code, label, sort_order)
 ON CONFLICT ("category_id", "code") DO NOTHING;
