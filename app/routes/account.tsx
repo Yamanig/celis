@@ -7,13 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { Combobox } from "~/components/ui/combobox";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
   fetchCurrentUserProfile,
@@ -76,6 +70,10 @@ function AccountPage() {
   const [copied, setCopied] = useState(false);
 
   const isSeller = profile.role === "seller";
+  const sellerTypeOptions = [
+    { value: "individual", label: "Individual" },
+    { value: "shop", label: "Shop / Business" },
+  ];
 
   const handleCopySellerNumber = async () => {
     if (!profile.sellerNumber) return;
@@ -223,20 +221,13 @@ function AccountPage() {
 
                   <div className="space-y-2">
                     <Label>Seller type</Label>
-                    <Select
+                    <Combobox
                       value={sellerType}
                       onValueChange={(v) =>
                         setSellerType(v as typeof sellerType)
                       }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="individual">Individual</SelectItem>
-                        <SelectItem value="shop">Shop / Business</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      options={sellerTypeOptions}
+                    />
                   </div>
 
                   {sellerType === "shop" && (

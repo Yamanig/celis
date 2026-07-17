@@ -12,13 +12,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "~/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { Combobox } from "~/components/ui/combobox";
 import { PageHeader } from "~/components/admin/page-header";
 import { AdminTable } from "~/components/admin/admin-table";
 import {
@@ -87,6 +81,10 @@ function AdminPackagesPage() {
   const [assignPaymentRef, setAssignPaymentRef] = useState("");
   const [assignPricePaid, setAssignPricePaid] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
+  const packageOptions = packages.map((p) => ({
+    value: p.id,
+    label: `${p.name} (${p.listingAllowance} listings / ${p.durationDays} days)`,
+  }));
 
   const reset = () => {
     setEditing(null);
@@ -490,22 +488,14 @@ function AdminPackagesPage() {
             </div>
             <div className="space-y-2">
               <Label>Package</Label>
-              <Select
+              <Combobox
                 value={assignPackageId}
                 onValueChange={setAssignPackageId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select package" />
-                </SelectTrigger>
-                <SelectContent>
-                  {packages.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} ({p.isUnlimited ? "Unlimited" : `${p.listingAllowance} listings`} / {p.durationDays}{" "}
-                      days)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select package"
+                searchPlaceholder="Search packages..."
+                options={packageOptions}
+              />
+
             </div>
             <div className="space-y-2">
               <Label htmlFor="assignSource">Assignment source</Label>

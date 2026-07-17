@@ -258,13 +258,17 @@ function DashboardPage() {
                       />
                       <div>
                         <p className="font-medium">
-                          <Link
-                            to="/listings/$id"
-                            params={{ id: listing.id }}
-                            className="hover:text-celis-primary"
-                          >
-                            {listing.title}
-                          </Link>
+                          {listing.status === "active" ? (
+                            <Link
+                              to="/listings/$id"
+                              params={{ id: listing.id }}
+                              className="hover:text-celis-primary"
+                            >
+                              {listing.title}
+                            </Link>
+                          ) : (
+                            <span>{listing.title}</span>
+                          )}
                         </p>
                         <p className="text-sm text-celis-ink-secondary">
                           {formatPrice(listing.price)} · {listing.categoryName}

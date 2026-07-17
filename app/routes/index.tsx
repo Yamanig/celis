@@ -9,13 +9,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Badge } from "~/components/ui/badge";
 import { Slider } from "~/components/ui/slider";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { Combobox } from "~/components/ui/combobox";
 import { Separator } from "~/components/ui/separator";
 import { Card, CardContent } from "~/components/ui/card";
 import { fetchFeaturedListings } from "~/server/listings.functions";
@@ -148,22 +142,20 @@ function LandingPage() {
                       <label className="text-sm font-medium text-celis-ink-secondary">
                         Category
                       </label>
-                      <Select
+                      <Combobox
                         value={categoryId}
                         onValueChange={setCategoryId}
-                      >
-                        <SelectTrigger className="h-12 w-full sm:w-44">
-                          <SelectValue placeholder="All categories" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">All categories</SelectItem>
-                          {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        className="w-full sm:w-44"
+                        placeholder="All categories"
+                        searchPlaceholder="Search categories..."
+                        options={[
+                          { value: "", label: "All categories" },
+                          ...categories.map((cat) => ({
+                            value: cat.id,
+                            label: cat.name,
+                          })),
+                        ]}
+                      />
                     </div>
 
                     <Button

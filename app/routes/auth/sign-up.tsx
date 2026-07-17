@@ -12,13 +12,7 @@ import {
   CardTitle,
   CardDescription,
 } from "~/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { Combobox } from "~/components/ui/combobox";
 import { CelisLogo } from "~/components/branding/celis-logo";
 
 export const Route = createFileRoute("/auth/sign-up")({
@@ -53,6 +47,14 @@ function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const { refresh } = useAuth();
   const navigate = useNavigate();
+  const roleOptions = [
+    { value: "buyer", label: "Buy items" },
+    { value: "seller", label: "Sell items" },
+  ];
+  const sellerTypeOptions = [
+    { value: "individual", label: "Individual" },
+    { value: "shop", label: "Shop / Business" },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,33 +137,22 @@ function SignUpPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="role">I want to</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="buyer">Buy items</SelectItem>
-                  <SelectItem value="seller">Sell items</SelectItem>
-                </SelectContent>
-              </Select>
+              <Combobox
+                value={role}
+                onValueChange={(v) => setRole(v as typeof role)}
+                options={roleOptions}
+              />
             </div>
 
             {role === "seller" && (
               <div className="space-y-4 rounded-lg border border-celis-border bg-celis-surface-inset p-4">
                 <div className="space-y-2">
                   <Label>Seller type</Label>
-                  <Select
+                  <Combobox
                     value={sellerType}
                     onValueChange={(v) => setSellerType(v as typeof sellerType)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="individual">Individual</SelectItem>
-                      <SelectItem value="shop">Shop / Business</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    options={sellerTypeOptions}
+                  />
                 </div>
 
                 {sellerType === "shop" && (

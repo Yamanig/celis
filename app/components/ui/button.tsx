@@ -39,12 +39,35 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, disabled, onClick, ...props }, ref) => {
+    const [pending, setPending] = React.useState(false);
     const Comp = asChild ? Slot : "button";
+
+    const handleClick: React.MouseEventHandler<HTMLButtonElement> = async (
+      event
+    ) => {
+      if (!onClick || asChild) return onClick?.(event);
+      const result = (onClick as (event: React.MouseEvent<HTMLButtonElement>) => unknown)(event);
+      if (
+        result &&
+        typeof (result as Promise<unknown>).then === "function" &&
+        !event.defaultPrevented
+      ) {
+        setPending(true);
+        try {
+          await result;
+        } finally {
+          setPending(false);
+        }
+      }
+    };
+
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
+        disabled={disabled || pending}
+        onClick={handleClick}
         {...props}
       />
     );

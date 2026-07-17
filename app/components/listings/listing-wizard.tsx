@@ -5,13 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { Label } from "~/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { Combobox } from "~/components/ui/combobox";
 import {
   Card,
   CardContent,
@@ -74,6 +68,10 @@ interface ListingWizardProps {
 
 const STEPS = ["Details", "Pricing", "Photos", "Review"];
 
+function titleCase(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
 const emptyForm: ListingInput = {
   title: "",
   description: "",
@@ -135,7 +133,7 @@ export function ListingWizard({
   const [createdListingId, setCreatedListingId] = useState<string | null>(null);
   const [serverFeeCents, setServerFeeCents] = useState<number>(0);
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [submittedForReview, setSubmittedForReview] = useState(false);
   const [eligibility, setEligibility] = useState<{
     sellerType: "individual" | "shop";
     canList: boolean;
@@ -244,6 +242,26 @@ export function ListingWizard({
     })
   );
 
+  const categoryOptions = useMemo(
+    () => categories.map((cat) => ({ value: cat.id, label: cat.name })),
+    [categories]
+  );
+  const conditionOptions = useMemo(
+    () => ITEM_CONDITIONS.map((c) => ({ value: c, label: titleCase(c) })),
+    []
+  );
+  const monetizationOptions = useMemo(
+    () =>
+      MONETIZATION_TYPES.map((t) => ({
+        value: t,
+        label: t === "fixed_rate" ? "Fixed-rate listing" : "Commission on sale",
+      })),
+    []
+  );
+  const deliveryOptions = useMemo(
+    () => DELIVERY_METHODS.map((m) => ({ value: m, label: titleCase(m) })),
+    []
+  );
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (!form.categoryId) {
@@ -291,7 +309,7 @@ export function ListingWizard({
         await submitShopListing({
           data: { listingId: result.id, sellerId },
         });
-        setFinished(true);
+        setSubmittedForReview(true);
       }
     } catch (err) {
       setErrors({ submit: err instanceof Error ? err.message : "Failed to create listing" });
@@ -300,17 +318,18 @@ export function ListingWizard({
     }
   };
 
-  if (finished) {
+  if (submittedForReview) {
     return (
       <Card className="mx-auto max-w-2xl">
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
           <CheckCircle2 className="h-16 w-16 text-celis-success" />
-          <h2 className="text-2xl font-semibold">Your listing is live!</h2>
+          <h2 className="text-2xl font-semibold">Listing submitted for review</h2>
           <p className="text-celis-ink-secondary">
-            Buyers can now discover and purchase your item.
+            Your listing is waiting for admin approval. It will appear publicly
+            after review.
           </p>
           <Button asChild>
-            <a href={`/listings/${createdListingId}`}>View listing</a>
+            <a href="/dashboard">Go to dashboard</a>
           </Button>
         </CardContent>
       </Card>
@@ -361,50 +380,26 @@ export function ListingWizard({
 
               <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
-                <Select value={form.categoryId} onValueChange={(v) => updateField("categoryId", v)}>
-                  <SelectTrigger id="category" className="w-full">
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent position="popper" className="max-h-[50vh]">
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Combobox
+                  value={form.categoryId}
+                  onValueChange={(v) => updateField("categoryId", v)}
+                  placeholder="Select a category"
+                  searchPlaceholder="Search categories..."
+                  options={categoryOptions}
+                />
                 {errors.categoryId && (
                   <p className="text-sm text-celis-destructive">{errors.categoryId}</p>
                 )}
               </div>
 
-              {categoryConditions.length > 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="condition">Condition</Label>
-                  <Select
-                    value={form.condition ?? ""}
-                    onValueChange={(v) =>
-                      updateField("condition", v ? (v as typeof form.condition) : null)
-                    }
-                  >
-                    <SelectTrigger id="condition" className="w-full">
-                      <SelectValue placeholder="Select a condition" />
-                    </SelectTrigger>
-                    <SelectContent position="popper" className="max-h-[50vh]">
-                      {categoryConditions.map((c) => (
-                        <SelectItem key={c.code} value={c.code}>
-                          {c.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {categoryConditions[0]?.description && (
-                    <p className="text-xs text-celis-ink-secondary">
-                      {categoryConditions[0].description}
-                    </p>
-                  )}
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="condition">Condition</Label>
+                <Combobox
+                  value={form.condition}
+                  onValueChange={(v) => updateField("condition", v as typeof form.condition)}
+                  options={conditionOptions}
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
@@ -461,44 +456,23 @@ export function ListingWizard({
                 {errors.price && <p className="text-sm text-celis-destructive">{errors.price}</p>}
               </div>
 
-              {monetizationModel === "hybrid" && (
-                <div className="space-y-2">
-                  <Label htmlFor="monetizationType">Listing type</Label>
-                  <Select
-                    value={form.monetizationType}
-                    onValueChange={(v) => updateField("monetizationType", v as typeof form.monetizationType)}
-                  >
-                    <SelectTrigger id="monetizationType" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent position="popper" className="max-h-[50vh]">
-                      {MONETIZATION_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t === "fixed_rate" ? "Fixed-rate listing" : "Commission on sale"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="monetizationType">Listing type</Label>
+                <Combobox
+                  value={form.monetizationType}
+                  onValueChange={(v) => updateField("monetizationType", v as typeof form.monetizationType)}
+                  options={monetizationOptions}
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="deliveryMethod">Delivery</Label>
-                <Select
+                <Combobox
                   value={form.deliveryMethod}
                   onValueChange={(v) => updateField("deliveryMethod", v as typeof form.deliveryMethod)}
-                >
-                  <SelectTrigger id="deliveryMethod" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent position="popper" className="max-h-[50vh]">
-                    {enabledDeliveryMethods.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {m.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={deliveryOptions}
+                />
+
               </div>
 
               <div className="rounded-lg border border-celis-border bg-celis-surface-inset p-4 text-sm text-celis-ink-secondary">

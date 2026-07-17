@@ -169,7 +169,7 @@ function AdminReportsPage() {
     patch: Partial<z.infer<typeof reportsSearchSchema>>
   ) => {
     navigate({
-      search: (prev) => ({ ...prev, ...patch, page: 1 }),
+      search: (prev) => ({ ...prev, ...patch, page: undefined }),
     });
   };
 
@@ -327,7 +327,7 @@ function AdminReportsPage() {
           </Button>
         }
       />
-
+      
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="bg-celis-surface-inset">
           <TabsTrigger value="ledger">Ledger</TabsTrigger>
@@ -362,6 +362,7 @@ function AdminReportsPage() {
                 </p>
               </CardContent>
             </Card>
+
           </div>
 
           <Card className="border-celis-border bg-celis-surface-base">

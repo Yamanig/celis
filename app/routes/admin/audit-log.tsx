@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
@@ -54,7 +55,21 @@ function resourceBadge(log: { resourceType: string }) {
 
 function AdminAuditLogPage() {
   const { items, page, totalPages } = Route.useLoaderData();
+  const search = Route.useSearch();
   const navigate = useNavigate({ from: "/admin/audit-log" });
+
+  useEffect(() => {
+    if (
+      search.page === 1 &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("page") === "1"
+    ) {
+      navigate({
+        replace: true,
+        search: (prev) => ({ ...prev, page: undefined }),
+      });
+    }
+  }, [navigate, search.page]);
 
   return (
     <div className="space-y-6">
@@ -130,7 +145,9 @@ function AdminAuditLogPage() {
       <Pagination
         page={page}
         totalPages={totalPages}
-        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
+        onPageChange={(p) =>
+          navigate({ search: (prev) => ({ ...prev, page: p > 1 ? p : undefined }) })
+        }
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import { Link, useRouterState, Outlet } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
 import { CelisLogo } from "~/components/branding/celis-logo";
 import { ThemeToggle } from "~/components/theme/theme-toggle";
@@ -16,6 +17,9 @@ import {
   ShieldCheck,
   ScrollText,
   Briefcase,
+  Home,
+  PanelLeftClose,
+  PanelLeftOpen,
   UserCheck,
 } from "lucide-react";
 
@@ -96,18 +100,68 @@ const nav = [
 export function AdminShell({ permissions }: AdminShellProps) {
   const { location } = useRouterState();
   const pathname = location.pathname;
+  const [collapsed, setCollapsed] = useState(false);
 
   const visibleNav = nav.filter((item) =>
     permissions.includes(item.permission)
   );
 
+  useEffect(() => {
+    const stored = window.localStorage.getItem("celis-admin-sidebar-collapsed");
+    setCollapsed(stored === "true");
+  }, []);
+
+  const toggleSidebar = () => {
+    setCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(
+        "celis-admin-sidebar-collapsed",
+        String(next)
+      );
+      return next;
+    });
+  };
+
   return (
     <div className="flex min-h-screen bg-celis-bg">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-30 hidden h-screen w-64 flex-col border-r border-celis-border bg-celis-surface-base md:flex">
-        <div className="flex h-16 items-center gap-2 px-4">
-          <CelisLogo variant="primary" size={36} badge />
-          <span className="font-semibold text-celis-ink">Admin</span>
+      <aside
+        className={cn(
+          "fixed left-0 top-0 z-30 hidden h-screen flex-col border-r border-celis-border bg-celis-surface-base transition-[width] duration-200 md:flex",
+          collapsed ? "w-20" : "w-64"
+        )}
+      >
+        <div
+          className={cn(
+            "flex h-16 items-center px-4",
+            collapsed ? "justify-center gap-2 px-2" : "justify-between gap-2"
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <CelisLogo
+              variant={collapsed ? "mark-only" : "primary"}
+              size={36}
+              badge
+            />
+            {!collapsed && (
+              <span className="font-semibold text-celis-ink">Admin</span>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expand admin sidebar" : "Collapse admin sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
+          </Button>
         </div>
         <Separator />
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
@@ -120,23 +174,41 @@ export function AdminShell({ permissions }: AdminShellProps) {
               <Link
                 key={item.to}
                 to={item.to}
+                title={collapsed ? item.label : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                  "flex items-center rounded-md py-2.5 text-sm font-medium transition-colors",
+                  collapsed ? "justify-center px-0" : "gap-3 px-3",
                   active
                     ? "bg-celis-primary-subtle text-celis-primary"
                     : "text-celis-ink-secondary hover:bg-celis-surface-elevated hover:text-celis-ink"
                 )}
               >
                 <item.icon className="h-4 w-4" />
-                {item.label}
+                <span className={collapsed ? "sr-only" : ""}>{item.label}</span>
               </Link>
             );
           })}
         </nav>
         <Separator />
-        <div className="flex items-center justify-between p-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/">Back to site</Link>
+        <div
+          className={cn(
+            "flex p-4",
+            collapsed ? "flex-col items-center gap-3" : "items-center justify-between"
+          )}
+        >
+          <Button
+            variant="ghost"
+            size={collapsed ? "icon" : "sm"}
+            title="Back to site"
+            asChild
+          >
+            <Link to="/">
+              {collapsed ? (
+                <Home className="h-4 w-4" />
+              ) : (
+                "Back to site"
+              )}
+            </Link>
           </Button>
           <ThemeToggle />
         </div>
@@ -177,7 +249,12 @@ export function AdminShell({ permissions }: AdminShellProps) {
       </nav>
 
       {/* Main content */}
-      <main className="flex-1 pt-16 md:pl-64 md:pt-0">
+      <main
+        className={cn(
+          "flex-1 pt-16 transition-[padding-left] duration-200 md:pt-0",
+          collapsed ? "md:pl-20" : "md:pl-64"
+        )}
+      >
         <div className="mx-auto max-w-7xl p-4 md:p-8">
           <Outlet />
         </div>

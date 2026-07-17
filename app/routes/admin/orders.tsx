@@ -1,7 +1,8 @@
 import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
+import { Combobox } from "~/components/ui/combobox";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -75,6 +76,24 @@ function AdminOrdersPage() {
   const navigate = useNavigate({ from: "/admin/orders" });
   const [status, setStatus] = useState<string>(search.status ?? "");
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const statusOptions = [
+    { value: "", label: "All statuses" },
+    ...STATUSES.map((s) => ({ value: s, label: s })),
+  ];
+  const rowStatusOptions = statusOptions.filter((option) => option.value);
+
+  useEffect(() => {
+    if (
+      search.page === 1 &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("page") === "1"
+    ) {
+      navigate({
+        replace: true,
+        search: (prev) => ({ ...prev, page: undefined }),
+      });
+    }
+  }, [navigate, search.page]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     listingId: "",
@@ -121,7 +140,7 @@ function AdminOrdersPage() {
 
       <Card className="border-celis-border bg-celis-surface-base">
         <CardContent className="p-4">
-          <Select
+          <Combobox
             value={status}
             onValueChange={(value) => {
               setStatus(value);
@@ -129,23 +148,14 @@ function AdminOrdersPage() {
                 search: (prev) => ({
                   ...prev,
                   status: value || undefined,
-                  page: 1,
+                  page: undefined,
                 }),
               });
             }}
-          >
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All statuses</SelectItem>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className="w-full sm:w-44"
+            placeholder="All statuses"
+            options={statusOptions}
+          />
         </CardContent>
       </Card>
 
@@ -206,22 +216,13 @@ function AdminOrdersPage() {
             key: "actions",
             header: "Update",
             cell: (o) => (
-              <Select
+              <Combobox
                 value={o.status}
                 disabled={loadingId === o.id}
                 onValueChange={(v) => handleStatusChange(o.id, v)}
-              >
-                <SelectTrigger className="h-11 w-full sm:w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                className="w-full sm:w-40"
+                options={rowStatusOptions}
+              />
             ),
           },
         ]}
@@ -230,7 +231,9 @@ function AdminOrdersPage() {
       <Pagination
         page={page}
         totalPages={totalPages}
-        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
+        onPageChange={(p) =>
+          navigate({ search: (prev) => ({ ...prev, page: p > 1 ? p : undefined }) })
+        }
       />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

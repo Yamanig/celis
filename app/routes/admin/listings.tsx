@@ -1,5 +1,5 @@
-import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useRouter, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
@@ -13,15 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { Combobox } from "~/components/ui/combobox";
 import { Pagination } from "~/components/ui/pagination";
 import { AdminTable } from "~/components/admin/admin-table";
+import { ConfirmDialog } from "~/components/admin/confirm-dialog";
 import { PageHeader } from "~/components/admin/page-header";
 import { ListingStatusBadge } from "~/components/admin/status-badge";
 import {
@@ -128,10 +123,33 @@ function AdminListingsPage() {
     id: string;
     reason: string;
   }>({ open: false, id: "", reason: "" });
+  const [approveId, setApproveId] = useState<string | null>(null);
+  const statusOptions = [
+    { value: "", label: "All statuses" },
+    ...STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
+  ];
+  const rowStatusOptions = statusOptions.filter((option) => option.value);
+  const categoryOptions = [
+    { value: "", label: "All categories" },
+    ...categories.map((c) => ({ value: c.id, label: c.name })),
+  ];
+
+  useEffect(() => {
+    if (
+      search.page === 1 &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("page") === "1"
+    ) {
+      navigate({
+        replace: true,
+        search: (prev) => ({ ...prev, page: undefined }),
+      });
+    }
+  }, [navigate, search.page]);
 
   const updateSearch = (patch: Partial<z.infer<typeof listingsSearchSchema>>) => {
     navigate({
-      search: (prev) => ({ ...prev, ...patch, page: 1 }),
+      search: (prev) => ({ ...prev, ...patch, page: undefined }),
     });
   };
 
@@ -170,9 +188,11 @@ function AdminListingsPage() {
     setLoadingId(null);
   };
 
-  const handleApprove = async (id: string) => {
-    setLoadingId(id);
-    await reviewAdminListing({ data: { id, action: "approve" } });
+  const handleApprove = async () => {
+    if (!approveId) return;
+    setLoadingId(approveId);
+    await reviewAdminListing({ data: { id: approveId, action: "approve" } });
+    setApproveId(null);
     await router.invalidate();
     setLoadingId(null);
   };
@@ -218,22 +238,6 @@ function AdminListingsPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-2">
-        {FILTER_TABS.map((tab) => (
-          <Button
-            key={tab.value}
-            variant={search.status === tab.value ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setStatus(tab.value);
-              updateSearch({ status: tab.value || undefined });
-            }}
-          >
-            {tab.label}
-          </Button>
-        ))}
-      </div>
-
       <Card className="border-celis-border bg-celis-surface-base">
         <CardContent className="flex flex-col gap-2 p-4">
           <p className="text-sm font-medium text-celis-ink">Expiry window</p>
@@ -267,63 +271,27 @@ function AdminListingsPage() {
 
       <Card className="border-celis-border bg-celis-surface-base">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row">
-          <Select
+          <Combobox
             value={status}
             onValueChange={(value) => {
               setStatus(value);
               updateSearch({ status: value || undefined });
             }}
-          >
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All statuses</SelectItem>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s.replace(/_/g, " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
+            className="w-full sm:w-44"
+            placeholder="All statuses"
+            options={statusOptions}
+          />
+          <Combobox
             value={categoryId}
             onValueChange={(value) => {
               setCategoryId(value);
               updateSearch({ categoryId: value || undefined });
             }}
-          >
-            <SelectTrigger className="w-full sm:w-52">
-              <SelectValue placeholder="All categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All categories</SelectItem>
-              {categories.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={packageId}
-            onValueChange={(value) => {
-              setPackageId(value);
-              updateSearch({ packageId: value || undefined });
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-52">
-              <SelectValue placeholder="All packages" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All packages</SelectItem>
-              {packages.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name} ({p.isUnlimited ? "Unlimited" : p.listingAllowance})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className="w-full sm:w-52"
+            placeholder="All categories"
+            searchPlaceholder="Search categories..."
+            options={categoryOptions}
+          />
         </CardContent>
       </Card>
 
@@ -336,7 +304,14 @@ function AdminListingsPage() {
             header: "Listing",
             cell: (l) => (
               <div>
-                <p className="font-medium text-celis-ink">{l.title}</p>
+                <Link
+                  to="/admin/listings/$id"
+                  params={{ id: l.id }}
+                  search={{}}
+                  className="font-medium text-celis-ink hover:text-primary"
+                >
+                  {l.title}
+                </Link>
                 <p className="text-xs text-celis-ink-secondary">
                   {l.sellerName} · {l.categoryName}
                 </p>
@@ -434,11 +409,11 @@ function AdminListingsPage() {
             header: "Action",
             cell: (l) =>
               l.status === "pending_review" ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
                     disabled={loadingId === l.id}
-                    onClick={() => handleApprove(l.id)}
+                    onClick={() => setApproveId(l.id)}
                   >
                     Approve
                   </Button>
@@ -454,51 +429,13 @@ function AdminListingsPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col gap-2">
-                  <Select
-                    value={l.status}
-                    disabled={loadingId === l.id}
-                    onValueChange={(v) => handleStatusChange(l.id, v)}
-                  >
-                    <SelectTrigger className="h-11 w-full sm:w-36">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s.replace(/_/g, " ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {l.expiresAt && (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={loadingId === l.id}
-                        onClick={() => handleNotify(l.id)}
-                      >
-                        Notify
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={loadingId === l.id}
-                        onClick={() =>
-                          setExtendDialog({
-                            open: true,
-                            id: l.id,
-                            days: 7,
-                            reason: "",
-                          })
-                        }
-                      >
-                        Extend
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                <Combobox
+                  value={l.status}
+                  disabled={loadingId === l.id}
+                  onValueChange={(v) => handleStatusChange(l.id, v)}
+                  className="w-full sm:w-40"
+                  options={rowStatusOptions}
+                />
               ),
           },
         ]}
@@ -507,7 +444,19 @@ function AdminListingsPage() {
       <Pagination
         page={page}
         totalPages={totalPages}
-        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
+        onPageChange={(p) =>
+          navigate({ search: (prev) => ({ ...prev, page: p > 1 ? p : undefined }) })
+        }
+      />
+
+      <ConfirmDialog
+        open={!!approveId}
+        onOpenChange={(open) => !open && setApproveId(null)}
+        title="Approve listing?"
+        description="This will make the listing visible on the public marketplace."
+        confirmLabel="Approve listing"
+        onConfirm={handleApprove}
+        loading={!!loadingId}
       />
 
       <Dialog

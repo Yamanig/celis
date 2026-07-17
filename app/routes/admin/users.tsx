@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Pagination } from "~/components/ui/pagination";
+import { Combobox } from "~/components/ui/combobox";
 import {
   Dialog,
   DialogContent,
@@ -101,6 +102,13 @@ function AdminUsersPage() {
 
   const canManageUsers = permissions.includes("users:manage");
   const isCurrentUserSuper = currentUser?.isSuperAdmin ?? false;
+  const roleOptions = [
+    { value: "", label: "All roles" },
+    { value: "buyer", label: "Buyer" },
+    { value: "seller", label: "Seller" },
+    { value: "admin", label: "Admin" },
+  ];
+  const userRoleOptions = roleOptions.filter((option) => option.value);
 
   useEffect(() => {
     setSearchInput(search.search ?? "");
@@ -111,12 +119,25 @@ function AdminUsersPage() {
   }, [search.role]);
 
   useEffect(() => {
+    if (
+      search.page === 1 &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("page") === "1"
+    ) {
+      navigate({
+        replace: true,
+        search: (prev) => ({ ...prev, page: undefined }),
+      });
+    }
+  }, [navigate, search.page]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       navigate({
         search: (prev) => ({
           ...prev,
           search: searchInput || undefined,
-          page: 1,
+          page: undefined,
         }),
       });
     }, 300);
@@ -265,8 +286,9 @@ function AdminUsersPage() {
               className="pl-9"
             />
           </div>
-          <Select
-            value={role ?? ""}
+          <Combobox
+            value={role}
+
             onValueChange={(value) => {
               const next = value as z.infer<typeof usersSearchSchema>["role"] | undefined;
               setRole(next);
@@ -274,23 +296,14 @@ function AdminUsersPage() {
                 search: (prev) => ({
                   ...prev,
                   role: next || undefined,
-                  page: 1,
+                  page: undefined,
                 }),
               });
             }}
-          >
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue placeholder="All roles" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All roles</SelectItem>
-              {roleOptions.map((r) => (
-                <SelectItem key={r.value} value={r.value}>
-                  {r.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className="w-full sm:w-44"
+            placeholder="All roles"
+            options={roleOptions}
+          />
           {!canManageUsers && (
             <p className="text-xs text-celis-ink-tertiary sm:self-center">
               Read-only: you cannot modify users.
@@ -368,22 +381,13 @@ function AdminUsersPage() {
             key: "role",
             header: "Role",
             cell: (u) => (
-              <Select
+              <Combobox
                 value={u.role}
                 disabled={!canManageUsers || loadingId === u.id}
                 onValueChange={(v) => handleRoleChange(u.id, v)}
-              >
-                <SelectTrigger className="h-8 w-full sm:w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {roleOptions.map((r) => (
-                    <SelectItem key={r.value} value={r.value}>
-                      {r.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                className="w-32"
+                options={userRoleOptions}
+              />
             ),
           },
           {
@@ -439,7 +443,9 @@ function AdminUsersPage() {
       <Pagination
         page={page}
         totalPages={totalPages}
-        onPageChange={(p) => navigate({ search: (prev) => ({ ...prev, page: p }) })}
+        onPageChange={(p) =>
+          navigate({ search: (prev) => ({ ...prev, page: p > 1 ? p : undefined }) })
+        }
       />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
