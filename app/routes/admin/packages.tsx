@@ -21,6 +21,7 @@ import {
   updateAdminListingPackage,
   assignAdminSellerPackage,
 } from "~/server/admin.functions";
+import { formatPrice } from "~/lib/format";
 
 export const Route = createFileRoute("/admin/packages")({
   component: AdminPackagesPage,
@@ -36,21 +37,33 @@ export const Route = createFileRoute("/admin/packages")({
 });
 
 interface PackageForm {
+  code: string;
   name: string;
   description: string;
+  sellerTypeEligibility: "individual" | "shop" | "";
   listingAllowance: number;
+  isUnlimited: boolean;
+  featuredAllowance: number;
   durationDays: number;
   price: number;
   currency: string;
+  autoRenew: boolean;
+  gracePeriodDays: number;
 }
 
 const emptyForm: PackageForm = {
+  code: "",
   name: "",
   description: "",
+  sellerTypeEligibility: "",
   listingAllowance: 10,
+  isUnlimited: false,
+  featuredAllowance: 0,
   durationDays: 30,
   price: 0,
   currency: "USD",
+  autoRenew: false,
+  gracePeriodDays: 0,
 };
 
 function AdminPackagesPage() {
@@ -61,8 +74,12 @@ function AdminPackagesPage() {
   const [form, setForm] = useState<PackageForm>(emptyForm);
   const [loading, setLoading] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [assignSellerNumber, setAssignSellerNumber] = useState("");
   const [assignEmail, setAssignEmail] = useState("");
   const [assignPackageId, setAssignPackageId] = useState("");
+  const [assignSource, setAssignSource] = useState("admin");
+  const [assignPaymentRef, setAssignPaymentRef] = useState("");
+  const [assignPricePaid, setAssignPricePaid] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
   const packageOptions = packages.map((p) => ({
     value: p.id,
@@ -82,12 +99,21 @@ function AdminPackagesPage() {
   const openEdit = (pkg: typeof packages[number]) => {
     setEditing(pkg);
     setForm({
+      code: pkg.code ?? "",
       name: pkg.name,
       description: pkg.description ?? "",
+      sellerTypeEligibility:
+        pkg.sellerTypeEligibility === "individual" || pkg.sellerTypeEligibility === "shop"
+          ? pkg.sellerTypeEligibility
+          : "",
       listingAllowance: pkg.listingAllowance,
+      isUnlimited: pkg.isUnlimited,
+      featuredAllowance: pkg.featuredAllowance ?? 0,
       durationDays: pkg.durationDays,
       price: pkg.price,
       currency: pkg.currency,
+      autoRenew: pkg.autoRenew,
+      gracePeriodDays: pkg.gracePeriodDays ?? 0,
     });
     setOpen(true);
   };
@@ -96,12 +122,19 @@ function AdminPackagesPage() {
     e.preventDefault();
     setLoading(true);
     try {
+      const payload = {
+        ...form,
+        sellerTypeEligibility:
+          form.sellerTypeEligibility === ""
+            ? undefined
+            : form.sellerTypeEligibility,
+      };
       if (editing) {
         await updateAdminListingPackage({
-          data: { id: editing.id, ...form },
+          data: { id: editing.id, ...payload },
         });
       } else {
-        await createAdminListingPackage({ data: form });
+        await createAdminListingPackage({ data: payload });
       }
       await router.invalidate();
       setOpen(false);
@@ -114,15 +147,27 @@ function AdminPackagesPage() {
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignPackageId) return;
+    if (!assignSellerNumber && !assignEmail) return;
     setAssignLoading(true);
     try {
       await assignAdminSellerPackage({
-        data: { sellerEmail: assignEmail, packageId: assignPackageId },
+        data: {
+          sellerNumber: assignSellerNumber || undefined,
+          sellerEmail: assignEmail || undefined,
+          packageId: assignPackageId,
+          assignmentSource: assignSource,
+          paymentReference: assignPaymentRef || undefined,
+          pricePaidCents: assignPricePaid ? Number(assignPricePaid) : undefined,
+        },
       });
       await router.invalidate();
       setAssignOpen(false);
+      setAssignSellerNumber("");
       setAssignEmail("");
       setAssignPackageId("");
+      setAssignSource("admin");
+      setAssignPaymentRef("");
+      setAssignPricePaid("");
     } finally {
       setAssignLoading(false);
     }
@@ -165,7 +210,18 @@ function AdminPackagesPage() {
                 key: "allowance",
                 header: "Listings",
                 cell: (p) => (
-                  <span className="tabular-nums">{p.listingAllowance}</span>
+                  <span className="tabular-nums">
+                    {p.isUnlimited ? "Unlimited" : p.listingAllowance}
+                  </span>
+                ),
+              },
+              {
+                key: "featured",
+                header: "Featured",
+                cell: (p) => (
+                  <span className="tabular-nums">
+                    {p.featuredAllowance ?? "—"}
+                  </span>
                 ),
               },
               {
@@ -180,7 +236,17 @@ function AdminPackagesPage() {
                 header: "Price",
                 cell: (p) => (
                   <span className="tabular-nums">
-                    {p.price / 100} {p.currency}
+                    {formatPrice(p.price, p.currency)}
+                  </span>
+                ),
+              },
+              {
+                key: "renewal",
+                header: "Renewal",
+                cell: (p) => (
+                  <span className="text-xs">
+                    {p.autoRenew ? "Auto" : "Manual"}
+                    {p.gracePeriodDays ? ` · ${p.gracePeriodDays}d grace` : ""}
                   </span>
                 ),
               },
@@ -199,7 +265,7 @@ function AdminPackagesPage() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto p-4 sm:max-w-lg md:p-6">
           <DialogHeader>
             <DialogTitle>
               {editing ? "Edit package" : "Add package"}
@@ -225,13 +291,48 @@ function AdminPackagesPage() {
                 }
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="code">Code</Label>
+                <Input
+                  id="code"
+                  value={form.code}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, code: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sellerType">Seller type</Label>
+                <Select
+                  value={form.sellerTypeEligibility}
+                  onValueChange={(v) =>
+                    setForm((f) => ({
+                      ...f,
+                      sellerTypeEligibility: v as PackageForm["sellerTypeEligibility"],
+                    }))
+                  }
+                >
+                  <SelectTrigger id="sellerType" className="w-full">
+                    <SelectValue placeholder="All seller types" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="max-h-[50vh]">
+                    <SelectItem value="">All seller types</SelectItem>
+                    <SelectItem value="individual">Individual</SelectItem>
+                    <SelectItem value="shop">Shop</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="allowance">Listing allowance</Label>
                 <Input
                   id="allowance"
                   type="number"
                   min={1}
+                  disabled={form.isUnlimited}
                   value={form.listingAllowance}
                   onChange={(e) =>
                     setForm((f) => ({
@@ -241,6 +342,35 @@ function AdminPackagesPage() {
                   }
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="featured">Featured allowance</Label>
+                <Input
+                  id="featured"
+                  type="number"
+                  min={0}
+                  value={form.featuredAllowance}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      featuredAllowance: Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="unlimited"
+                checked={form.isUnlimited}
+                onCheckedChange={(checked) =>
+                  setForm((f) => ({ ...f, isUnlimited: checked }))
+                }
+              />
+              <Label htmlFor="unlimited" className="cursor-pointer">
+                Unlimited listings
+              </Label>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="duration">Duration (days)</Label>
                 <Input
@@ -253,8 +383,23 @@ function AdminPackagesPage() {
                   }
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="grace">Grace period (days)</Label>
+                <Input
+                  id="grace"
+                  type="number"
+                  min={0}
+                  value={form.gracePeriodDays}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      gracePeriodDays: Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="price">Price (cents)</Label>
                 <Input
@@ -277,6 +422,18 @@ function AdminPackagesPage() {
                   }
                 />
               </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="autoRenew"
+                checked={form.autoRenew}
+                onCheckedChange={(checked) =>
+                  setForm((f) => ({ ...f, autoRenew: checked }))
+                }
+              />
+              <Label htmlFor="autoRenew" className="cursor-pointer">
+                Auto-renew
+              </Label>
             </div>
             {editing && (
               <div className="flex items-center gap-2">
@@ -305,19 +462,28 @@ function AdminPackagesPage() {
       </Dialog>
 
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto p-4 sm:max-w-md md:p-6">
           <DialogHeader>
             <DialogTitle>Assign package to seller</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAssign} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="sellerEmail">Seller email</Label>
+              <Label htmlFor="sellerNumber">Seller number</Label>
+              <Input
+                id="sellerNumber"
+                value={assignSellerNumber}
+                onChange={(e) => setAssignSellerNumber(e.target.value)}
+                placeholder="e.g. 12345678"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sellerEmail">Or seller email</Label>
               <Input
                 id="sellerEmail"
                 type="email"
                 value={assignEmail}
                 onChange={(e) => setAssignEmail(e.target.value)}
-                required
+                placeholder="Optional if seller number is provided"
               />
             </div>
             <div className="space-y-2">
@@ -329,6 +495,44 @@ function AdminPackagesPage() {
                 searchPlaceholder="Search packages..."
                 options={packageOptions}
               />
+
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="assignSource">Assignment source</Label>
+              <Select
+                value={assignSource}
+                onValueChange={setAssignSource}
+              >
+                <SelectTrigger id="assignSource">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin assignment</SelectItem>
+                  <SelectItem value="payment">Payment</SelectItem>
+                  <SelectItem value="promotion">Promotion</SelectItem>
+                  <SelectItem value="migration">Migration</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paymentRef">Payment reference</Label>
+              <Input
+                id="paymentRef"
+                value={assignPaymentRef}
+                onChange={(e) => setAssignPaymentRef(e.target.value)}
+                placeholder="Optional transaction ID"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pricePaid">Price paid (cents)</Label>
+              <Input
+                id="pricePaid"
+                type="number"
+                min={0}
+                value={assignPricePaid}
+                onChange={(e) => setAssignPricePaid(e.target.value)}
+                placeholder="Optional"
+              />
             </div>
             <DialogFooter>
               <Button
@@ -338,7 +542,10 @@ function AdminPackagesPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={assignLoading || !assignPackageId}>
+              <Button
+                type="submit"
+                disabled={assignLoading || !assignPackageId || (!assignSellerNumber && !assignEmail)}
+              >
                 {assignLoading ? "Assigning..." : "Assign"}
               </Button>
             </DialogFooter>

@@ -23,22 +23,47 @@ import {
   submitShopListing,
 } from "~/server/listings.functions";
 import {
-  ITEM_CONDITIONS,
+  fetchCategoryConditions,
+  fetchCategoryMetadataSchema,
+  type CategoryConditionItem,
+} from "~/server/categories.functions";
+import { getListingPricingPreview } from "~/server/config.functions";
+import {
   DELIVERY_METHODS,
   MONETIZATION_TYPES,
+  WALLET_PROVIDERS,
 } from "~/db/schema";
 import { formatPrice } from "~/lib/format";
 import {
   calculateListingPricing,
   type ListingTiersConfig,
+  type ListingPricing,
+  type MonetizationModel,
 } from "~/lib/pricing";
+import {
+  validateMetadata,
+  normalizeMetadataValue,
+  formatMetadataValue,
+  type MetadataField,
+  type CategoryMetadataSchema,
+} from "~/lib/category-metadata";
 import { ChevronLeft, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
 import type { CategoryListItem } from "~/server/categories.functions";
+
+interface FeatureToggles {
+  localPickupEnabled: boolean;
+  platformShippingEnabled: boolean;
+  evcEnabled: boolean;
+  premierWalletEnabled: boolean;
+  edahabEnabled: boolean;
+}
 
 interface ListingWizardProps {
   sellerId: string;
   categories: CategoryListItem[];
   tiersConfig: ListingTiersConfig;
+  monetizationModel: MonetizationModel;
+  featureToggles: FeatureToggles;
 }
 
 const STEPS = ["Details", "Pricing", "Photos", "Review"];
@@ -51,7 +76,7 @@ const emptyForm: ListingInput = {
   title: "",
   description: "",
   categoryId: "",
-  condition: "good",
+  condition: null,
   price: 0,
   monetizationType: "fixed_rate",
   deliveryMethod: "local_pickup",
@@ -59,12 +84,54 @@ const emptyForm: ListingInput = {
   metadata: {},
 };
 
-export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWizardProps) {
+export function ListingWizard({
+  sellerId,
+  categories,
+  tiersConfig,
+  monetizationModel,
+  featureToggles,
+}: ListingWizardProps) {
+  const enabledDeliveryMethods = useMemo(() => {
+    return DELIVERY_METHODS.filter((m) => {
+      if (m === "shipping") return featureToggles.platformShippingEnabled;
+      if (m === "local_pickup") return featureToggles.localPickupEnabled;
+      return featureToggles.platformShippingEnabled && featureToggles.localPickupEnabled;
+    });
+  }, [featureToggles]);
+
+  const enabledWalletProviders = useMemo(() => {
+    return WALLET_PROVIDERS.filter((p) => {
+      if (p === "evc") return featureToggles.evcEnabled;
+      if (p === "premier") return featureToggles.premierWalletEnabled;
+      if (p === "edahab") return featureToggles.edahabEnabled;
+      return true;
+    });
+  }, [featureToggles]);
+
+  const defaultDeliveryMethod = enabledDeliveryMethods[0] ?? "local_pickup";
+
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState<ListingInput>(emptyForm);
+  const [form, setForm] = useState<ListingInput>({
+    ...emptyForm,
+    monetizationType:
+      monetizationModel === "commission_only" ? "commission" : "fixed_rate",
+    deliveryMethod: defaultDeliveryMethod as ListingInput["deliveryMethod"],
+  });
+
+  // If toggles change and the selected delivery method is no longer available,
+  // fall back to the first enabled option.
+  useEffect(() => {
+    if (!enabledDeliveryMethods.includes(form.deliveryMethod)) {
+      setForm((prev) => ({
+        ...prev,
+        deliveryMethod: defaultDeliveryMethod as ListingInput["deliveryMethod"],
+      }));
+    }
+  }, [enabledDeliveryMethods, defaultDeliveryMethod, form.deliveryMethod]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [createdListingId, setCreatedListingId] = useState<string | null>(null);
+  const [serverFeeCents, setServerFeeCents] = useState<number>(0);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [submittedForReview, setSubmittedForReview] = useState(false);
   const [eligibility, setEligibility] = useState<{
@@ -73,10 +140,41 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
     requiresPayment: boolean;
     remainingListings: number | null;
   } | null>(null);
+  const [categoryConditions, setCategoryConditions] = useState<
+    CategoryConditionItem[]
+  >([]);
+  const [metadataSchema, setMetadataSchema] = useState<CategoryMetadataSchema | null>(null);
 
   useEffect(() => {
     fetchSellerListingEligibility({ data: { sellerId } }).then(setEligibility);
   }, [sellerId]);
+
+  useEffect(() => {
+    if (!form.categoryId) {
+      setCategoryConditions([]);
+      setMetadataSchema(null);
+      return;
+    }
+    fetchCategoryConditions({ data: { categoryId: form.categoryId } }).then(
+      setCategoryConditions
+    );
+    fetchCategoryMetadataSchema({ data: { categoryId: form.categoryId } }).then(
+      setMetadataSchema
+    );
+  }, [form.categoryId]);
+
+  useEffect(() => {
+    setForm((prev) => {
+      if (!prev.condition) return prev;
+      if (
+        categoryConditions.length > 0 &&
+        !categoryConditions.some((c) => c.code === prev.condition)
+      ) {
+        return { ...prev, condition: null };
+      }
+      return prev;
+    });
+  }, [categoryConditions]);
 
   const updateField = <K extends keyof ListingInput>(key: K, value: ListingInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -87,14 +185,37 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
     });
   };
 
+  const updateMetadata = (key: string, value: unknown) => {
+    const field = metadataSchema?.fields.find((f) => f.key === key);
+    const normalized = field
+      ? normalizeMetadataValue(field.type, value)
+      : value === null || value === undefined
+      ? null
+      : typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+      ? value
+      : null;
+    setForm((prev) => ({
+      ...prev,
+      metadata: { ...prev.metadata, [key]: normalized },
+    }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   const validateStep = () => {
     const result = listingSchema.safeParse(form);
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.issues.forEach((issue) => {
-        const path = issue.path[0] as string;
-        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
-      });
+    const metadataErrors = validateMetadata(metadataSchema, form.metadata);
+    if (!result.success || Object.keys(metadataErrors).length > 0) {
+      const fieldErrors: Record<string, string> = { ...metadataErrors };
+      if (!result.success) {
+        result.error.issues.forEach((issue) => {
+          const path = issue.path[0] as string;
+          if (!fieldErrors[path]) fieldErrors[path] = issue.message;
+        });
+      }
       setErrors(fieldErrors);
       return false;
     }
@@ -115,9 +236,10 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
     return true;
   }, [step, form]);
 
-  const preview = useMemo(
-    () => calculateListingPricing(form.price, form.condition, tiersConfig),
-    [form.price, form.condition, tiersConfig]
+  const [preview, setPreview] = useState<ListingPricing>(() =>
+    calculateListingPricing(form.price, tiersConfig, {
+      monetizationModel,
+    })
   );
 
   const categoryOptions = useMemo(
@@ -140,6 +262,25 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
     () => DELIVERY_METHODS.map((m) => ({ value: m, label: titleCase(m) })),
     []
   );
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!form.categoryId) {
+        setPreview(
+          calculateListingPricing(form.price, tiersConfig, {
+            monetizationModel,
+          })
+        );
+        return;
+      }
+      getListingPricingPreview({
+        data: {
+          price: form.price,
+          categoryId: form.categoryId,
+        },
+      }).then(setPreview);
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [form.price, form.condition, form.categoryId, tiersConfig, monetizationModel]);
 
   const handleNext = () => {
     if (step < STEPS.length - 1) {
@@ -160,6 +301,7 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
         data: { sellerId, listing: form },
       });
       setCreatedListingId(result.id);
+      setServerFeeCents(result.feeCents ?? 0);
 
       if (eligibility.requiresPayment) {
         setPaymentOpen(true);
@@ -272,6 +414,23 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
                   <p className="text-sm text-celis-destructive">{errors.description}</p>
                 )}
               </div>
+
+              {metadataSchema && metadataSchema.fields.length > 0 && (
+                <div className="space-y-4 rounded-lg border border-celis-border bg-celis-surface-inset p-4">
+                  <h3 className="text-sm font-medium text-celis-ink">
+                    Category details
+                  </h3>
+                  {metadataSchema.fields.map((field) => (
+                    <MetadataFieldInput
+                      key={field.key}
+                      field={field}
+                      value={form.metadata[field.key]}
+                      error={errors[field.key]}
+                      onChange={(value) => updateMetadata(field.key, value)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -313,23 +472,65 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
                   onValueChange={(v) => updateField("deliveryMethod", v as typeof form.deliveryMethod)}
                   options={deliveryOptions}
                 />
+
+              </div>
+
+              <div className="rounded-lg border border-celis-border bg-celis-surface-inset p-4 text-sm text-celis-ink-secondary">
+                <p className="mb-2 font-medium text-celis-ink">Listing fee tiers</p>
+                <ul className="space-y-1">
+                  {tiersConfig.tiers.map((tier) => {
+                    const min = tier.minCents / 100;
+                    const max = tier.maxCents === null ? null : tier.maxCents / 100;
+                    const range = max === null
+                      ? `$${min.toLocaleString()}+`
+                      : `$${min.toLocaleString()} – $${max.toLocaleString()}`;
+                    return (
+                      <li
+                        key={tier.label}
+                        className={`flex items-center justify-between ${
+                          preview.tierLabel === tier.label
+                            ? "font-medium text-celis-ink"
+                            : ""
+                        }`}
+                      >
+                        <span>
+                          {tier.label}: {range}
+                        </span>
+                        <span>{formatPrice(tier.feeCents)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
 
               <div className="rounded-lg border border-celis-border bg-celis-surface-inset p-4 text-sm text-celis-ink-secondary">
                 <p className="font-medium text-celis-ink">
                   {preview.tierLabel} tier
                 </p>
-                <p>
-                  Listing fee:{" "}
-                  <strong className="text-celis-ink">
-                    {formatPrice(preview.feeCents)}
-                  </strong>{" "}
-                  {preview.baseFeeCents !== preview.feeCents && (
-                    <span className="text-xs">
-                      ({formatPrice(preview.baseFeeCents)} × condition multiplier)
-                    </span>
-                  )}
-                </p>
+                {preview.feeCents > 0 && (
+                  <p>
+                    Listing fee:{" "}
+                    <strong className="text-celis-ink">
+                      {formatPrice(preview.feeCents)}
+                    </strong>
+                  </p>
+                )}
+                {preview.commissionAmountCents !== null && preview.commissionAmountCents > 0 && (
+                  <p>
+                    Commission ({(preview.commissionBps ?? 0) / 100}%):{" "}
+                    <strong className="text-celis-ink">
+                      {formatPrice(preview.commissionAmountCents)}
+                    </strong>
+                  </p>
+                )}
+                {preview.totalFeeCents > 0 && (
+                  <p>
+                    Total charge:{" "}
+                    <strong className="text-celis-ink">
+                      {formatPrice(preview.totalFeeCents)}
+                    </strong>
+                  </p>
+                )}
                 <p>Expires on {preview.expiresAt.toLocaleDateString()}.</p>
               </div>
             </div>
@@ -362,8 +563,21 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Condition</dt>
-                  <dd className="font-medium">{form.condition.replace(/_/g, " ")}</dd>
+                  <dd className="font-medium">
+                    {categoryConditions.find((c) => c.code === form.condition)?.label ??
+                      form.condition?.replace(/_/g, " ") ??
+                      "—"}
+                  </dd>
                 </div>
+                {metadataSchema &&
+                  metadataSchema.fields.map((field) => (
+                    <div key={field.key} className="flex justify-between py-2">
+                      <dt className="text-celis-ink-secondary">{field.label}</dt>
+                      <dd className="font-medium">
+                        {formatMetadataValue(field, form.metadata[field.key])}
+                      </dd>
+                    </div>
+                  ))}
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Price</dt>
                   <dd className="font-medium">{formatPrice(form.price)}</dd>
@@ -374,8 +588,18 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Listing fee</dt>
-                  <dd className="font-medium">{formatPrice(preview.feeCents)}</dd>
+                  <dd className="font-medium">
+                    {preview.feeCents > 0 ? formatPrice(preview.feeCents) : "—"}
+                  </dd>
                 </div>
+                {preview.commissionAmountCents !== null && preview.commissionAmountCents > 0 && (
+                  <div className="flex justify-between py-2">
+                    <dt className="text-celis-ink-secondary">Commission</dt>
+                    <dd className="font-medium">
+                      {formatPrice(preview.commissionAmountCents)} ({(preview.commissionBps ?? 0) / 100}%)
+                    </dd>
+                  </div>
+                )}
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Expires</dt>
                   <dd className="font-medium">
@@ -427,9 +651,13 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {eligibility?.requiresPayment
-                ? `Publish & pay ${formatPrice(preview.feeCents)}`
+                ? `Publish & pay ${formatPrice(serverFeeCents || preview.totalFeeCents)}`
                 : eligibility?.sellerType === "shop"
-                ? `Publish (package: ${eligibility?.remainingListings ?? 0} left)`
+                ? `Publish (package: ${
+                    eligibility?.remainingListings === null
+                      ? "Unlimited"
+                      : `${eligibility?.remainingListings} left`
+                  })`
                 : "Publish"}
             </Button>
           )}
@@ -441,9 +669,81 @@ export function ListingWizard({ sellerId, categories, tiersConfig }: ListingWiza
         onOpenChange={setPaymentOpen}
         userId={sellerId}
         listingId={createdListingId}
-        amountCents={preview.feeCents}
-        onSuccess={() => setSubmittedForReview(true)}
+        amountCents={serverFeeCents || preview.totalFeeCents}
+        enabledProviders={enabledWalletProviders}
+        onSuccess={() => setFinished(true)}
       />
     </>
+  );
+}
+
+function MetadataFieldInput({
+  field,
+  value,
+  error,
+  onChange,
+}: {
+  field: MetadataField;
+  value: unknown;
+  error?: string;
+  onChange: (value: unknown) => void;
+}) {
+  const normalized = normalizeMetadataValue(field.type, value);
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={`meta-${field.key}`}>
+        {field.label}
+        {field.required && <span className="text-celis-destructive"> *</span>}
+      </Label>
+      {field.type === "text" && (
+        <Input
+          id={`meta-${field.key}`}
+          value={normalized as string}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+      {field.type === "number" && (
+        <Input
+          id={`meta-${field.key}`}
+          type="number"
+          value={normalized as number}
+          onChange={(e) =>
+            onChange(
+              e.target.value === "" ? "" : Number(e.target.value)
+            )
+          }
+        />
+      )}
+      {field.type === "boolean" && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={normalized as boolean}
+            onChange={(e) => onChange(e.target.checked)}
+            className="h-4 w-4 rounded border-celis-border"
+          />
+          Yes
+        </label>
+      )}
+      {field.type === "select" && (
+        <Select
+          value={normalized as string}
+          onValueChange={(v) => onChange(v)}
+        >
+          <SelectTrigger id={`meta-${field.key}`} className="w-full">
+            <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
+          </SelectTrigger>
+          <SelectContent position="popper" className="max-h-[50vh]">
+            {(field.options ?? []).map((opt) => (
+              <SelectItem key={opt} value={opt}>
+                {opt}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {error && <p className="text-sm text-celis-destructive">{error}</p>}
+    </div>
   );
 }

@@ -9,6 +9,9 @@ import {
   getFeaturedListings,
   getSellerListings,
   deleteListing,
+  deactivateListing,
+  reactivateListing,
+  markListingAsSold,
   getListingReviews,
   insertListingReview,
   submitShopListingForReview,
@@ -18,6 +21,8 @@ import {
   getSellerListingEligibility,
   getCurrentSellerSubscription,
 } from "./seller-packages.server";
+import { getCategoryMetadataSchema } from "./categories.server";
+import { validateMetadata } from "~/lib/category-metadata";
 import { ITEM_CONDITIONS } from "~/db/schema";
 
 const createListingSchema = z.object({
@@ -75,8 +80,32 @@ export const createListing = createServerFn({ method: "POST" })
     if (!user?.phone) {
       throw new Error("Add a phone number to your account before listing an item.");
     }
+    const metadataSchema = await getCategoryMetadataSchema(data.listing.categoryId);
+    const metadataErrors = validateMetadata(metadataSchema, data.listing.metadata);
+    if (Object.keys(metadataErrors).length > 0) {
+      throw new Error(
+        Object.entries(metadataErrors)
+          .map(([_, msg]) => msg)
+          .join("; ")
+      );
+    }
     const listing = await insertDraftListing(data.sellerId, data.listing);
-    return { id: listing.id, status: listing.status };
+
+    const { getListingPricing } = await import("./config.server");
+    const pricing = await getListingPricing(
+      data.listing.price,
+      data.listing.categoryId
+    );
+
+    const { updateListingFees } = await import("./listings.server");
+    await updateListingFees(listing.id, pricing);
+
+    return {
+      id: listing.id,
+      status: listing.status,
+      feeCents: pricing.totalFeeCents,
+      expiresAt: pricing.expiresAt.toISOString(),
+    };
   });
 
 const listingIdSchema = z.object({ id: z.string().uuid() });
@@ -105,6 +134,7 @@ const searchSchema = z.object({
   minPrice: z.coerce.number().int().min(0).optional(),
   maxPrice: z.coerce.number().int().min(0).optional(),
   condition: z.enum(ITEM_CONDITIONS).optional(),
+  metadata: z.record(z.string()).optional(),
   sort: z.enum(["newest", "price_asc", "price_desc"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -136,16 +166,48 @@ export const fetchSellerListings = createServerFn({ method: "GET" })
     return getSellerListings(user.id, data);
   });
 
-const deleteListingSchema = z.object({ id: z.string().uuid() });
+const listingActionSchema = z.object({ id: z.string().uuid() });
 
 export const removeListing = createServerFn({ method: "POST" })
-  .validator(deleteListingSchema)
+  .validator(listingActionSchema)
   .handler(async ({ data }) => {
     const { getCurrentUser } = await import("./auth.server");
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
     const deleted = await deleteListing(data.id, user.id);
     return { success: !!deleted, id: deleted?.id };
+  });
+
+export const deactivateSellerListing = createServerFn({ method: "POST" })
+  .validator(listingActionSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    const updated = await deactivateListing(data.id, user.id);
+    return { success: !!updated, id: updated?.id, status: updated?.status };
+  });
+
+export const reactivateSellerListing = createServerFn({ method: "POST" })
+  .validator(listingActionSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    const updated = await reactivateListing(data.id, user.id);
+    return { success: !!updated, id: updated?.id, status: updated?.status };
+  });
+
+const markSoldSchema = z.object({ id: z.string().uuid(), orderId: z.string().uuid().optional() });
+
+export const markSellerListingSold = createServerFn({ method: "POST" })
+  .validator(markSoldSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    const updated = await markListingAsSold(data.id, user.id, data.orderId);
+    return { success: !!updated, id: updated?.id, status: updated?.status };
   });
 
 export const fetchListingReviews = createServerFn({ method: "GET" })

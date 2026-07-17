@@ -3,6 +3,7 @@ import {
   Link,
   redirect,
   useNavigate,
+  useRouter,
 } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { z } from "zod";
@@ -16,10 +17,31 @@ import { ListingStatusBadge } from "~/components/admin/status-badge";
 import {
   fetchSellerListings,
   removeListing,
+  deactivateSellerListing,
+  reactivateSellerListing,
+  markSellerListingSold,
   fetchCurrentSellerSubscription,
 } from "~/server/listings.functions";
+import { PaymentModal } from "~/components/listings/payment-modal";
+import { getFeaturedListingFee } from "~/server/config.functions";
 import { formatPrice } from "~/lib/format";
-import { Trash2, Package, Store, Calendar } from "lucide-react";
+import {
+  Trash2,
+  Package,
+  Store,
+  Calendar,
+  Sparkles,
+  Pause,
+  Play,
+  CheckCircle2,
+  MoreHorizontal,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 
 const dashboardSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -45,20 +67,31 @@ export const Route = createFileRoute("/dashboard")({
   validateSearch: dashboardSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {
-    return fetchSellerListings({ data: { page: search.page, limit: 10 } });
+    const [listingsData, featuredFeeCents] = await Promise.all([
+      fetchSellerListings({ data: { page: search.page, limit: 10 } }),
+      getFeaturedListingFee(),
+    ]);
+    return { ...listingsData, featuredFeeCents };
   },
 });
 
 function DashboardPage() {
   const { user } = useAuth();
-  const { items, total, activeCount, page, totalPages } = Route.useLoaderData();
+  const { items, total, activeCount, page, totalPages, featuredFeeCents } =
+    Route.useLoaderData();
   const navigate = useNavigate({ from: "/dashboard" });
+  const router = useRouter();
   const [listings, setListings] = useState(items);
+  const [featureModal, setFeatureModal] = useState<{
+    open: boolean;
+    listingId: string | null;
+  }>({ open: false, listingId: null });
   const [subscription, setSubscription] = useState<{
     packageName: string;
-    listingAllowance: number;
+    listingAllowance: number | null;
+    isUnlimited: boolean;
     used: number;
-    remaining: number;
+    remaining: number | null;
     expiresAt: Date;
   } | null>(null);
 
@@ -69,9 +102,48 @@ function DashboardPage() {
   }, [user]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this listing?")) return;
-    await removeListing({ data: { id } });
-    setListings((prev) => prev.filter((l) => l.id !== id));
+    if (!confirm("Delete this listing? This cannot be undone.")) return;
+    try {
+      await removeListing({ data: { id } });
+      setListings((prev) => prev.filter((l) => l.id !== id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed");
+    }
+  };
+
+  const handleDeactivate = async (id: string) => {
+    if (!confirm("Deactivate this listing? It will be hidden from buyers.")) return;
+    try {
+      await deactivateSellerListing({ data: { id } });
+      setListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: "inactive" } : l))
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Deactivation failed");
+    }
+  };
+
+  const handleReactivate = async (id: string) => {
+    try {
+      await reactivateSellerListing({ data: { id } });
+      setListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: "active" } : l))
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Reactivation failed");
+    }
+  };
+
+  const handleMarkSold = async (id: string) => {
+    if (!confirm("Mark this listing as sold?")) return;
+    try {
+      await markSellerListingSold({ data: { id } });
+      setListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: "sold" } : l))
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Mark as sold failed");
+    }
   };
 
   return (
@@ -87,6 +159,11 @@ function DashboardPage() {
             <p className="text-sm text-celis-ink-secondary">
               {user?.role === "seller" ? "Seller dashboard" : "Buyer dashboard"}
             </p>
+            {user?.sellerNumber && (
+              <p className="mt-1 text-xs text-celis-ink-tertiary">
+                Seller number: <span className="font-mono">{user.sellerNumber}</span>
+              </p>
+            )}
           </div>
           <Button asChild>
             <Link to="/sell">List new item</Link>
@@ -133,7 +210,9 @@ function DashboardPage() {
                   <Calendar className="h-5 w-5 text-celis-primary" />
                   {subscription ? (
                     <span>
-                      {subscription.remaining} / {subscription.listingAllowance}
+                      {subscription.isUnlimited
+                        ? "Unlimited"
+                        : `${subscription.remaining} / ${subscription.listingAllowance}`}
                     </span>
                   ) : (
                     <span className="text-base font-normal text-celis-ink-secondary">
@@ -194,8 +273,14 @@ function DashboardPage() {
                         <p className="text-sm text-celis-ink-secondary">
                           {formatPrice(listing.price)} · {listing.categoryName}
                         </p>
-                        <div className="mt-1">
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
                           <ListingStatusBadge status={listing.status} />
+                          {listing.isFeatured && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-celis-caution/10 px-2 py-0.5 text-xs font-medium text-celis-caution">
+                              <Sparkles className="h-3 w-3" />
+                              Featured
+                            </span>
+                          )}
                         </div>
                         {listing.status === "pending_review" && (
                           <p className="mt-1 text-xs text-celis-ink-tertiary">
@@ -211,15 +296,67 @@ function DashboardPage() {
                           )}
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(listing.id)}
-                      aria-label="Delete listing"
-                      className="self-start sm:self-center"
-                    >
-                      <Trash2 className="h-4 w-4 text-celis-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                      {listing.status === "active" && featuredFeeCents > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setFeatureModal({ open: true, listingId: listing.id })
+                          }
+                        >
+                          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                          {listing.isFeatured ? "Extend feature" : "Feature"}
+                        </Button>
+                      )}
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" aria-label="Listing actions">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {listing.status === "active" && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleDeactivate(listing.id)}>
+                                <Pause className="mr-2 h-4 w-4" />
+                                Deactivate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleMarkSold(listing.id)}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                Mark as sold
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {listing.status === "inactive" && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleReactivate(listing.id)}>
+                                <Play className="mr-2 h-4 w-4" />
+                                Reactivate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleMarkSold(listing.id)}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                Mark as sold
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {(listing.status === "draft" ||
+                            listing.status === "pending_review" ||
+                            listing.status === "rejected" ||
+                            listing.status === "expired" ||
+                            listing.status === "inactive") && (
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(listing.id)}
+                              className="text-celis-destructive focus:text-celis-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -235,6 +372,19 @@ function DashboardPage() {
           </CardContent>
         </Card>
       </main>
+
+      <PaymentModal
+        open={featureModal.open}
+        onOpenChange={(open) => setFeatureModal((m) => ({ ...m, open }))}
+        userId={user?.id ?? ""}
+        listingId={featureModal.listingId}
+        amountCents={featuredFeeCents}
+        featureListing
+        onSuccess={() => {
+          router.invalidate();
+        }}
+      />
+
       <SiteFooter />
     </div>
   );

@@ -1,6 +1,42 @@
 import { db } from "~/db";
 import { profiles, users, listings, listingPackages, sellerSubscriptions } from "~/db/schema";
-import { eq, and, gte, count, desc } from "drizzle-orm";
+import { eq, and, or, gte, lte, count, desc, isNull } from "drizzle-orm";
+
+function randomSellerNumber() {
+  // 8-digit number, padded with leading zeros.
+  return String(Math.floor(10000000 + Math.random() * 90000000));
+}
+
+export async function generateUniqueSellerNumber(): Promise<string> {
+  let attempts = 0;
+  while (attempts < 10) {
+    const candidate = randomSellerNumber();
+    const existing = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.sellerNumber, candidate))
+      .limit(1);
+    if (existing.length === 0) return candidate;
+    attempts++;
+  }
+  // Fallback: include timestamp to guarantee uniqueness.
+  return String(Date.now()).slice(-8);
+}
+
+export async function ensureProfileSellerNumber(profileId: string) {
+  const rows = await db
+    .select({ sellerNumber: profiles.sellerNumber })
+    .from(profiles)
+    .where(eq(profiles.id, profileId))
+    .limit(1);
+  if (rows[0]?.sellerNumber) return rows[0].sellerNumber;
+  const sellerNumber = await generateUniqueSellerNumber();
+  await db
+    .update(profiles)
+    .set({ sellerNumber, updatedAt: new Date() })
+    .where(eq(profiles.id, profileId));
+  return sellerNumber;
+}
 
 export async function getSellerProfile(sellerId: string) {
   const rows = await db
@@ -43,7 +79,12 @@ export async function countSubscriptionListings(
     .where(
       and(
         eq(listings.sellerId, sellerId),
-        gte(listings.createdAt, since)
+        gte(listings.createdAt, since),
+        or(
+          eq(listings.status, "active"),
+          eq(listings.status, "pending_review"),
+          eq(listings.status, "sold")
+        )
       )
     );
   return Number(value);
@@ -80,11 +121,13 @@ export async function getSellerListingEligibility(sellerId: string) {
     sellerId,
     sub.subscription.startedAt
   );
-  const remaining = Math.max(0, sub.package.listingAllowance - used);
+  const remaining = sub.package.isUnlimited
+    ? null
+    : Math.max(0, sub.package.listingAllowance - used);
 
   return {
     sellerType,
-    canList: remaining > 0,
+    canList: sub.package.isUnlimited || (remaining !== null && remaining > 0),
     requiresPayment: false,
     feeCents: null,
     remainingListings: remaining,
@@ -94,7 +137,13 @@ export async function getSellerListingEligibility(sellerId: string) {
 
 export async function assignSellerPackage(
   sellerId: string,
-  packageId: string
+  packageId: string,
+  options?: {
+    assignedBy?: string;
+    assignmentSource?: string;
+    paymentReference?: string;
+    pricePaidCents?: number;
+  }
 ) {
   const pkg = await db
     .select()
@@ -107,42 +156,86 @@ export async function assignSellerPackage(
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + pkg[0].durationDays);
 
+  // A seller can only have one active subscription at a time. Cancel any
+  // existing active subscription before assigning the new one.
+  await db
+    .update(sellerSubscriptions)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(
+      and(
+        eq(sellerSubscriptions.sellerId, sellerId),
+        eq(sellerSubscriptions.status, "active")
+      )
+    );
+
   await db.insert(sellerSubscriptions).values({
     sellerId,
     packageId,
     startedAt,
     expiresAt,
     status: "active",
+    assignedBy: options?.assignedBy,
+    assignmentSource: options?.assignmentSource,
+    paymentReference: options?.paymentReference,
+    pricePaidCents: options?.pricePaidCents,
   });
 
   return getActiveSellerSubscription(sellerId);
 }
 
-export async function listListingPackages() {
+export async function listListingPackages(
+  options: { sellerType?: "individual" | "shop" } = {}
+) {
+  const now = new Date();
+  const conditions = [
+    eq(listingPackages.isActive, true),
+    or(isNull(listingPackages.effectiveFrom), lte(listingPackages.effectiveFrom, now)),
+    or(isNull(listingPackages.effectiveUntil), gte(listingPackages.effectiveUntil, now)),
+  ];
+  if (options.sellerType) {
+    conditions.push(
+      or(
+        isNull(listingPackages.sellerTypeEligibility),
+        eq(listingPackages.sellerTypeEligibility, options.sellerType)
+      )
+    );
+  }
   return db
     .select()
     .from(listingPackages)
-    .where(eq(listingPackages.isActive, true))
+    .where(and(...conditions))
     .orderBy(listingPackages.price, listingPackages.name);
 }
 
 export async function createListingPackage(input: {
+  code: string;
   name: string;
   description?: string;
+  sellerTypeEligibility?: "individual" | "shop" | null;
   listingAllowance: number;
   durationDays: number;
   price: number;
   currency?: string;
+  isUnlimited?: boolean;
+  featuredAllowance?: number;
+  autoRenew?: boolean;
+  gracePeriodDays?: number;
 }) {
   const [pkg] = await db
     .insert(listingPackages)
     .values({
+      code: input.code,
       name: input.name,
       description: input.description,
+      sellerTypeEligibility: input.sellerTypeEligibility ?? null,
       listingAllowance: input.listingAllowance,
+      isUnlimited: input.isUnlimited ?? false,
       durationDays: input.durationDays,
       price: input.price,
       currency: input.currency ?? "USD",
+      featuredAllowance: input.featuredAllowance,
+      autoRenew: input.autoRenew,
+      gracePeriodDays: input.gracePeriodDays,
     })
     .returning();
   return pkg;
@@ -151,12 +244,18 @@ export async function createListingPackage(input: {
 export async function updateListingPackage(
   id: string,
   input: Partial<{
+    code: string;
     name: string;
     description: string;
+    sellerTypeEligibility: "individual" | "shop" | null;
     listingAllowance: number;
+    isUnlimited: boolean;
+    featuredAllowance: number;
     durationDays: number;
     price: number;
     currency: string;
+    autoRenew: boolean;
+    gracePeriodDays: number;
     isActive: boolean;
   }>
 ) {
@@ -192,9 +291,14 @@ export async function getCurrentSellerSubscription(sellerId: string) {
   );
   return {
     packageName: sub.package.name,
-    listingAllowance: sub.package.listingAllowance,
+    listingAllowance: sub.package.isUnlimited
+      ? null
+      : sub.package.listingAllowance,
+    isUnlimited: sub.package.isUnlimited,
     used,
-    remaining: Math.max(0, sub.package.listingAllowance - used),
+    remaining: sub.package.isUnlimited
+      ? null
+      : Math.max(0, sub.package.listingAllowance - used),
     expiresAt: sub.subscription.expiresAt,
   };
 }

@@ -1,9 +1,58 @@
 import { db } from "~/db";
-import { categories, categoryClosure, listings } from "~/db/schema";
-import { eq, isNull, count, sql } from "drizzle-orm";
+import { categories, categoryClosure, categoryConditions, listings } from "~/db/schema";
+import { eq, isNull, count, sql, and, asc } from "drizzle-orm";
+import type { CategoryMetadataSchema } from "~/lib/category-metadata";
 
 export async function getRootCategories() {
   return db.select().from(categories).where(isNull(categories.parentId));
+}
+
+export async function getCategoryById(id: string) {
+  const rows = await db.select().from(categories).where(eq(categories.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getCategoryMetadataSchema(categoryId: string): Promise<CategoryMetadataSchema | null> {
+  const rows = await db
+    .select({ metadataSchema: categories.metadataSchema })
+    .from(categories)
+    .where(eq(categories.id, categoryId))
+    .limit(1);
+  const value = rows[0]?.metadataSchema;
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "fields" in value &&
+    Array.isArray((value as CategoryMetadataSchema).fields)
+  ) {
+    return value as CategoryMetadataSchema;
+  }
+  return null;
+}
+
+export async function updateCategoryMetadataSchema(
+  categoryId: string,
+  schema: CategoryMetadataSchema
+) {
+  const [row] = await db
+    .update(categories)
+    .set({ metadataSchema: schema as unknown as Record<string, unknown>, updatedAt: new Date() })
+    .where(eq(categories.id, categoryId))
+    .returning();
+  return row;
+}
+
+export async function getCategoryConditions(categoryId: string) {
+  return db
+    .select()
+    .from(categoryConditions)
+    .where(
+      and(
+        eq(categoryConditions.categoryId, categoryId),
+        eq(categoryConditions.isActive, true)
+      )
+    )
+    .orderBy(asc(categoryConditions.sortOrder), asc(categoryConditions.label));
 }
 
 export async function getCategoryPath(categoryId: string) {

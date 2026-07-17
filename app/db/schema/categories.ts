@@ -3,11 +3,15 @@ import {
   uuid,
   varchar,
   timestamp,
+  text,
   jsonb,
   integer,
+  boolean,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { itemConditionEnum } from "./enums";
 
 export const categories = pgTable(
   "categories",
@@ -27,6 +31,33 @@ export const categories = pgTable(
   },
   (table) => ({
     idxCategoriesParent: index("idx_categories_parent").on(table.parentId),
+  })
+);
+
+export const categoryConditions = pgTable(
+  "category_conditions",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    code: itemConditionEnum("code").notNull(),
+    label: varchar("label", { length: 100 }).notNull(),
+    description: text("description"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    uniqueCategoryCondition: uniqueIndex("idx_category_conditions_unique").on(
+      table.categoryId,
+      table.code
+    ),
   })
 );
 

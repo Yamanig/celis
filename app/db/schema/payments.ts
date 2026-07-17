@@ -63,6 +63,7 @@ export const walletPayments = pgTable(
     merchantRef: varchar("merchant_ref", { length: 100 }).notNull().unique(),
     customerPhone: varchar("customer_phone", { length: 15 }),
     status: varchar("status", { length: 20 }).notNull().default("pending"),
+    purpose: varchar("purpose", { length: 40 }).notNull().default("listing_fee"),
     callbackPayload: jsonb("callback_payload"),
     callbackReceivedAt: timestamp("callback_received_at", { withTimezone: true }),
     retryCount: integer("retry_count").notNull().default(0),

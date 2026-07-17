@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { SiteHeader } from "~/components/layout/site-header";
 import { SiteFooter } from "~/components/layout/site-footer";
@@ -23,8 +23,16 @@ import {
   fetchListingReviews,
   createListingReview,
   fetchSimilarListings,
+  deactivateSellerListing,
+  reactivateSellerListing,
+  markSellerListingSold,
+  removeListing,
 } from "~/server/listings.functions";
+import { fetchCategoryMetadataSchema } from "~/server/categories.functions";
+import { getFeaturedListingFee } from "~/server/config.functions";
+import { PaymentModal } from "~/components/listings/payment-modal";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
+import { formatMetadataValue } from "~/lib/category-metadata";
 import {
   MapPin,
   Package,
@@ -35,22 +43,33 @@ import {
   PhoneCall,
   MessageCircle,
   Star,
+  Sparkles,
+  Pause,
+  Play,
+  Trash2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/listings/$id")({
   component: ListingDetailPage,
-  loader: async ({ params }) => {
+  loader: async ({ params, context }) => {
     const listing = await fetchListingById({ data: { id: params.id } });
-    if (!listing || listing.status !== "active") {
+    if (!listing) {
       throw new Error("Listing not found");
     }
-    const [reviews, similar] = await Promise.all([
+    const isOwner = context.user?.id === listing.sellerId;
+    const canView = listing.status === "active" || isOwner;
+    if (!canView) {
+      throw new Error("Listing not found");
+    }
+    const [reviews, similar, metadataSchema, featuredFeeCents] = await Promise.all([
       fetchListingReviews({ data: { id: params.id } }),
       fetchSimilarListings({
         data: { listingId: listing.id, categoryId: listing.categoryId },
       }),
+      fetchCategoryMetadataSchema({ data: { categoryId: listing.categoryId } }),
+      getFeaturedListingFee(),
     ]);
-    return { listing, reviews, similar };
+    return { listing, reviews, similar, metadataSchema, featuredFeeCents };
   },
   head: ({ loaderData }) => {
     const listing = loaderData?.listing;
@@ -102,10 +121,13 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function ListingDetailPage() {
-  const { listing, reviews, similar } = Route.useLoaderData();
+  const { listing, reviews, similar, metadataSchema, featuredFeeCents } =
+    Route.useLoaderData();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const router = useRouter();
   const [showContact, setShowContact] = useState(false);
+  const [featureModalOpen, setFeatureModalOpen] = useState(false);
   const [callbackOpen, setCallbackOpen] = useState(false);
   const [callbackPhone, setCallbackPhone] = useState(user?.phone ?? "");
   const [callbackDescription, setCallbackDescription] = useState("");
@@ -121,6 +143,45 @@ function ListingDetailPage() {
 
   const dialNumber = listing.sellerPhone ?? "";
   const whatsappNumber = dialNumber.replace(/\D/g, "");
+
+  const handleDeactivate = async () => {
+    if (!confirm("Deactivate this listing? It will be hidden from buyers.")) return;
+    try {
+      await deactivateSellerListing({ data: { id: listing.id } });
+      await router.invalidate();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Deactivation failed");
+    }
+  };
+
+  const handleReactivate = async () => {
+    try {
+      await reactivateSellerListing({ data: { id: listing.id } });
+      await router.invalidate();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Reactivation failed");
+    }
+  };
+
+  const handleMarkSold = async () => {
+    if (!confirm("Mark this listing as sold?")) return;
+    try {
+      await markSellerListingSold({ data: { id: listing.id } });
+      await router.invalidate();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Mark as sold failed");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this listing? This cannot be undone.")) return;
+    try {
+      await removeListing({ data: { id: listing.id } });
+      navigate({ to: "/dashboard" });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed");
+    }
+  };
 
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,8 +218,17 @@ function ListingDetailPage() {
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{listing.categoryName}</Badge>
                 <Badge variant="outline">
-                  {listing.condition.replace(/_/g, " ")}
+                  {listing.condition?.replace(/_/g, " ") ?? "N/A"}
                 </Badge>
+                {listing.isFeatured && (
+                  <Badge
+                    variant="default"
+                    className="bg-celis-caution text-celis-ink hover:bg-celis-caution"
+                  >
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    Featured
+                  </Badge>
+                )}
               </div>
               <h1 className="text-2xl font-semibold leading-tight text-celis-ink sm:text-3xl">
                 {listing.title}
@@ -191,6 +261,78 @@ function ListingDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {user?.id === listing.sellerId && featuredFeeCents > 0 && (
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => setFeatureModalOpen(true)}
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {listing.isFeatured
+                      ? `Extend feature (${formatPrice(featuredFeeCents)})`
+                      : `Feature listing (${formatPrice(featuredFeeCents)})`}
+                  </Button>
+                )}
+
+                {user?.id === listing.sellerId && (
+                  <div className="grid gap-2">
+                    {listing.status === "active" && (
+                      <>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={handleDeactivate}
+                        >
+                          <Pause className="mr-2 h-4 w-4" />
+                          Deactivate
+                        </Button>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={handleMarkSold}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Mark as sold
+                        </Button>
+                      </>
+                    )}
+                    {listing.status === "inactive" && (
+                      <>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={handleReactivate}
+                        >
+                          <Play className="mr-2 h-4 w-4" />
+                          Reactivate
+                        </Button>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={handleMarkSold}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Mark as sold
+                        </Button>
+                      </>
+                    )}
+                    {(listing.status === "draft" ||
+                      listing.status === "pending_review" ||
+                      listing.status === "rejected" ||
+                      listing.status === "expired" ||
+                      listing.status === "inactive") && (
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        onClick={handleDelete}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                )}
 
                 {localReviews.count > 0 && (
                   <div className="flex items-center gap-2 text-sm text-celis-ink-secondary">
@@ -340,6 +482,22 @@ function ListingDetailPage() {
                     <MapPin className="h-4 w-4" />
                     <span>Location: seller&apos;s area</span>
                   </div>
+                  {metadataSchema &&
+                    metadataSchema.fields.map((field) => {
+                      const value = listing.metadata[field.key];
+                      if (value === undefined || value === null || value === "") return null;
+                      return (
+                        <div
+                          key={field.key}
+                          className="flex items-center justify-between gap-2 text-celis-ink-secondary"
+                        >
+                          <span>{field.label}</span>
+                          <span className="font-medium text-celis-ink">
+                            {formatMetadataValue(field, value)}
+                          </span>
+                        </div>
+                      );
+                    })}
                 </div>
               </CardContent>
             </Card>
@@ -560,6 +718,18 @@ function ListingDetailPage() {
           }}
         />
       </main>
+
+      <PaymentModal
+        open={featureModalOpen}
+        onOpenChange={setFeatureModalOpen}
+        userId={user?.id ?? ""}
+        listingId={listing.id}
+        amountCents={featuredFeeCents}
+        featureListing
+        onSuccess={() => {
+          navigate({ to: "/dashboard" });
+        }}
+      />
 
       <SiteFooter />
     </div>

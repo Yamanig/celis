@@ -13,6 +13,10 @@ import {
   getRolePermissions,
   getUserPermissions,
   setRolePermissions,
+  listRoles,
+  createRole,
+  updateRole,
+  deleteRole,
 } from "./auth.server";
 
 const credentialsSchema = z.object({
@@ -159,7 +163,7 @@ export const fetchAllPermissions = createServerFn({ method: "GET" }).handler(
 );
 
 const rolePermissionsQuerySchema = z.object({
-  role: z.enum(["buyer", "seller", "admin", "super_admin"]),
+  role: z.string(),
 });
 
 export const fetchRolePermissions = createServerFn({ method: "GET" })
@@ -167,7 +171,7 @@ export const fetchRolePermissions = createServerFn({ method: "GET" })
   .handler(async ({ data }) => getRolePermissions(data.role));
 
 const updateRolePermissionsSchema = z.object({
-  role: z.enum(["buyer", "seller", "admin", "super_admin"]),
+  role: z.string(),
   permissionKeys: z.array(z.string()),
 });
 
@@ -178,3 +182,35 @@ export const updateRolePermissions = createServerFn({ method: "POST" })
     if (!user) throw new Error("Unauthorized");
     return setRolePermissions(data.role, data.permissionKeys, user);
   });
+
+export const fetchRoles = createServerFn({ method: "GET" }).handler(async () => {
+  return listRoles();
+});
+
+const createRoleSchema = z.object({
+  key: z.string().min(2).max(60),
+  label: z.string().min(2).max(80),
+  description: z.string().max(500).optional(),
+  domain: z.enum(["customer", "internal"]).default("internal"),
+});
+
+export const createRoleFn = createServerFn({ method: "POST" })
+  .validator(createRoleSchema)
+  .handler(async ({ data }) => createRole(data));
+
+const updateRoleSchema = z.object({
+  key: z.string(),
+  label: z.string().min(2).max(80),
+  description: z.string().max(500).optional(),
+  domain: z.enum(["customer", "internal"]).default("internal"),
+});
+
+export const updateRoleFn = createServerFn({ method: "POST" })
+  .validator(updateRoleSchema)
+  .handler(async ({ data }) => updateRole(data.key, data));
+
+const deleteRoleSchema = z.object({ key: z.string() });
+
+export const deleteRoleFn = createServerFn({ method: "POST" })
+  .validator(deleteRoleSchema)
+  .handler(async ({ data }) => deleteRole(data.key));

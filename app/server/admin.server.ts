@@ -2,16 +2,22 @@ import { db } from "~/db";
 import {
   users,
   profiles,
+  authUsers,
   listings,
   categories,
   walletPayments,
   orders,
   payouts,
   platformConfigs,
+  listingPackages,
+  sellerSubscriptions,
+  categoryFees,
+  roles,
 } from "~/db/schema";
 import {
   eq,
   desc,
+  asc,
   count,
   ilike,
   or,
@@ -20,10 +26,15 @@ import {
   gte,
   lte,
   sum,
+  inArray,
 } from "drizzle-orm";
-import { requireAdmin, requirePermission } from "./auth.server";
+import { alias } from "drizzle-orm/pg-core";
+import { requireAdmin, requirePermission, isInternalRole } from "./auth.server";
 import { insertAuditLog } from "./audit.server";
-import type { UserRole, ListingStatus } from "~/db/schema";
+import { createNotification } from "./notifications.server";
+import { generateUniqueSellerNumber } from "./seller-packages.server";
+import type { UserRole, ListingStatus, VerificationStatus } from "~/db/schema";
+import { getServiceSupabase } from "~/lib/supabase/server";
 import {
   calculateListingPricing,
   DEFAULT_LISTING_TIERS,
@@ -220,7 +231,8 @@ export async function getAdminRecentActivity() {
       email: r.user.email,
       role: r.user.role,
       displayName: r.profile?.displayName ?? null,
-      isVerified: r.user.verifiedAt !== null,
+      isVerified:
+        r.user.verificationStatus === "approved" || r.user.verifiedAt !== null,
       isSuperAdmin: r.user.isSuperAdmin,
       createdAt: toDateString(r.user.createdAt),
     })),
@@ -241,6 +253,7 @@ function toDateString(value: Date | string): string {
 export async function getAdminUsers(options?: {
   search?: string;
   role?: UserRole;
+  domain?: "customer" | "internal";
   page?: number;
   limit?: number;
 }) {
@@ -256,12 +269,26 @@ export async function getAdminUsers(options?: {
       or(
         ilike(users.email, term),
         ilike(profiles.displayName, term),
-        ilike(users.walletPhone, term)
+        ilike(users.walletPhone, term),
+        ilike(profiles.sellerNumber, term)
       )
     );
   }
   if (options?.role) {
     conditions.push(eq(users.role, options.role));
+  }
+  if (options?.domain) {
+    const domainRoles = await db
+      .select({ key: roles.key })
+      .from(roles)
+      .where(eq(roles.domain, options.domain));
+    const roleKeys = domainRoles.map((r) => r.key);
+    if (roleKeys.length > 0) {
+      conditions.push(inArray(users.role, roleKeys));
+    } else {
+      // No roles in this domain; return empty result.
+      conditions.push(sql`1 = 0`);
+    }
   }
 
   const where = conditions.length ? and(...conditions) : undefined;
@@ -286,12 +313,17 @@ export async function getAdminUsers(options?: {
       id: r.user.id,
       email: r.user.email,
       role: r.user.role,
+      isInternal: r.user.isInternal,
       displayName: r.profile?.displayName ?? null,
       phone: r.user.walletPhone ?? r.profile?.phone ?? null,
-      isVerified: r.user.verifiedAt !== null,
+      isVerified:
+        r.user.verificationStatus === "approved" || r.user.verifiedAt !== null,
+      verificationStatus: r.user.verificationStatus,
+      verificationRejectionReason: r.user.verificationRejectionReason,
       isSuperAdmin: r.user.isSuperAdmin,
       sellerType: r.profile?.sellerType ?? "individual",
       businessName: r.profile?.businessName ?? null,
+      sellerNumber: r.profile?.sellerNumber ?? null,
       createdAt: r.user.createdAt,
     })),
     total,
@@ -301,34 +333,276 @@ export async function getAdminUsers(options?: {
   };
 }
 
-export async function updateUserRole(id: string, role: UserRole) {
+export async function updateUserRole(id: string, role: UserRole, actorId: string) {
   await requirePermission("users:manage");
+
+  const roleRecord = await db
+    .select({ key: roles.key, domain: roles.domain })
+    .from(roles)
+    .where(eq(roles.key, role))
+    .limit(1);
+  if (!roleRecord[0]) throw new Error("Role not found");
+
+  const [user] = await db
+    .select({ role: users.role, isInternal: users.isInternal })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  if (!user) throw new Error("User not found");
+
+  // Prevent promoting an external customer to an internal role through the
+  // simple role dropdown. Internal users must be created via the invite flow.
+  if (roleRecord[0].domain === "internal" && !user.isInternal && user.role !== "admin") {
+    throw new Error(
+      "External customers cannot be converted to internal staff via role change. Use the invite internal user flow."
+    );
+  }
+
   await db.update(users).set({ role }).where(eq(users.id, id));
   await insertAuditLog({
     action: "user_role_changed",
     resourceType: "user",
     resourceId: id,
-    metadata: { role },
+    metadata: { previousRole: user.role, newRole: role, actorId },
   });
   return { success: true };
+}
+
+export async function createInternalUser(input: {
+  email: string;
+  password: string;
+  role: UserRole;
+  department?: string;
+}) {
+  await requirePermission("users:manage");
+
+  if (!(await isInternalRole(input.role as UserRole))) {
+    throw new Error("Selected role is not an internal staff role");
+  }
+
+  const supabase = getServiceSupabase();
+
+  // Create the Supabase Auth user. Do not send an email confirmation; internal
+  // users are provisioned directly by administrators.
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+  });
+
+  if (authError || !authData.user) {
+    throw new Error(authError?.message ?? "Failed to create auth user");
+  }
+
+  const id = authData.user.id;
+
+  // Mirror into auth.users so local FKs are satisfied.
+  await db
+    .insert(authUsers)
+    .values({ id, email: input.email })
+    .onConflictDoNothing({ target: authUsers.id });
+
+  await db.insert(users).values({
+    id,
+    email: input.email,
+    role: input.role as UserRole,
+    isInternal: true,
+    department: input.department || null,
+    verificationStatus: "approved",
+    verifiedAt: new Date(),
+  });
+
+  await db.insert(profiles).values({
+    id,
+    displayName: input.email.split("@")[0],
+    sellerNumber: await generateUniqueSellerNumber(),
+  });
+
+  await insertAuditLog({
+    action: "internal_user_created",
+    resourceType: "user",
+    resourceId: id,
+    metadata: { email: input.email, role: input.role, department: input.department },
+  });
+
+  return { id, email: input.email };
 }
 
 export async function toggleUserVerification(id: string) {
   await requirePermission("users:manage");
   const [user] = await db
-    .select({ verifiedAt: users.verifiedAt })
+    .select({ verifiedAt: users.verifiedAt, verificationStatus: users.verificationStatus })
     .from(users)
     .where(eq(users.id, id))
     .limit(1);
-  const next = user?.verifiedAt ? null : new Date();
-  await db.update(users).set({ verifiedAt: next }).where(eq(users.id, id));
+  const approving = user?.verificationStatus !== "approved";
+  const updates = approving
+    ? { verificationStatus: "approved" as VerificationStatus, verifiedAt: new Date(), verificationRejectionReason: null }
+    : { verificationStatus: "pending" as VerificationStatus, verifiedAt: null, verificationRejectionReason: null };
+  await db.update(users).set(updates).where(eq(users.id, id));
   await insertAuditLog({
     action: "user_verification_toggled",
     resourceType: "user",
     resourceId: id,
-    metadata: { verified: next !== null },
+    metadata: { verified: approving },
   });
-  return { success: true, verified: next !== null };
+  return { success: true, verified: approving };
+}
+
+export async function getUnverifiedSellers(options?: {
+  search?: string;
+  status?: VerificationStatus;
+  page?: number;
+  limit?: number;
+}) {
+  await requirePermission("seller:verify");
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+
+  const conditions = [
+    eq(users.role, "seller"),
+    or(
+      eq(users.verificationStatus, "pending"),
+      eq(users.verificationStatus, "rejected")
+    ),
+  ];
+
+  if (options?.search) {
+    const term = `%${options.search}%`;
+    conditions.push(
+      or(
+        ilike(users.email, term),
+        ilike(profiles.displayName, term),
+        ilike(users.walletPhone, term)
+      )
+    );
+  }
+  if (options?.status) {
+    conditions.push(eq(users.verificationStatus, options.status));
+  }
+
+  const where = and(...conditions);
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where);
+
+  const rows = await db
+    .select({ user: users, profile: profiles })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where)
+    .orderBy(desc(users.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  return {
+    items: rows.map((r) => ({
+      id: r.user.id,
+      email: r.user.email,
+      displayName: r.profile?.displayName ?? null,
+      phone: r.user.walletPhone ?? r.profile?.phone ?? null,
+      sellerType: r.profile?.sellerType ?? "individual",
+      businessName: r.profile?.businessName ?? null,
+      businessRegistrationNumber: r.profile?.businessRegistrationNumber ?? null,
+      businessAddress: r.profile?.businessAddress ?? null,
+      verificationStatus: r.user.verificationStatus,
+      verificationRejectionReason: r.user.verificationRejectionReason,
+      verifiedAt: r.user.verifiedAt,
+      createdAt: r.user.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function reviewSellerVerification(
+  id: string,
+  action: "approve" | "reject" | "suspend",
+  reason: string,
+  actorId: string
+) {
+  await requirePermission("seller:verify");
+
+  const [user] = await db
+    .select({ verificationStatus: users.verificationStatus, verifiedAt: users.verifiedAt })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  if (!user) throw new Error("User not found");
+
+  const previousStatus = user.verificationStatus;
+  const updates: {
+    verificationStatus: VerificationStatus;
+    verifiedAt: Date | null;
+    verificationRejectionReason: string | null;
+    updatedAt: Date;
+  } = {
+    verificationStatus: "pending",
+    verifiedAt: null,
+    verificationRejectionReason: null,
+    updatedAt: new Date(),
+  };
+
+  if (action === "approve") {
+    updates.verificationStatus = "approved";
+    updates.verifiedAt = new Date();
+  } else if (action === "reject") {
+    updates.verificationStatus = "rejected";
+    updates.verificationRejectionReason = reason || null;
+  } else if (action === "suspend") {
+    updates.verificationStatus = "suspended";
+    updates.verificationRejectionReason = reason || null;
+  }
+
+  await db.update(users).set(updates).where(eq(users.id, id));
+
+  await insertAuditLog({
+    action: action === "approve" ? "seller_verification_approved" : action === "reject" ? "seller_verification_rejected" : "seller_verification_suspended",
+    resourceType: "user",
+    resourceId: id,
+    metadata: {
+      previousStatus,
+      newStatus: updates.verificationStatus,
+      reason: action === "approve" ? undefined : reason,
+      actorId,
+    },
+  });
+
+  const notificationType =
+    action === "approve"
+      ? "seller_verification_approved"
+      : action === "reject"
+      ? "seller_verification_rejected"
+      : "seller_verification_suspended";
+  const title =
+    action === "approve"
+      ? "Seller verification approved"
+      : action === "reject"
+      ? "Seller verification rejected"
+      : "Seller verification suspended";
+  const body =
+    action === "approve"
+      ? "Your seller verification has been approved. You can now publish listings."
+      : reason
+      ? `Your seller verification was ${action}ed. Reason: ${reason}`
+      : `Your seller verification was ${action}ed.`;
+
+  await createNotification({
+    userId: id,
+    type: notificationType,
+    title,
+    body,
+    link: "/dashboard",
+    metadata: { previousStatus, newStatus: updates.verificationStatus, reason },
+  });
+
+  return { success: true, status: updates.verificationStatus };
 }
 
 export async function toggleUserSuperAdmin(id: string) {
@@ -355,6 +629,10 @@ export async function toggleUserSuperAdmin(id: string) {
 export async function getAdminListings(options?: {
   status?: string;
   categoryId?: string;
+  sellerId?: string;
+  expiryWindow?: number;
+  packageId?: string;
+  paymentStatus?: string;
   page?: number;
   limit?: number;
 }) {
@@ -369,8 +647,42 @@ export async function getAdminListings(options?: {
     conditions.push(eq(listings.status, options.status as never));
   if (options?.categoryId)
     conditions.push(eq(listings.categoryId, options.categoryId));
+  if (options?.sellerId)
+    conditions.push(eq(listings.sellerId, options.sellerId));
+  if (options?.paymentStatus)
+    conditions.push(eq(listings.monetizationStatus, options.paymentStatus as never));
+
+  const now = new Date();
+
+  if (options?.expiryWindow !== undefined) {
+    const threshold = new Date();
+    threshold.setDate(now.getDate() + options.expiryWindow);
+    if (options.expiryWindow === 0) {
+      // Already expired
+      conditions.push(sql`${listings.expiresAt} < ${now.toISOString()}`);
+    } else {
+      conditions.push(
+        sql`${listings.expiresAt} <= ${threshold.toISOString()}`,
+        sql`${listings.expiresAt} >= ${now.toISOString()}`
+      );
+    }
+  }
 
   const where = conditions.length ? and(...conditions) : undefined;
+
+  const activeSubscription = db
+    .select({
+      sellerId: sellerSubscriptions.sellerId,
+      packageId: sellerSubscriptions.packageId,
+    })
+    .from(sellerSubscriptions)
+    .where(
+      and(
+        eq(sellerSubscriptions.status, "active"),
+        gte(sellerSubscriptions.expiresAt, now)
+      )
+    )
+    .as("active_subscription");
 
   const [{ value: total }] = await db
     .select({ value: count() })
@@ -378,7 +690,14 @@ export async function getAdminListings(options?: {
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .innerJoin(users, eq(listings.sellerId, users.id))
     .leftJoin(profiles, eq(users.id, profiles.id))
+    .leftJoin(activeSubscription, eq(activeSubscription.sellerId, listings.sellerId))
+    .leftJoin(listingPackages, eq(listingPackages.id, activeSubscription.packageId))
     .where(where);
+
+  const orderBy =
+    options?.expiryWindow !== undefined
+      ? asc(listings.expiresAt)
+      : desc(listings.createdAt);
 
   const rows = await db
     .select({
@@ -386,13 +705,16 @@ export async function getAdminListings(options?: {
       categoryName: categories.name,
       sellerName: profiles.displayName,
       sellerEmail: users.email,
+      packageName: listingPackages.name,
     })
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .innerJoin(users, eq(listings.sellerId, users.id))
     .leftJoin(profiles, eq(users.id, profiles.id))
+    .leftJoin(activeSubscription, eq(activeSubscription.sellerId, listings.sellerId))
+    .leftJoin(listingPackages, eq(listingPackages.id, activeSubscription.packageId))
     .where(where)
-    .orderBy(desc(listings.createdAt))
+    .orderBy(orderBy)
     .limit(limit)
     .offset((page - 1) * limit);
 
@@ -400,8 +722,8 @@ export async function getAdminListings(options?: {
     items: rows.map((r) => {
       const pricing = calculateListingPricing(
         r.listing.price,
-        r.listing.condition,
-        config
+        config,
+        { monetizationModel: "fixed_only" }
       );
       return {
         id: r.listing.id,
@@ -411,11 +733,15 @@ export async function getAdminListings(options?: {
         condition: r.listing.condition,
         categoryName: r.categoryName,
         sellerName: r.sellerName ?? r.sellerEmail,
+        sellerId: r.listing.sellerId,
+        packageName: r.packageName,
         tierLabel: pricing.tierLabel,
+        monetizationStatus: r.listing.monetizationStatus,
         expiresAt: r.listing.expiresAt,
         reviewedAt: r.listing.reviewedAt,
         rejectionReason: r.listing.rejectionReason,
         createdAt: r.listing.createdAt,
+        updatedAt: r.listing.updatedAt,
       };
     }),
     total,
@@ -423,6 +749,103 @@ export async function getAdminListings(options?: {
     limit,
     totalPages: Math.ceil(total / limit),
   };
+}
+
+export async function extendListingExpiry(
+  listingId: string,
+  days: number,
+  reason: string,
+  actorId: string
+) {
+  await requirePermission("listings:moderate");
+  const [listing] = await db
+    .select({ expiresAt: listings.expiresAt })
+    .from(listings)
+    .where(eq(listings.id, listingId))
+    .limit(1);
+  if (!listing) throw new Error("Listing not found");
+
+  const previousExpiresAt = listing.expiresAt;
+  const newExpiresAt = new Date();
+  if (previousExpiresAt && previousExpiresAt > newExpiresAt) {
+    newExpiresAt.setTime(previousExpiresAt.getTime());
+  }
+  newExpiresAt.setDate(newExpiresAt.getDate() + days);
+
+  const extensionLog = {
+    previousExpiresAt: previousExpiresAt?.toISOString() ?? null,
+    newExpiresAt: newExpiresAt.toISOString(),
+    extendedBy: actorId,
+    reason,
+    timestamp: new Date().toISOString(),
+  };
+
+  await db
+    .update(listings)
+    .set({
+      expiresAt: newExpiresAt,
+      expiryExtensionLog: sql`COALESCE(${listings.expiryExtensionLog}, '[]'::jsonb) || ${JSON.stringify([extensionLog])}::jsonb`,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, listingId));
+
+  await insertAuditLog({
+    action: "listing_expiry_extended",
+    resourceType: "listing",
+    resourceId: listingId,
+    metadata: extensionLog,
+  });
+
+  return { success: true, newExpiresAt };
+}
+
+export async function notifyExpiringSeller(
+  listingId: string,
+  channel: string,
+  actorId: string
+) {
+  await requirePermission("listings:moderate");
+  const [listing] = await db
+    .select({ sellerId: listings.sellerId, title: listings.title, expiresAt: listings.expiresAt })
+    .from(listings)
+    .where(eq(listings.id, listingId))
+    .limit(1);
+  if (!listing) throw new Error("Listing not found");
+
+  const result = `queued_${channel}`;
+  const entry = {
+    channel,
+    sentAt: new Date().toISOString(),
+    result,
+  };
+
+  await db
+    .update(listings)
+    .set({
+      expiryNotifiedAt: sql`COALESCE(${listings.expiryNotifiedAt}, '[]'::jsonb) || ${JSON.stringify([entry])}::jsonb`,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, listingId));
+
+  await createNotification({
+    userId: listing.sellerId,
+    type: "listing_expiring_soon",
+    title: "Your listing is expiring soon",
+    body: listing.expiresAt
+      ? `"${listing.title}" expires on ${new Date(listing.expiresAt).toLocaleDateString()}. Renew it to keep it visible.`
+      : `"${listing.title}" is expiring soon. Renew it to keep it visible.`,
+    link: `/dashboard`,
+    metadata: { listingId, channel, expiresAt: listing.expiresAt?.toISOString() },
+  });
+
+  await insertAuditLog({
+    action: "listing_expiry_notification_sent",
+    resourceType: "listing",
+    resourceId: listingId,
+    metadata: { channel, result, sellerId: listing.sellerId, actorId },
+  });
+
+  return { success: true, result };
 }
 
 export async function updateListingStatus(id: string, status: ListingStatus) {
@@ -536,6 +959,119 @@ export async function updateCategory(
   };
 }
 
+export async function getAdminCategoryFees(categoryId: string) {
+  await requirePermission("categories:manage");
+  const rows = await db
+    .select({
+      fee: categoryFees,
+      categoryName: categories.name,
+    })
+    .from(categoryFees)
+    .leftJoin(categories, eq(categoryFees.categoryId, categories.id))
+    .where(eq(categoryFees.categoryId, categoryId))
+    .orderBy(categoryFees.feeType, categoryFees.createdAt);
+
+  return rows.map((r) => ({
+    id: r.fee.id,
+    categoryId: r.fee.categoryId,
+    categoryName: r.categoryName,
+    feeType: r.fee.feeType,
+    amount: r.fee.amount,
+    percentage: r.fee.percentage,
+    isActive: r.fee.isActive,
+    effectiveFrom: r.fee.effectiveFrom?.toISOString() ?? null,
+    effectiveUntil: r.fee.effectiveUntil?.toISOString() ?? null,
+    startsAt: r.fee.startsAt?.toISOString() ?? null,
+    endsAt: r.fee.endsAt?.toISOString() ?? null,
+    createdAt: r.fee.createdAt?.toISOString() ?? null,
+    updatedAt: r.fee.updatedAt?.toISOString() ?? null,
+  }));
+}
+
+export async function createCategoryFee(input: {
+  categoryId: string;
+  feeType: "listing_fee" | "commission";
+  amount?: number;
+  percentage?: number;
+  isActive?: boolean;
+  effectiveFrom?: Date;
+  effectiveUntil?: Date;
+}) {
+  await requirePermission("categories:manage");
+  const [row] = await db
+    .insert(categoryFees)
+    .values({
+      categoryId: input.categoryId,
+      feeType: input.feeType,
+      amount: input.feeType === "listing_fee" ? (input.amount ?? 0) : 0,
+      percentage: input.feeType === "commission" ? (input.percentage ?? 0) : 0,
+      isActive: input.isActive ?? true,
+      effectiveFrom: input.effectiveFrom ?? null,
+      effectiveUntil: input.effectiveUntil ?? null,
+    })
+    .returning();
+  await insertAuditLog({
+    action: "category_fee_created",
+    resourceType: "category_fee",
+    resourceId: row.id,
+    metadata: {
+      categoryId: row.categoryId,
+      feeType: row.feeType,
+      amount: row.amount,
+      percentage: row.percentage,
+    },
+  });
+  return row;
+}
+
+export async function updateCategoryFee(
+  id: string,
+  input: {
+    feeType?: "listing_fee" | "commission";
+    amount?: number;
+    percentage?: number;
+    isActive?: boolean;
+    effectiveFrom?: Date | null;
+    effectiveUntil?: Date | null;
+  }
+) {
+  await requirePermission("categories:manage");
+  const updates: Partial<typeof categoryFees.$inferInsert> = {
+    updatedAt: new Date(),
+  };
+  if (input.feeType !== undefined) updates.feeType = input.feeType;
+  if (input.amount !== undefined) updates.amount = input.amount;
+  if (input.percentage !== undefined) updates.percentage = input.percentage;
+  if (input.isActive !== undefined) updates.isActive = input.isActive;
+  if (input.effectiveFrom !== undefined) updates.effectiveFrom = input.effectiveFrom;
+  if (input.effectiveUntil !== undefined) updates.effectiveUntil = input.effectiveUntil;
+
+  const [row] = await db
+    .update(categoryFees)
+    .set(updates)
+    .where(eq(categoryFees.id, id))
+    .returning();
+  await insertAuditLog({
+    action: "category_fee_updated",
+    resourceType: "category_fee",
+    resourceId: id,
+    metadata: input,
+  });
+  return row;
+}
+
+export async function deleteCategoryFee(id: string) {
+  await requirePermission("categories:manage");
+  await db.delete(categoryFees).where(eq(categoryFees.id, id));
+  await insertAuditLog({
+    action: "category_fee_deleted",
+    resourceType: "category_fee",
+    resourceId: id,
+    metadata: {},
+  });
+  return { success: true };
+}
+
 export async function getAdminOrders(options?: {
   status?: string;
   page?: number;
@@ -620,10 +1156,16 @@ export async function updateOrderStatus(
     | "disputed"
 ) {
   await requirePermission("orders:manage");
-  const updates: Record<string, unknown> = { status };
-  if (status === "completed") updates.completedAt = new Date();
-  if (status === "disputed") updates.disputedAt = new Date();
-  await db.update(orders).set(updates).where(eq(orders.id, id));
+
+  if (status === "completed") {
+    const { completeOrder } = await import("./orders.server");
+    await completeOrder(id);
+  } else {
+    const updates: Record<string, unknown> = { status };
+    if (status === "disputed") updates.disputedAt = new Date();
+    await db.update(orders).set(updates).where(eq(orders.id, id));
+  }
+
   await insertAuditLog({
     action: "order_status_changed",
     resourceType: "order",
@@ -708,6 +1250,12 @@ export async function retryPayout(id: string) {
 
 export async function markPayoutCompleted(id: string, note?: string) {
   await requirePermission("payouts:manage");
+  const [payout] = await db
+    .select({ userId: payouts.userId, amount: payouts.amount, currency: payouts.currency })
+    .from(payouts)
+    .where(eq(payouts.id, id))
+    .limit(1);
+
   await db
     .update(payouts)
     .set({
@@ -716,12 +1264,26 @@ export async function markPayoutCompleted(id: string, note?: string) {
       updatedAt: new Date(),
     })
     .where(eq(payouts.id, id));
+
   await insertAuditLog({
     action: "payout_completed",
     resourceType: "payout",
     resourceId: id,
     metadata: note ? { note } : undefined,
   });
+
+  if (payout) {
+    const amount = (payout.amount / 100).toFixed(2);
+    await createNotification({
+      userId: payout.userId,
+      type: "payout_completed",
+      title: "Payout completed",
+      body: `Your payout of ${amount} ${payout.currency ?? "USD"} has been sent.`,
+      link: "/dashboard",
+      metadata: { payoutId: id, amount: payout.amount, currency: payout.currency, note },
+    });
+  }
+
   return { success: true };
 }
 
@@ -842,7 +1404,240 @@ export async function exportAdminLedger(options?: {
   return { rows, totals };
 }
 
+function startOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+export async function getFailedPaymentsReport(options?: {
+  from?: string;
+  to?: string;
+  includePending?: boolean;
+  page?: number;
+  limit?: number;
+}) {
+  await requirePermission("reports:read");
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+  const from = options?.from ? startOfDay(new Date(options.from)) : undefined;
+  const to = options?.to ? endOfDay(new Date(options.to)) : undefined;
+
+  const statusCondition = options?.includePending
+    ? or(eq(walletPayments.status, "failed"), eq(walletPayments.status, "pending"))
+    : eq(walletPayments.status, "failed");
+  const dateConditions = [
+    statusCondition,
+    from ? gte(walletPayments.createdAt, from) : undefined,
+    to ? lte(walletPayments.createdAt, to) : undefined,
+  ].filter(Boolean);
+  const where = and(...dateConditions);
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(walletPayments)
+    .innerJoin(users, eq(walletPayments.userId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where);
+
+  const rows = await db
+    .select({
+      payment: walletPayments,
+      userEmail: users.email,
+      userName: profiles.displayName,
+    })
+    .from(walletPayments)
+    .innerJoin(users, eq(walletPayments.userId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where)
+    .orderBy(desc(walletPayments.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  return {
+    items: rows.map((r) => {
+      const payload = (r.payment.callbackPayload ?? {}) as Record<string, unknown>;
+      return {
+        id: r.payment.id,
+        merchantRef: r.payment.merchantRef,
+        walletRef: r.payment.walletRef,
+        userEmail: r.userEmail,
+        userName: r.userName,
+        amount: r.payment.amount,
+        currency: r.payment.currency,
+        provider: r.payment.walletProvider,
+        status: r.payment.status,
+        retryCount: r.payment.retryCount,
+        errorCode: typeof payload.code === "string" ? payload.code : null,
+        errorMessage:
+          typeof payload.error === "string" ? payload.error : null,
+        createdAt: r.payment.createdAt,
+        updatedAt: r.payment.updatedAt,
+      };
+    }),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function exportFailedPaymentsReport(options?: {
+  from?: string;
+  to?: string;
+  includePending?: boolean;
+}) {
+  const { items } = await getFailedPaymentsReport({
+    ...options,
+    page: 1,
+    limit: 10_000,
+  });
+  return items;
+}
+
+export async function getNewUsersReport(options?: {
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}) {
+  await requirePermission("reports:read");
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+  const from = options?.from ? startOfDay(new Date(options.from)) : startOfDay(new Date());
+  const to = options?.to ? endOfDay(new Date(options.to)) : endOfDay(new Date());
+
+  const where = and(gte(users.createdAt, from), lte(users.createdAt, to));
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where);
+
+  const rows = await db
+    .select({ user: users, profile: profiles })
+    .from(users)
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .where(where)
+    .orderBy(desc(users.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  return {
+    items: rows.map((r) => ({
+      id: r.user.id,
+      email: r.user.email,
+      displayName: r.profile?.displayName ?? null,
+      phone: r.user.walletPhone ?? r.profile?.phone ?? null,
+      role: r.user.role,
+      sellerType: r.profile?.sellerType ?? "individual",
+      isVerified:
+        r.user.verificationStatus === "approved" || r.user.verifiedAt !== null,
+      createdAt: r.user.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function exportNewUsersReport(options?: {
+  from?: string;
+  to?: string;
+}) {
+  const { items } = await getNewUsersReport({ ...options, page: 1, limit: 10_000 });
+  return items;
+}
+
+export async function getNewListingsReport(options?: {
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}) {
+  await requirePermission("reports:read");
+
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 10;
+  const from = options?.from ? startOfDay(new Date(options.from)) : startOfDay(new Date());
+  const to = options?.to ? endOfDay(new Date(options.to)) : endOfDay(new Date());
+
+  const reviewer = alias(users, "reviewer");
+  const reviewerProfile = alias(profiles, "reviewer_profile");
+
+  const where = and(gte(listings.createdAt, from), lte(listings.createdAt, to));
+
+  const [{ value: total }] = await db
+    .select({ value: count() })
+    .from(listings)
+    .innerJoin(categories, eq(listings.categoryId, categories.id))
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .leftJoin(reviewer, eq(reviewer.id, listings.reviewedBy))
+    .leftJoin(reviewerProfile, eq(reviewerProfile.id, reviewer.id))
+    .where(where);
+
+  const rows = await db
+    .select({
+      listing: listings,
+      categoryName: categories.name,
+      sellerName: profiles.displayName,
+      sellerEmail: users.email,
+      reviewerName: reviewerProfile.displayName,
+    })
+    .from(listings)
+    .innerJoin(categories, eq(listings.categoryId, categories.id))
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .leftJoin(profiles, eq(users.id, profiles.id))
+    .leftJoin(reviewer, eq(reviewer.id, listings.reviewedBy))
+    .leftJoin(reviewerProfile, eq(reviewerProfile.id, reviewer.id))
+    .where(where)
+    .orderBy(desc(listings.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  return {
+    items: rows.map((r) => ({
+      id: r.listing.id,
+      title: r.listing.title,
+      price: r.listing.price,
+      condition: r.listing.condition,
+      categoryName: r.categoryName,
+      sellerName: r.sellerName ?? r.sellerEmail,
+      status: r.listing.status,
+      monetizationStatus: r.listing.monetizationStatus,
+      monetizationType: r.listing.monetizationType,
+      reviewerName: r.reviewerName,
+      rejectionReason: r.listing.rejectionReason,
+      createdAt: r.listing.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function exportNewListingsReport(options?: {
+  from?: string;
+  to?: string;
+}) {
+  const { items } = await getNewListingsReport({ ...options, page: 1, limit: 10_000 });
+  return items;
+}
+
 const CONFIG_DEFAULTS: Record<string, string | number | boolean | object> = {
+  platform_monetization_model: "fixed_only",
   listing_fee_cents: 100,
   commission_bps: 500,
   local_pickup_enabled: true,
@@ -867,11 +1662,13 @@ export async function getPlatformConfigAll() {
     const row = rows.find((r) => r.key === key);
     return {
       key,
-      value: value as string | number | boolean,
+      value: value as string | number | boolean | object,
       defaultValue,
       updatedAt: row?.updatedAt ?? null,
       updatedBy: row?.updatedBy ?? null,
       description: row?.description ?? null,
+      effectiveFrom: row?.effectiveFrom ?? null,
+      effectiveUntil: row?.effectiveUntil ?? null,
     };
   });
 }
@@ -879,30 +1676,42 @@ export async function getPlatformConfigAll() {
 export async function updatePlatformConfig(
   key: string,
   value: string | number | boolean | object,
-  adminId: string
+  adminId: string,
+  effectiveFrom?: Date | null,
+  effectiveUntil?: Date | null
 ) {
   await requirePermission("settings:manage");
 
   const existing = await db
-    .select({ value: platformConfigs.value })
+    .select({ value: platformConfigs.value, description: platformConfigs.description })
     .from(platformConfigs)
     .where(eq(platformConfigs.key, key))
     .limit(1);
 
   const previous = existing[0]?.value;
-  const note = `Updated by ${adminId}; previous: ${JSON.stringify(previous)}`;
+
+  const setValues = {
+    value,
+    updatedBy: adminId,
+    updatedAt: new Date(),
+    effectiveFrom: effectiveFrom ?? null,
+    effectiveUntil: effectiveUntil ?? null,
+  };
 
   if (existing.length === 0) {
     await db.insert(platformConfigs).values({
       key,
-      value,
-      description: note,
-      updatedBy: adminId,
+      ...setValues,
     });
   } else {
     await db
       .update(platformConfigs)
-      .set({ value, description: note, updatedBy: adminId, updatedAt: new Date() })
+      .set({
+        ...setValues,
+        // Preserve any existing business description instead of overwriting
+        // it with audit text; the audit log records the actual change.
+        description: existing[0].description,
+      })
       .where(eq(platformConfigs.key, key));
   }
 

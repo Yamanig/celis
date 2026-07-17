@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SellRouteImport } from './routes/sell'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BrowseRouteImport } from './routes/browse'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -23,6 +24,7 @@ import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
 import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
+import { Route as AdminVerificationsRouteImport } from './routes/admin/verifications'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminRolesRouteImport } from './routes/admin/roles'
@@ -43,6 +45,11 @@ const SellRoute = SellRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -104,6 +111,11 @@ const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   id: '/auth/forgot-password',
   path: '/auth/forgot-password',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminVerificationsRoute = AdminVerificationsRouteImport.update({
+  id: '/verifications',
+  path: '/verifications',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
@@ -167,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/browse': typeof BrowseRoute
   '/dashboard': typeof DashboardRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
@@ -179,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/admin/roles': typeof AdminRolesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/verifications': typeof AdminVerificationsRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
@@ -193,6 +207,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/browse': typeof BrowseRoute
   '/dashboard': typeof DashboardRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
@@ -205,6 +220,7 @@ export interface FileRoutesByTo {
   '/admin/roles': typeof AdminRolesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/verifications': typeof AdminVerificationsRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
@@ -221,6 +237,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/browse': typeof BrowseRoute
   '/dashboard': typeof DashboardRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
@@ -233,6 +250,7 @@ export interface FileRoutesById {
   '/admin/roles': typeof AdminRolesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/verifications': typeof AdminVerificationsRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
@@ -250,6 +268,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/browse'
     | '/dashboard'
+    | '/notifications'
     | '/search'
     | '/sell'
     | '/admin/audit-log'
@@ -262,6 +281,7 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/settings'
     | '/admin/users'
+    | '/admin/verifications'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
@@ -276,6 +296,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/browse'
     | '/dashboard'
+    | '/notifications'
     | '/search'
     | '/sell'
     | '/admin/audit-log'
@@ -288,6 +309,7 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/settings'
     | '/admin/users'
+    | '/admin/verifications'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
@@ -303,6 +325,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/browse'
     | '/dashboard'
+    | '/notifications'
     | '/search'
     | '/sell'
     | '/admin/audit-log'
@@ -315,6 +338,7 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/settings'
     | '/admin/users'
+    | '/admin/verifications'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
@@ -331,6 +355,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   BrowseRoute: typeof BrowseRoute
   DashboardRoute: typeof DashboardRoute
+  NotificationsRoute: typeof NotificationsRoute
   SearchRoute: typeof SearchRoute
   SellRoute: typeof SellRoute
   AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
@@ -355,6 +380,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -440,6 +472,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/forgot-password'
       preLoaderRoute: typeof AuthForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/verifications': {
+      id: '/admin/verifications'
+      path: '/verifications'
+      fullPath: '/admin/verifications'
+      preLoaderRoute: typeof AdminVerificationsRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/users': {
       id: '/admin/users'
@@ -532,6 +571,7 @@ interface AdminRouteChildren {
   AdminRolesRoute: typeof AdminRolesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  AdminVerificationsRoute: typeof AdminVerificationsRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminListingsIdRoute: typeof AdminListingsIdRoute
 }
@@ -547,6 +587,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminRolesRoute: AdminRolesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminUsersRoute: AdminUsersRoute,
+  AdminVerificationsRoute: AdminVerificationsRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminListingsIdRoute: AdminListingsIdRoute,
 }
@@ -559,6 +600,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   BrowseRoute: BrowseRoute,
   DashboardRoute: DashboardRoute,
+  NotificationsRoute: NotificationsRoute,
   SearchRoute: SearchRoute,
   SellRoute: SellRoute,
   AuthForgotPasswordRoute: AuthForgotPasswordRoute,

@@ -1,11 +1,11 @@
 import { db } from "~/db";
-import { platformConfigs } from "~/db/schema";
-import { eq } from "drizzle-orm";
-import type { ItemCondition } from "~/db/schema";
+import { platformConfigs, categoryFees } from "~/db/schema";
+import { eq, and, isNull, or } from "drizzle-orm";
 import {
   calculateListingPricing,
   parseListingTiersConfig,
   type ListingPricing,
+  type MonetizationModel,
 } from "~/lib/pricing";
 
 const DEFAULTS = {
@@ -14,13 +14,24 @@ const DEFAULTS = {
   platformFeeCents: 0,
 };
 
-export async function getPlatformConfig<T>(key: string): Promise<T | undefined> {
+export async function getPlatformConfig<T>(
+  key: string,
+  at: Date = new Date()
+): Promise<T | undefined> {
   const rows = await db
-    .select({ value: platformConfigs.value })
+    .select({
+      value: platformConfigs.value,
+      effectiveFrom: platformConfigs.effectiveFrom,
+      effectiveUntil: platformConfigs.effectiveUntil,
+    })
     .from(platformConfigs)
     .where(eq(platformConfigs.key, key))
     .limit(1);
-  return rows[0]?.value as T | undefined;
+  const row = rows[0];
+  if (!row) return undefined;
+  if (row.effectiveFrom && row.effectiveFrom > at) return undefined;
+  if (row.effectiveUntil && row.effectiveUntil < at) return undefined;
+  return row.value as T | undefined;
 }
 
 export async function getListingFeeCents(): Promise<number> {
@@ -33,10 +44,101 @@ export async function getListingTiersConfig() {
   return parseListingTiersConfig(raw);
 }
 
+export async function getFeaturedListingFeeCents(): Promise<number> {
+  return (await getPlatformConfig<number>("featured_listing_fee_cents")) ?? 0;
+}
+
+export async function getPlatformMonetizationModel(): Promise<MonetizationModel> {
+  const [value, commissionEnabled] = await Promise.all([
+    getPlatformConfig<MonetizationModel>("platform_monetization_model"),
+    getPlatformConfig<boolean>("commission_model_enabled"),
+  ]);
+  if (value === "commission_only" || value === "hybrid") {
+    // The commission toggle must be enabled for commission models to be active.
+    if (commissionEnabled === false) return "fixed_only";
+    return value;
+  }
+  return "fixed_only";
+}
+
+function isEffectiveAt(
+  row: { effectiveFrom: Date | null; effectiveUntil: Date | null },
+  at: Date
+): boolean {
+  if (row.effectiveFrom && row.effectiveFrom > at) return false;
+  if (row.effectiveUntil && row.effectiveUntil < at) return false;
+  return true;
+}
+
+async function getActiveCategoryFee(
+  categoryId: string | null,
+  feeType: "listing_fee" | "commission",
+  at: Date = new Date()
+) {
+  const rows = await db
+    .select()
+    .from(categoryFees)
+    .where(
+      and(
+        eq(categoryFees.feeType, feeType),
+        eq(categoryFees.isActive, true),
+        or(isNull(categoryFees.categoryId), eq(categoryFees.categoryId, categoryId ?? ""))
+      )
+    );
+
+  return (
+    rows
+      .filter((r) => isEffectiveAt(r, at))
+      // Prefer category-specific over global fallback.
+      .sort((a, b) => {
+        if (a.categoryId && !b.categoryId) return -1;
+        if (!a.categoryId && b.categoryId) return 1;
+        return 0;
+      })
+      .shift() ?? null
+  );
+}
+
 export async function getListingPricing(
   priceCents: number,
-  condition: ItemCondition
+  categoryId?: string | null
 ): Promise<ListingPricing> {
-  const config = await getListingTiersConfig();
-  return calculateListingPricing(priceCents, condition, config);
+  const [config, monetizationModel] = await Promise.all([
+    getListingTiersConfig(),
+    getPlatformMonetizationModel(),
+  ]);
+
+  const commissionRule =
+    monetizationModel === "commission_only" || monetizationModel === "hybrid"
+      ? await getActiveCategoryFee(categoryId ?? null, "commission")
+      : null;
+
+  return calculateListingPricing(priceCents, config, {
+    monetizationModel,
+    listingFeeRule: undefined,
+    commissionRule: commissionRule
+      ? {
+          id: commissionRule.id,
+          feeType: commissionRule.feeType,
+          percentage: commissionRule.percentage,
+          currency: "USD",
+        }
+      : undefined,
+    currency: "USD",
+  });
+}
+
+export async function ensurePlatformMonetizationModelConfig() {
+  const existing = await db
+    .select({ key: platformConfigs.key })
+    .from(platformConfigs)
+    .where(eq(platformConfigs.key, "platform_monetization_model"))
+    .limit(1);
+  if (existing.length === 0) {
+    await db.insert(platformConfigs).values({
+      key: "platform_monetization_model",
+      value: "fixed_only",
+      description: "Platform monetization model: fixed_only, commission_only, or hybrid",
+    });
+  }
 }

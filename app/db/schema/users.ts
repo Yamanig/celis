@@ -7,8 +7,12 @@ import {
   jsonb,
   boolean,
   uniqueIndex,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
-import { userRoleEnum, sellerTypeEnum } from "./enums";
+import {
+  sellerTypeEnum,
+  verificationStatusEnum,
+} from "./enums";
 
 /**
  * Reference to Supabase Auth users.
@@ -25,9 +29,21 @@ export const users = pgTable("users", {
     .primaryKey()
     .references(() => authUsers.id, { onDelete: "cascade" }),
   email: varchar("email", { length: 255 }).notNull(),
-  role: userRoleEnum("role").notNull().default("buyer"),
+  role: text("role").notNull().default("buyer"),
+  isInternal: boolean("is_internal").notNull().default(false),
+  createdBy: uuid("created_by").references(
+    (): AnyPgColumn => users.id,
+    { onDelete: "set null" }
+  ),
+  department: varchar("department", { length: 100 }),
+  mfaEnabled: boolean("mfa_enabled").notNull().default(false),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   primaryBankAccountId: uuid("primary_bank_account_id"),
   walletPhone: varchar("wallet_phone", { length: 15 }),
+  verificationStatus: verificationStatusEnum("verification_status")
+    .notNull()
+    .default("pending"),
+  verificationRejectionReason: text("verification_rejection_reason"),
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -45,6 +61,7 @@ export const profiles = pgTable(
       .primaryKey()
       .references(() => users.id, { onDelete: "cascade" }),
     displayName: varchar("display_name", { length: 60 }).notNull(),
+    sellerNumber: varchar("seller_number", { length: 20 }),
     avatarUrl: text("avatar_url"),
     bio: text("bio"),
     location: jsonb("location").$type<{
@@ -72,5 +89,8 @@ export const profiles = pgTable(
   },
   (table) => ({
     shopSlugIdx: uniqueIndex("idx_profiles_shop_slug").on(table.shopSlug),
+    sellerNumberIdx: uniqueIndex("idx_profiles_seller_number").on(
+      table.sellerNumber
+    ),
   })
 );

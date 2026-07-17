@@ -1,6 +1,16 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
-export const USER_ROLES = ["buyer", "seller", "admin"] as const;
+export const USER_ROLES = [
+  "buyer",
+  "seller",
+  "admin",
+  "listing_review_officer",
+  "seller_verification_officer",
+  "listing_review_and_verification_officer",
+  "finance_officer",
+  "support_officer",
+  "auditor",
+] as const;
 export const userRoleEnum = pgEnum("user_role", USER_ROLES);
 
 export const SELLER_TYPES = ["individual", "shop"] as const;
@@ -22,6 +32,10 @@ export const ITEM_CONDITIONS = [
   "good",
   "fair",
   "poor",
+  "brand_new",
+  "used",
+  "refurbished",
+  "local_used",
 ] as const;
 export const itemConditionEnum = pgEnum("item_condition", ITEM_CONDITIONS);
 
@@ -36,6 +50,7 @@ export const LISTING_STATUSES = [
   "draft",
   "pending_review",
   "active",
+  "inactive",
   "sold",
   "expired",
   "rejected",
@@ -147,6 +162,17 @@ export const categoryFeeTypeEnum = pgEnum(
   CATEGORY_FEE_TYPES
 );
 
+export const VERIFICATION_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+  "suspended",
+] as const;
+export const verificationStatusEnum = pgEnum(
+  "verification_status",
+  VERIFICATION_STATUSES
+);
+
 export const DISPUTE_REASONS = [
   "not_received",
   "not_as_described",
@@ -154,11 +180,12 @@ export const DISPUTE_REASONS = [
 ] as const;
 export const disputeReasonEnum = pgEnum("dispute_reason", DISPUTE_REASONS);
 
-export type UserRole = (typeof USER_ROLES)[number];
+export type UserRole = string;
 export type SellerType = (typeof SELLER_TYPES)[number];
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export type ItemCondition = (typeof ITEM_CONDITIONS)[number];
 export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
+export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
 export type MonetizationType = (typeof MONETIZATION_TYPES)[number];
 export type MonetizationStatus = (typeof MONETIZATION_STATUSES)[number];
@@ -177,5 +204,12 @@ export const interactionTypeEnum = pgEnum(
   INTERACTION_TYPES
 );
 
+export const NOTIFICATION_STATUSES = ["unread", "read"] as const;
+export const notificationStatusEnum = pgEnum(
+  "notification_status",
+  NOTIFICATION_STATUSES
+);
+
 export type DisputeReason = (typeof DISPUTE_REASONS)[number];
 export type InteractionType = (typeof INTERACTION_TYPES)[number];
+export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];

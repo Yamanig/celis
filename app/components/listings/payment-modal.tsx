@@ -24,6 +24,8 @@ interface PaymentModalProps {
   userId: string;
   listingId: string | null;
   amountCents: number;
+  enabledProviders?: readonly string[];
+  featureListing?: boolean;
   onSuccess: () => void;
 }
 
@@ -33,9 +35,12 @@ export function PaymentModal({
   userId,
   listingId,
   amountCents,
+  enabledProviders = WALLET_PROVIDERS,
+  featureListing = false,
   onSuccess,
 }: PaymentModalProps) {
-  const [provider, setProvider] = useState<string>(WALLET_PROVIDERS[0]);
+  const providers = (enabledProviders.length > 0 ? enabledProviders : WALLET_PROVIDERS) as string[];
+  const [provider, setProvider] = useState<string>(providers[0]);
   const [phone, setPhone] = useState("");
   const [merchantRef, setMerchantRef] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -47,7 +52,7 @@ export function PaymentModal({
   }));
 
   const reset = () => {
-    setProvider(WALLET_PROVIDERS[0]);
+    setProvider(providers[0]);
     setPhone("");
     setMerchantRef(null);
     setError(null);
@@ -66,6 +71,7 @@ export function PaymentModal({
           orderId: null,
           provider: provider as (typeof WALLET_PROVIDERS)[number],
           phone,
+          featureListing,
         },
       });
       setMerchantRef(result.merchantRef);
@@ -103,10 +109,13 @@ export function PaymentModal({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Pay listing fee</DialogTitle>
+          <DialogTitle>
+            {featureListing ? "Pay feature fee" : "Pay listing fee"}
+          </DialogTitle>
           <DialogDescription>
-            Pay {formatPrice(amountCents)} via mobile money to submit your
-            listing for review.
+            {featureListing
+              ? `Feature this listing for ${formatPrice(amountCents)} via mobile money.`
+              : `Activate your listing for ${formatPrice(amountCents)} via mobile money.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -115,7 +124,9 @@ export function PaymentModal({
             <CheckCircle2 className="h-12 w-12 text-celis-success" />
             <p className="text-lg font-medium">Payment received</p>
             <p className="text-sm text-celis-ink-secondary">
-              Your listing has been submitted for admin review.
+              {featureListing
+                ? "Your listing is now featured for 7 days."
+                : "Your listing is now live on Celis."}
             </p>
           </div>
         ) : (

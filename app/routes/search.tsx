@@ -19,6 +19,7 @@ const searchParamsSchema = z.object({
   minPrice: z.coerce.number().int().min(0).optional(),
   maxPrice: z.coerce.number().int().min(0).optional(),
   condition: z.string().optional(),
+  metadata: z.record(z.string()).optional(),
   sort: z.enum(["newest", "price_asc", "price_desc"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
 });
@@ -43,6 +44,7 @@ export const Route = createFileRoute("/search")({
           minPrice: search.minPrice,
           maxPrice: search.maxPrice,
           condition: (search.condition as ItemCondition | undefined) || undefined,
+          metadata: search.metadata,
           sort: search.sort || "newest",
           page: search.page || 1,
           limit: 24,
@@ -64,6 +66,7 @@ function SearchPage() {
     minPrice: search.minPrice?.toString() ?? "",
     maxPrice: search.maxPrice?.toString() ?? "",
     condition: search.condition ?? "",
+    metadata: search.metadata ?? {},
     sort: search.sort ?? "newest",
   };
 
@@ -75,6 +78,7 @@ function SearchPage() {
         minPrice: filters.minPrice ? Number(filters.minPrice) : undefined,
         maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
         condition: filters.condition || undefined,
+        metadata: Object.keys(filters.metadata).length > 0 ? filters.metadata : undefined,
         sort: filters.sort,
         page: 1,
       },

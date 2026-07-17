@@ -35,7 +35,8 @@ export async function initiateWalletPayment(
   orderId: string | null,
   provider: WalletProvider,
   phone: string,
-  amountCents: number
+  amountCents: number,
+  purpose: "listing_fee" | "feature_listing" | "order" = "listing_fee"
 ): Promise<PaymentInitResult> {
   const merchantRef = `celis-${crypto.randomUUID()}`;
 
@@ -48,14 +49,22 @@ export async function initiateWalletPayment(
     merchantRef,
     customerPhone: phone,
     status: "pending",
+    purpose,
   });
+
+  const description =
+    purpose === "feature_listing"
+      ? "Celis featured listing fee"
+      : listingId
+      ? "Celis listing fee"
+      : "Celis order payment";
 
   return stubInitiate({
     provider,
     phone,
     amount: amountCents,
     merchantRef,
-    description: listingId ? "Celis listing fee" : "Celis order payment",
+    description,
   });
 }
 
@@ -69,6 +78,10 @@ export async function getWalletPaymentByMerchantRef(merchantRef: string) {
 }
 
 export async function confirmWalletPayment(merchantRef: string) {
+  const existing = await getWalletPaymentByMerchantRef(merchantRef);
+  if (existing?.status === "completed") {
+    return existing;
+  }
   const [payment] = await db
     .update(walletPayments)
     .set({ status: "completed", updatedAt: new Date() })

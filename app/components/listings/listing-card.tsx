@@ -5,6 +5,7 @@ import { Badge } from "~/components/ui/badge";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 import { getOptimizedImageUrl } from "~/lib/images";
+import { Sparkles } from "lucide-react";
 import type { ListingPublic } from "~/server/listings.server";
 
 interface ListingCardProps {
@@ -31,6 +32,12 @@ export function ListingCard({ listing }: ListingCardProps) {
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             onLoad={() => setLoaded(true)}
           />
+          {listing.isFeatured && (
+            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-celis-caution px-2 py-1 text-xs font-medium text-celis-ink">
+              <Sparkles className="h-3 w-3" />
+              Featured
+            </span>
+          )}
         </div>
         <CardContent className="space-y-2 p-4">
           <div className="flex items-start justify-between gap-2">

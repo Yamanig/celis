@@ -15,6 +15,9 @@ import type { ListingInput } from "~/lib/validation";
 import { CelisError } from "~/lib/errors";
 import type { listings as listingsTable, ItemCondition } from "~/db/schema";
 import { getSellerListingEligibility } from "./seller-packages.server";
+import { createNotification } from "./notifications.server";
+
+export type ListingMetadata = Record<string, string | number | boolean | null>;
 
 export type ListingPublic = {
   id: string;
@@ -23,12 +26,20 @@ export type ListingPublic = {
   description: string;
   categoryId: string;
   categoryName: string;
-  condition: string;
+  condition: ItemCondition | null;
   price: number;
   monetizationType: string;
   deliveryMethod: string;
   status: string;
+  deactivatedAt: Date | null;
+  deactivationReason: string | null;
+  soldAt: Date | null;
+  soldToOrderId: string | null;
+  isFeatured: boolean;
+  featuredUntil: Date | null;
+  featuredFeeCents: number | null;
   images: string[];
+  metadata: ListingMetadata;
   expiresAt: Date | null;
   reviewedAt: Date | null;
   reviewedBy: string | null;
@@ -65,7 +76,15 @@ function mapListingPublic(
     monetizationType: row.monetizationType,
     deliveryMethod: row.deliveryMethod,
     status: row.status,
+    deactivatedAt: row.deactivatedAt,
+    deactivationReason: row.deactivationReason,
+    soldAt: row.soldAt,
+    soldToOrderId: row.soldToOrderId,
+    isFeatured: row.isFeatured,
+    featuredUntil: row.featuredUntil,
+    featuredFeeCents: row.featuredFeeCents,
     images: row.images,
+    metadata: (row.metadata as ListingMetadata) ?? {},
     expiresAt: row.expiresAt,
     reviewedAt: row.reviewedAt,
     reviewedBy: row.reviewedBy,
@@ -148,6 +167,35 @@ export async function getListingById(id: string): Promise<ListingDetail | null> 
   };
 }
 
+export async function updateListingFees(
+  id: string,
+  pricing: {
+    feeCents: number;
+    commissionBps: number | null;
+    commissionAmountCents: number | null;
+    appliedFeeRuleId: string | null;
+    expiresAt: Date;
+    currency: string;
+  }
+) {
+  const [updated] = await db
+    .update(listings)
+    .set({
+      feeAmountCents: pricing.feeCents,
+      commissionBps: pricing.commissionBps,
+      appliedFeeRuleId: pricing.appliedFeeRuleId,
+      currency: pricing.currency,
+      expiresAt: pricing.expiresAt,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  if (!updated) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  return updated;
+}
+
 export async function submitListingForReview(id: string) {
   const [updated] = await db
     .update(listings)
@@ -179,8 +227,46 @@ export async function submitShopListingForReview(
   return submitListingForReview(id);
 }
 
+export const FEATURED_LISTING_DURATION_DAYS = 7;
+
+export async function featureListing(
+  id: string,
+  sellerId: string,
+  feeCents: number,
+  days: number = FEATURED_LISTING_DURATION_DAYS
+) {
+  const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status !== "active") {
+    throw new CelisError("Only active listings can be featured", "LISTING_NOT_ACTIVE", 400);
+  }
+
+  const featuredUntil = new Date();
+  featuredUntil.setDate(featuredUntil.getDate() + days);
+
+  const [updated] = await db
+    .update(listings)
+    .set({
+      isFeatured: true,
+      featuredUntil,
+      featuredFeeCents: feeCents,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  return updated;
+}
+
 export async function approveListing(id: string, reviewerId: string) {
-  const { getListingPricing } = await import("./config.server");
   const [listing] = await db
     .select()
     .from(listings)
@@ -191,7 +277,14 @@ export async function approveListing(id: string, reviewerId: string) {
     throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
   }
 
-  const pricing = await getListingPricing(listing.price, listing.condition);
+  // If the listing was already paid, keep the snapshot taken at payment time
+  // so a later config change cannot alter the amount charged or expiry.
+  let expiresAt = listing.expiresAt;
+  if (!expiresAt) {
+    const { getListingPricing } = await import("./config.server");
+    const pricing = await getListingPricing(listing.price, listing.categoryId);
+    expiresAt = pricing.expiresAt;
+  }
 
   const [updated] = await db
     .update(listings)
@@ -199,11 +292,21 @@ export async function approveListing(id: string, reviewerId: string) {
       status: "active",
       reviewedAt: new Date(),
       reviewedBy: reviewerId,
-      expiresAt: pricing.expiresAt,
+      expiresAt,
       updatedAt: new Date(),
     })
     .where(eq(listings.id, id))
     .returning();
+
+  await createNotification({
+    userId: listing.sellerId,
+    type: "listing_approved",
+    title: "Your listing is live",
+    body: `"${listing.title}" has been approved and is now visible to buyers.`,
+    link: `/listings/${listing.id}`,
+    metadata: { listingId: listing.id, title: listing.title },
+  });
+
   return updated;
 }
 
@@ -212,6 +315,15 @@ export async function rejectListing(
   reviewerId: string,
   reason: string
 ) {
+  const [listing] = await db
+    .select()
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+
   const [updated] = await db
     .update(listings)
     .set({
@@ -223,9 +335,18 @@ export async function rejectListing(
     })
     .where(eq(listings.id, id))
     .returning();
-  if (!updated) {
-    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
-  }
+
+  await createNotification({
+    userId: listing.sellerId,
+    type: "listing_rejected",
+    title: "Your listing was not approved",
+    body: reason
+      ? `"${listing.title}" was rejected. Reason: ${reason}`
+      : `"${listing.title}" was rejected.`,
+    link: `/dashboard`,
+    metadata: { listingId: listing.id, title: listing.title, reason },
+  });
+
   return updated;
 }
 
@@ -247,6 +368,7 @@ export interface SearchListingsFilters {
   minPrice?: number;
   maxPrice?: number;
   condition?: string;
+  metadataFilters?: Record<string, string>;
   sort?: "newest" | "price_asc" | "price_desc";
   page?: number;
   limit?: number;
@@ -259,6 +381,7 @@ export async function searchListings(filters: SearchListingsFilters) {
     minPrice,
     maxPrice,
     condition,
+    metadataFilters,
     sort = "newest",
     page = 1,
     limit = 24,
@@ -279,16 +402,28 @@ export async function searchListings(filters: SearchListingsFilters) {
   if (maxPrice !== undefined) conditions.push(lte(listings.price, maxPrice));
   if (condition) conditions.push(eq(listings.condition, condition as ItemCondition));
 
-  const orderBy =
+  if (metadataFilters && categoryId) {
+    for (const [key, value] of Object.entries(metadataFilters)) {
+      if (value === "" || value === undefined) continue;
+      conditions.push(
+        sql`(${listings.metadata} ->> ${key}) = ${value}`
+      );
+    }
+  }
+
+  conditions.push(
+    sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`
+  );
+
+  const sortOrder =
     sort === "price_asc"
       ? asc(listings.price)
       : sort === "price_desc"
       ? desc(listings.price)
       : desc(listings.createdAt);
 
-  conditions.push(
-    sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`
-  );
+  // Featured listings (not expired) sort to the top.
+  const featuredFirst = sql`CASE WHEN ${listings.isFeatured} = true AND (${listings.featuredUntil} IS NULL OR ${listings.featuredUntil} > now()) THEN 0 ELSE 1 END`;
 
   const offset = (page - 1) * limit;
 
@@ -297,7 +432,7 @@ export async function searchListings(filters: SearchListingsFilters) {
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .where(and(...conditions))
-    .orderBy(orderBy)
+    .orderBy(featuredFirst, sortOrder)
     .limit(limit)
     .offset(offset);
 
@@ -317,6 +452,7 @@ export async function searchListings(filters: SearchListingsFilters) {
 }
 
 export async function getFeaturedListings(limit = 8) {
+  const featuredFirst = sql`CASE WHEN ${listings.isFeatured} = true AND (${listings.featuredUntil} IS NULL OR ${listings.featuredUntil} > now()) THEN 0 ELSE 1 END`;
   const rows = await db
     .select({ listing: listings, categoryName: categories.name })
     .from(listings)
@@ -327,7 +463,7 @@ export async function getFeaturedListings(limit = 8) {
         sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`
       )
     )
-    .orderBy(desc(listings.createdAt))
+    .orderBy(featuredFirst, desc(listings.createdAt))
     .limit(limit);
 
   return rows.map((r) => mapListingPublic(r.listing, r.categoryName));
@@ -356,12 +492,14 @@ export async function getShopListings(
 
   const offset = (page - 1) * limit;
 
+  const featuredFirst = sql`CASE WHEN ${listings.isFeatured} = true AND (${listings.featuredUntil} IS NULL OR ${listings.featuredUntil} > now()) THEN 0 ELSE 1 END`;
+
   const rows = await db
     .select({ listing: listings, categoryName: categories.name })
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .where(and(...conditions))
-    .orderBy(desc(listings.createdAt))
+    .orderBy(featuredFirst, desc(listings.createdAt))
     .limit(limit)
     .offset(offset);
 
@@ -431,12 +569,129 @@ export async function getSellerListings(
   };
 }
 
+export async function deactivateListing(
+  id: string,
+  sellerId: string,
+  reason?: string
+) {
+  const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status !== "active") {
+    throw new CelisError("Only active listings can be deactivated", "LISTING_NOT_ACTIVE", 400);
+  }
+
+  const [updated] = await db
+    .update(listings)
+    .set({
+      status: "inactive",
+      deactivatedAt: new Date(),
+      deactivationReason: reason?.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  return updated;
+}
+
+export async function reactivateListing(id: string, sellerId: string) {
+  const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status, expiresAt: listings.expiresAt })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status !== "inactive") {
+    throw new CelisError("Only inactive listings can be reactivated", "LISTING_NOT_INACTIVE", 400);
+  }
+  if (listing.expiresAt && listing.expiresAt <= new Date()) {
+    throw new CelisError("Listing has expired. Please create a new listing.", "LISTING_EXPIRED", 400);
+  }
+
+  const [updated] = await db
+    .update(listings)
+    .set({
+      status: "active",
+      deactivatedAt: null,
+      deactivationReason: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  return updated;
+}
+
+export async function markListingAsSold(
+  id: string,
+  sellerId: string,
+  orderId?: string
+) {
+  const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status !== "active" && listing.status !== "inactive") {
+    throw new CelisError("Only active or inactive listings can be marked as sold", "LISTING_CANNOT_BE_SOLD", 400);
+  }
+
+  const [updated] = await db
+    .update(listings)
+    .set({
+      status: "sold",
+      soldAt: new Date(),
+      soldToOrderId: orderId ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  return updated;
+}
+
 export async function deleteListing(id: string, sellerId: string) {
   const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status === "active" || listing.status === "sold") {
+    throw new CelisError(
+      "Active or sold listings cannot be deleted. Deactivate or mark as sold first.",
+      "LISTING_CANNOT_BE_DELETED",
+      400
+    );
+  }
+
+  const [deleted] = await db
     .delete(listings)
     .where(and(eq(listings.id, id), eq(listings.sellerId, sellerId)))
     .returning();
-  return listing;
+  return deleted;
 }
 
 export async function expireStaleListings() {
@@ -489,6 +744,7 @@ export async function getSimilarListings(
   categoryId: string,
   limit = 8
 ) {
+  const featuredFirst = sql`CASE WHEN ${listings.isFeatured} = true AND (${listings.featuredUntil} IS NULL OR ${listings.featuredUntil} > now()) THEN 0 ELSE 1 END`;
   const rows = await db
     .select({ listing: listings, categoryName: categories.name })
     .from(listings)
@@ -501,7 +757,7 @@ export async function getSimilarListings(
         sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`
       )
     )
-    .orderBy(desc(listings.createdAt))
+    .orderBy(featuredFirst, desc(listings.createdAt))
     .limit(limit);
 
   return rows.map((r) => mapListingPublic(r.listing, r.categoryName));

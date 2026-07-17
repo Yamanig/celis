@@ -3,6 +3,23 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import { Combobox } from "~/components/ui/combobox";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "~/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { Pagination } from "~/components/ui/pagination";
 import { AdminTable } from "~/components/admin/admin-table";
 import { PageHeader } from "~/components/admin/page-header";
@@ -10,6 +27,7 @@ import { OrderStatusBadge } from "~/components/admin/status-badge";
 import {
   fetchAdminOrders,
   updateAdminOrderStatus,
+  createAdminOrder,
 } from "~/server/admin.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 
@@ -76,6 +94,32 @@ function AdminOrdersPage() {
       });
     }
   }, [navigate, search.page]);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    listingId: "",
+    buyerEmail: "",
+    salePrice: "",
+  });
+  const [createLoading, setCreateLoading] = useState(false);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateLoading(true);
+    try {
+      await createAdminOrder({
+        data: {
+          listingId: createForm.listingId,
+          buyerEmail: createForm.buyerEmail,
+          salePrice: Number(createForm.salePrice),
+        },
+      });
+      setCreateForm({ listingId: "", buyerEmail: "", salePrice: "" });
+      setCreateOpen(false);
+      await router.invalidate();
+    } finally {
+      setCreateLoading(false);
+    }
+  };
 
   const handleStatusChange = async (id: string, next: string) => {
     setLoadingId(id);
@@ -86,7 +130,13 @@ function AdminOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Orders" description="Track and update order status" />
+      <PageHeader
+        title="Orders"
+        description="Track and update order status"
+        action={
+          <Button onClick={() => setCreateOpen(true)}>Create order</Button>
+        }
+      />
 
       <Card className="border-celis-border bg-celis-surface-base">
         <CardContent className="p-4">
@@ -185,6 +235,64 @@ function AdminOrdersPage() {
           navigate({ search: (prev) => ({ ...prev, page: p > 1 ? p : undefined }) })
         }
       />
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create order</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="listingId">Listing ID</Label>
+              <Input
+                id="listingId"
+                value={createForm.listingId}
+                onChange={(e) =>
+                  setCreateForm((f) => ({ ...f, listingId: e.target.value }))
+                }
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="buyerEmail">Buyer email</Label>
+              <Input
+                id="buyerEmail"
+                type="email"
+                value={createForm.buyerEmail}
+                onChange={(e) =>
+                  setCreateForm((f) => ({ ...f, buyerEmail: e.target.value }))
+                }
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="salePrice">Sale price (cents)</Label>
+              <Input
+                id="salePrice"
+                type="number"
+                min={0}
+                value={createForm.salePrice}
+                onChange={(e) =>
+                  setCreateForm((f) => ({ ...f, salePrice: e.target.value }))
+                }
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createLoading}>
+                {createLoading ? "Creating..." : "Create order"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

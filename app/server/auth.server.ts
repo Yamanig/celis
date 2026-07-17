@@ -1,7 +1,11 @@
 import { db } from "~/db";
-import { users, profiles, authUsers, permissions, rolePermissions } from "~/db/schema";
+import { users, profiles, authUsers, permissions, rolePermissions, roles } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { getSupabaseServerClient } from "~/lib/supabase/server";
+import {
+  generateUniqueSellerNumber,
+  ensureProfileSellerNumber,
+} from "./seller-packages.server";
 import type { UserRole } from "~/db/schema";
 
 export interface CurrentUser {
@@ -9,9 +13,15 @@ export interface CurrentUser {
   email: string;
   role: UserRole;
   displayName: string | null;
+  sellerNumber: string | null;
   phone: string | null;
   isVerified: boolean;
+  verificationStatus: import("~/db/schema").VerificationStatus;
   isSuperAdmin: boolean;
+  isInternal: boolean;
+  department: string | null;
+  mfaEnabled: boolean;
+  lastLoginAt: Date | null;
 }
 
 export async function getAuthUser() {
@@ -46,9 +56,16 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     email: row.user.email,
     role: row.user.role,
     displayName: row.profile?.displayName ?? null,
+    sellerNumber: row.profile?.sellerNumber ?? null,
     phone: row.user.walletPhone ?? row.profile?.phone ?? null,
-    isVerified: row.user.verifiedAt !== null,
+    isVerified:
+      row.user.verificationStatus === "approved" || row.user.verifiedAt !== null,
+    verificationStatus: row.user.verificationStatus,
     isSuperAdmin: row.user.isSuperAdmin,
+    isInternal: row.user.isInternal || row.user.role === "admin",
+    department: row.user.department ?? null,
+    mfaEnabled: row.user.mfaEnabled,
+    lastLoginAt: row.user.lastLoginAt,
   };
 }
 
@@ -74,6 +91,7 @@ export async function getCurrentUserProfile() {
     email: row.user.email,
     role: row.user.role,
     displayName: row.profile?.displayName ?? null,
+    sellerNumber: row.profile?.sellerNumber ?? null,
     phone: row.user.walletPhone ?? row.profile?.phone ?? null,
     bio: row.profile?.bio ?? null,
     sellerType: row.profile?.sellerType ?? "individual",
@@ -83,8 +101,14 @@ export async function getCurrentUserProfile() {
     businessAddress: row.profile?.businessAddress ?? null,
     businessLogoUrl: row.profile?.businessLogoUrl ?? null,
     shopSlug: row.profile?.shopSlug ?? null,
-    isVerified: row.user.verifiedAt !== null,
+    isVerified:
+      row.user.verificationStatus === "approved" || row.user.verifiedAt !== null,
+    verificationStatus: row.user.verificationStatus,
     isSuperAdmin: row.user.isSuperAdmin,
+    isInternal: row.user.isInternal || row.user.role === "admin",
+    department: row.user.department ?? null,
+    mfaEnabled: row.user.mfaEnabled,
+    lastLoginAt: row.user.lastLoginAt,
   };
 }
 
@@ -172,6 +196,122 @@ export async function requireAdmin(): Promise<CurrentUser> {
   return requirePermission("admin:access");
 }
 
+export interface RoleRecord {
+  id: string;
+  key: string;
+  label: string;
+  description: string | null;
+  domain: "customer" | "internal";
+  isSystem: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function slugifyRoleKey(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export async function listRoles(): Promise<RoleRecord[]> {
+  return db.select().from(roles).orderBy(roles.domain, roles.label);
+}
+
+export async function getRoleByKey(key: string): Promise<RoleRecord | null> {
+  const [row] = await db.select().from(roles).where(eq(roles.key, key)).limit(1);
+  return row ?? null;
+}
+
+export async function createRole(input: {
+  key: string;
+  label: string;
+  description?: string;
+  domain: "customer" | "internal";
+}) {
+  await requirePermission("settings:manage");
+
+  const key = slugifyRoleKey(input.key);
+  if (!key) throw new Error("Role key is required");
+  const existing = await getRoleByKey(key);
+  if (existing) throw new Error("Role key already exists");
+
+  const [created] = await db
+    .insert(roles)
+    .values({
+      key,
+      label: input.label.trim(),
+      description: input.description?.trim() || null,
+      domain: input.domain,
+    })
+    .returning();
+  return created;
+}
+
+export async function updateRole(
+  key: string,
+  input: { label: string; description?: string; domain: "customer" | "internal" }
+) {
+  await requirePermission("settings:manage");
+
+  const [updated] = await db
+    .update(roles)
+    .set({
+      label: input.label.trim(),
+      description: input.description?.trim() || null,
+      domain: input.domain,
+      updatedAt: new Date(),
+    })
+    .where(eq(roles.key, key))
+    .returning();
+  if (!updated) throw new Error("Role not found");
+  return updated;
+}
+
+export async function deleteRole(key: string) {
+  await requirePermission("settings:manage");
+
+  const role = await getRoleByKey(key);
+  if (!role) throw new Error("Role not found");
+  if (role.isSystem) throw new Error("System roles cannot be deleted");
+
+  const [userUsingRole] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.role, key))
+    .limit(1);
+  if (userUsingRole) throw new Error("Role is assigned to one or more users");
+
+  await db.delete(rolePermissions).where(eq(rolePermissions.role, key));
+  await db.delete(roles).where(eq(roles.key, key));
+  return { success: true };
+}
+
+/**
+ * Returns true for roles that are part of the internal staff domain.
+ * External customers are buyer and seller.
+ */
+export async function isInternalRole(role: UserRole): Promise<boolean> {
+  const row = await getRoleByKey(role);
+  return row?.domain === "internal";
+}
+
+/**
+ * Maker-checker control: an officer should not approve/reject a record
+ * they created or last materially modified.
+ */
+export function canReviewRecord(
+  officerId: string,
+  recordCreatedById?: string | null,
+  recordUpdatedById?: string | null
+): boolean {
+  if (!recordCreatedById && !recordUpdatedById) return true;
+  return (
+    recordCreatedById !== officerId && recordUpdatedById !== officerId
+  );
+}
+
 export async function setRolePermissions(
   role: string,
   permissionKeys: string[],
@@ -209,6 +349,8 @@ export async function ensureLocalUserRecord(
     .where(eq(users.id, id))
     .limit(1);
 
+  const isInternal = await isInternalRole(role);
+
   if (existing.length === 0) {
     // Ensure the auth mirror row exists so the users FK is satisfied.
     const existingMirror = await db
@@ -220,20 +362,35 @@ export async function ensureLocalUserRecord(
       await db.insert(authUsers).values({ id, email });
     }
 
-    await db.insert(users).values({ id, email, role });
+    await db.insert(users).values({ id, email, role, isInternal });
     await db.insert(profiles).values({
       id,
       displayName: email.split("@")[0],
+      sellerNumber: await generateUniqueSellerNumber(),
     });
+  } else {
+    await ensureProfileSellerNumber(id);
   }
+
+  const profileRow = await db
+    .select({ displayName: profiles.displayName, sellerNumber: profiles.sellerNumber })
+    .from(profiles)
+    .where(eq(profiles.id, id))
+    .limit(1);
 
   return {
     id,
     email,
     role,
-    displayName: email.split("@")[0],
+    displayName: profileRow[0]?.displayName ?? email.split("@")[0],
+    sellerNumber: profileRow[0]?.sellerNumber ?? null,
     phone: null,
     isVerified: false,
+    verificationStatus: "pending" as import("~/db/schema").VerificationStatus,
     isSuperAdmin: false,
+    isInternal,
+    department: null,
+    mfaEnabled: false,
+    lastLoginAt: null,
   };
 }
