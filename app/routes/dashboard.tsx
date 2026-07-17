@@ -3,6 +3,7 @@ import {
   Link,
   redirect,
   useNavigate,
+  useRouter,
 } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { z } from "zod";
@@ -18,8 +19,10 @@ import {
   removeListing,
   fetchCurrentSellerSubscription,
 } from "~/server/listings.functions";
+import { PaymentModal } from "~/components/listings/payment-modal";
+import { getFeaturedListingFee } from "~/server/config.functions";
 import { formatPrice } from "~/lib/format";
-import { Trash2, Package, Store, Calendar } from "lucide-react";
+import { Trash2, Package, Store, Calendar, Sparkles } from "lucide-react";
 
 const dashboardSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -45,15 +48,25 @@ export const Route = createFileRoute("/dashboard")({
   validateSearch: dashboardSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {
-    return fetchSellerListings({ data: { page: search.page, limit: 10 } });
+    const [listingsData, featuredFeeCents] = await Promise.all([
+      fetchSellerListings({ data: { page: search.page, limit: 10 } }),
+      getFeaturedListingFee(),
+    ]);
+    return { ...listingsData, featuredFeeCents };
   },
 });
 
 function DashboardPage() {
   const { user } = useAuth();
-  const { items, total, activeCount, page, totalPages } = Route.useLoaderData();
+  const { items, total, activeCount, page, totalPages, featuredFeeCents } =
+    Route.useLoaderData();
   const navigate = useNavigate({ from: "/dashboard" });
+  const router = useRouter();
   const [listings, setListings] = useState(items);
+  const [featureModal, setFeatureModal] = useState<{
+    open: boolean;
+    listingId: string | null;
+  }>({ open: false, listingId: null });
   const [subscription, setSubscription] = useState<{
     packageName: string;
     listingAllowance: number | null;
@@ -198,8 +211,14 @@ function DashboardPage() {
                         <p className="text-sm text-celis-ink-secondary">
                           {formatPrice(listing.price)} · {listing.categoryName}
                         </p>
-                        <div className="mt-1">
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
                           <ListingStatusBadge status={listing.status} />
+                          {listing.isFeatured && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-celis-caution/10 px-2 py-0.5 text-xs font-medium text-celis-caution">
+                              <Sparkles className="h-3 w-3" />
+                              Featured
+                            </span>
+                          )}
                         </div>
                         {listing.status === "pending_review" && (
                           <p className="mt-1 text-xs text-celis-ink-tertiary">
@@ -215,15 +234,28 @@ function DashboardPage() {
                           )}
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(listing.id)}
-                      aria-label="Delete listing"
-                      className="self-start sm:self-center"
-                    >
-                      <Trash2 className="h-4 w-4 text-celis-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                      {listing.status === "active" && featuredFeeCents > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setFeatureModal({ open: true, listingId: listing.id })
+                          }
+                        >
+                          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                          {listing.isFeatured ? "Extend feature" : "Feature"}
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(listing.id)}
+                        aria-label="Delete listing"
+                      >
+                        <Trash2 className="h-4 w-4 text-celis-destructive" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -239,6 +271,19 @@ function DashboardPage() {
           </CardContent>
         </Card>
       </main>
+
+      <PaymentModal
+        open={featureModal.open}
+        onOpenChange={(open) => setFeatureModal((m) => ({ ...m, open }))}
+        userId={user?.id ?? ""}
+        listingId={featureModal.listingId}
+        amountCents={featuredFeeCents}
+        featureListing
+        onSuccess={() => {
+          router.invalidate();
+        }}
+      />
+
       <SiteFooter />
     </div>
   );

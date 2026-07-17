@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp, text, jsonb, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, timestamp, text, jsonb, integer, index, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
 import { categories } from "./categories";
@@ -40,6 +40,9 @@ export const listings = pgTable(
     currency: varchar("currency", { length: 3 }),
     deliveryMethod: deliveryMethodEnum("delivery_method").notNull(),
     status: listingStatusEnum("status").notNull().default("draft"),
+    isFeatured: boolean("is_featured").notNull().default(false),
+    featuredUntil: timestamp("featured_until", { withTimezone: true }),
+    featuredFeeCents: integer("featured_fee_cents"),
     locationLat: integer("location_lat"),
     locationLng: integer("location_lng"),
     images: text("images").array().notNull().default([]),
@@ -82,5 +85,10 @@ export const listings = pgTable(
       table.searchVector
     ),
     idxListingsMetadata: index("idx_listings_metadata").on(table.metadata),
+    idxListingsFeatured: index("idx_listings_featured").on(
+      table.status,
+      table.isFeatured,
+      table.featuredUntil
+    ),
   })
 );

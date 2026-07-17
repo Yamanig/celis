@@ -25,6 +25,8 @@ import {
   fetchSimilarListings,
 } from "~/server/listings.functions";
 import { fetchCategoryMetadataSchema } from "~/server/categories.functions";
+import { getFeaturedListingFee } from "~/server/config.functions";
+import { PaymentModal } from "~/components/listings/payment-modal";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 import { formatMetadataValue } from "~/lib/category-metadata";
 import {
@@ -37,6 +39,7 @@ import {
   PhoneCall,
   MessageCircle,
   Star,
+  Sparkles,
 } from "lucide-react";
 
 export const Route = createFileRoute("/listings/$id")({
@@ -46,14 +49,15 @@ export const Route = createFileRoute("/listings/$id")({
     if (!listing || listing.status !== "active") {
       throw new Error("Listing not found");
     }
-    const [reviews, similar, metadataSchema] = await Promise.all([
+    const [reviews, similar, metadataSchema, featuredFeeCents] = await Promise.all([
       fetchListingReviews({ data: { id: params.id } }),
       fetchSimilarListings({
         data: { listingId: listing.id, categoryId: listing.categoryId },
       }),
       fetchCategoryMetadataSchema({ data: { categoryId: listing.categoryId } }),
+      getFeaturedListingFee(),
     ]);
-    return { listing, reviews, similar, metadataSchema };
+    return { listing, reviews, similar, metadataSchema, featuredFeeCents };
   },
   head: ({ loaderData }) => {
     const listing = loaderData?.listing;
@@ -105,10 +109,12 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function ListingDetailPage() {
-  const { listing, reviews, similar, metadataSchema } = Route.useLoaderData();
+  const { listing, reviews, similar, metadataSchema, featuredFeeCents } =
+    Route.useLoaderData();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [showContact, setShowContact] = useState(false);
+  const [featureModalOpen, setFeatureModalOpen] = useState(false);
   const [callbackOpen, setCallbackOpen] = useState(false);
   const [callbackPhone, setCallbackPhone] = useState(user?.phone ?? "");
   const [callbackDescription, setCallbackDescription] = useState("");
@@ -162,6 +168,15 @@ function ListingDetailPage() {
                 <Badge variant="outline">
                   {listing.condition?.replace(/_/g, " ") ?? "N/A"}
                 </Badge>
+                {listing.isFeatured && (
+                  <Badge
+                    variant="default"
+                    className="bg-celis-caution text-celis-ink hover:bg-celis-caution"
+                  >
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    Featured
+                  </Badge>
+                )}
               </div>
               <h1 className="text-2xl font-semibold leading-tight text-celis-ink sm:text-3xl">
                 {listing.title}
@@ -194,6 +209,19 @@ function ListingDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {user?.id === listing.sellerId && featuredFeeCents > 0 && (
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => setFeatureModalOpen(true)}
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {listing.isFeatured
+                      ? `Extend feature (${formatPrice(featuredFeeCents)})`
+                      : `Feature listing (${formatPrice(featuredFeeCents)})`}
+                  </Button>
+                )}
 
                 {localReviews.count > 0 && (
                   <div className="flex items-center gap-2 text-sm text-celis-ink-secondary">
@@ -579,6 +607,18 @@ function ListingDetailPage() {
           }}
         />
       </main>
+
+      <PaymentModal
+        open={featureModalOpen}
+        onOpenChange={setFeatureModalOpen}
+        userId={user?.id ?? ""}
+        listingId={listing.id}
+        amountCents={featuredFeeCents}
+        featureListing
+        onSuccess={() => {
+          navigate({ to: "/dashboard" });
+        }}
+      />
 
       <SiteFooter />
     </div>

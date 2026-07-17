@@ -5,8 +5,12 @@ import {
   getWalletPaymentByMerchantRef,
   confirmWalletPayment,
 } from "./payments.server";
-import { getListingFeeCents, getListingPricing } from "./config.server";
-import { submitListingForReview } from "./listings.server";
+import {
+  getListingFeeCents,
+  getListingPricing,
+  getFeaturedListingFeeCents,
+} from "./config.server";
+import { submitListingForReview, featureListing } from "./listings.server";
 import { db } from "~/db";
 import { listings } from "~/db/schema";
 import { eq } from "drizzle-orm";
@@ -41,6 +45,7 @@ const initiateSchema = z.object({
   orderId: z.string().uuid().nullable(),
   provider: z.enum(WALLET_PROVIDERS),
   phone: z.string().min(1),
+  featureListing: z.boolean().optional().default(false),
 });
 
 export const initiatePayment = createServerFn({ method: "POST" })
@@ -52,33 +57,36 @@ export const initiatePayment = createServerFn({ method: "POST" })
       const [listing] = await db
         .select({
           price: listings.price,
-          condition: listings.condition,
           categoryId: listings.categoryId,
         })
         .from(listings)
         .where(eq(listings.id, data.listingId))
         .limit(1);
       if (listing) {
-        const pricing = await getListingPricing(listing.price, listing.categoryId);
-        amountCents = pricing.feeCents;
+        if (data.featureListing) {
+          amountCents = await getFeaturedListingFeeCents();
+        } else {
+          const pricing = await getListingPricing(listing.price, listing.categoryId);
+          amountCents = pricing.feeCents;
 
-        // Snapshot the pricing inputs/outputs on the listing so the fee
-        // cannot change between payment and approval, and reconciliation
-        // is possible.
-        const monetizationType: "fixed_rate" | "commission" =
-          pricing.monetizationModel === "fixed_only" ? "fixed_rate" : "commission";
-        await db
-          .update(listings)
-          .set({
-            feeAmountCents: pricing.feeCents,
-            commissionBps: pricing.commissionBps,
-            currency: pricing.currency,
-            expiresAt: pricing.expiresAt,
-            appliedFeeRuleId: pricing.appliedFeeRuleId,
-            monetizationType,
-            updatedAt: new Date(),
-          })
-          .where(eq(listings.id, data.listingId));
+          // Snapshot the pricing inputs/outputs on the listing so the fee
+          // cannot change between payment and approval, and reconciliation
+          // is possible.
+          const monetizationType: "fixed_rate" | "commission" =
+            pricing.monetizationModel === "fixed_only" ? "fixed_rate" : "commission";
+          await db
+            .update(listings)
+            .set({
+              feeAmountCents: pricing.feeCents,
+              commissionBps: pricing.commissionBps,
+              currency: pricing.currency,
+              expiresAt: pricing.expiresAt,
+              appliedFeeRuleId: pricing.appliedFeeRuleId,
+              monetizationType,
+              updatedAt: new Date(),
+            })
+            .where(eq(listings.id, data.listingId));
+        }
       }
     }
 
@@ -88,7 +96,8 @@ export const initiatePayment = createServerFn({ method: "POST" })
       data.orderId,
       data.provider,
       data.phone,
-      amountCents
+      amountCents,
+      data.featureListing ? "feature_listing" : data.orderId ? "order" : "listing_fee"
     );
   });
 
@@ -111,7 +120,14 @@ export const simulateConfirmPayment = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const payment = await confirmWalletPayment(data.merchantRef);
     if (data.listingId && payment.listingId === data.listingId) {
-      await submitListingForReview(data.listingId);
+      if (payment.purpose === "feature_listing") {
+        const { getCurrentUser } = await import("./auth.server");
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+        await featureListing(data.listingId, user.id, payment.amount);
+      } else {
+        await submitListingForReview(data.listingId);
+      }
     }
     return { success: true, payment: serializeWalletPayment(payment) };
   });

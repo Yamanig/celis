@@ -6,11 +6,16 @@ import {
   getPlatformMonetizationModel,
   getListingPricing,
   getPlatformConfig,
+  getFeaturedListingFeeCents,
 } from "./config.server";
 
 export const getListingFee = createServerFn({ method: "GET" }).handler(async () => {
   return getListingFeeCents();
 });
+
+export const getFeaturedListingFee = createServerFn({ method: "GET" }).handler(
+  async () => getFeaturedListingFeeCents()
+);
 
 export const getListingTiers = createServerFn({ method: "GET" }).handler(async () => {
   return getListingTiersConfig();

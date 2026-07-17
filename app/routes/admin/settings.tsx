@@ -71,6 +71,7 @@ const LABELS: Record<string, string> = {
   platform_monetization_model: "Monetization model",
   listing_fee_cents: "Listing fee",
   commission_bps: "Sales commission",
+  featured_listing_fee_cents: "Featured listing fee",
   local_pickup_enabled: "Local pickup",
   platform_shipping_enabled: "Platform shipping",
   commission_model_enabled: "Commission model",
@@ -87,6 +88,8 @@ const HELPERS: Record<string, string> = {
   listing_fee_cents: "Fixed fee charged when a seller publishes or renews a listing.",
   commission_bps:
     "Percentage charged only when an order reaches the business-defined completed status.",
+  featured_listing_fee_cents:
+    "One-time fee charged when a seller features a listing for 7 days.",
   local_pickup_enabled: "Allow buyers to pick up items directly from the seller.",
   platform_shipping_enabled: "Enable platform-managed shipping options.",
   commission_model_enabled:
@@ -101,6 +104,7 @@ const HELPERS: Record<string, string> = {
 const FINANCIAL_KEYS = new Set([
   "listing_fee_cents",
   "commission_bps",
+  "featured_listing_fee_cents",
   "commission_model_enabled",
   "bank_transfer_payouts_enabled",
 ]);
@@ -246,6 +250,11 @@ function AdminSettingsPage() {
       if (!Number.isInteger(n)) return "Commission must be a whole number of basis points.";
       if (n > MAX_COMMISSION_BPS)
         return `Commission cannot exceed ${bpsToPercent(MAX_COMMISSION_BPS)}.`;
+    }
+    if (key === "featured_listing_fee_cents") {
+      const n = Number(value);
+      if (Number.isNaN(n) || n < 0) return "Featured fee must be a non-negative amount.";
+      if (!Number.isInteger(n)) return "Featured fee must be a whole number of cents.";
     }
     if (key === "listing_tiers") {
       return validateTiers(value);
@@ -453,7 +462,7 @@ function AdminSettingsPage() {
       );
     }
 
-    if (config.key === "listing_fee_cents") {
+    if (config.key === "listing_fee_cents" || config.key === "featured_listing_fee_cents") {
       return (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -588,13 +597,13 @@ function AdminSettingsPage() {
   const confirmItem = confirm.open ? configMap.get(confirm.key) : undefined;
   const confirmPreviousValue = confirmItem?.value;
   const confirmDisplayPrevious =
-    confirm.key === "listing_fee_cents"
+    confirm.key === "listing_fee_cents" || confirm.key === "featured_listing_fee_cents"
       ? formatCurrency(Number(confirmPreviousValue) || 0)
       : confirm.key === "commission_bps"
       ? bpsToPercent(Number(confirmPreviousValue) || 0)
       : String(confirmPreviousValue);
   const confirmDisplayNew =
-    confirm.key === "listing_fee_cents"
+    confirm.key === "listing_fee_cents" || confirm.key === "featured_listing_fee_cents"
       ? formatCurrency(Number(confirm.value) || 0)
       : confirm.key === "commission_bps"
       ? bpsToPercent(Number(confirm.value) || 0)

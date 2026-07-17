@@ -31,6 +31,9 @@ export type ListingPublic = {
   monetizationType: string;
   deliveryMethod: string;
   status: string;
+  isFeatured: boolean;
+  featuredUntil: Date | null;
+  featuredFeeCents: number | null;
   images: string[];
   metadata: ListingMetadata;
   expiresAt: Date | null;
@@ -69,6 +72,9 @@ function mapListingPublic(
     monetizationType: row.monetizationType,
     deliveryMethod: row.deliveryMethod,
     status: row.status,
+    isFeatured: row.isFeatured,
+    featuredUntil: row.featuredUntil,
+    featuredFeeCents: row.featuredFeeCents,
     images: row.images,
     metadata: (row.metadata as ListingMetadata) ?? {},
     expiresAt: row.expiresAt,
@@ -211,6 +217,45 @@ export async function submitShopListingForReview(
     );
   }
   return submitListingForReview(id);
+}
+
+export const FEATURED_LISTING_DURATION_DAYS = 7;
+
+export async function featureListing(
+  id: string,
+  sellerId: string,
+  feeCents: number,
+  days: number = FEATURED_LISTING_DURATION_DAYS
+) {
+  const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status !== "active") {
+    throw new CelisError("Only active listings can be featured", "LISTING_NOT_ACTIVE", 400);
+  }
+
+  const featuredUntil = new Date();
+  featuredUntil.setDate(featuredUntil.getDate() + days);
+
+  const [updated] = await db
+    .update(listings)
+    .set({
+      isFeatured: true,
+      featuredUntil,
+      featuredFeeCents: feeCents,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  return updated;
 }
 
 export async function approveListing(id: string, reviewerId: string) {
@@ -358,16 +403,19 @@ export async function searchListings(filters: SearchListingsFilters) {
     }
   }
 
-  const orderBy =
+  conditions.push(
+    sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`
+  );
+
+  const sortOrder =
     sort === "price_asc"
       ? asc(listings.price)
       : sort === "price_desc"
       ? desc(listings.price)
       : desc(listings.createdAt);
 
-  conditions.push(
-    sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`
-  );
+  // Featured listings (not expired) sort to the top.
+  const featuredFirst = sql`CASE WHEN ${listings.isFeatured} = true AND (${listings.featuredUntil} IS NULL OR ${listings.featuredUntil} > now()) THEN 0 ELSE 1 END`;
 
   const offset = (page - 1) * limit;
 
@@ -376,7 +424,7 @@ export async function searchListings(filters: SearchListingsFilters) {
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .where(and(...conditions))
-    .orderBy(orderBy)
+    .orderBy(featuredFirst, sortOrder)
     .limit(limit)
     .offset(offset);
 
@@ -396,6 +444,7 @@ export async function searchListings(filters: SearchListingsFilters) {
 }
 
 export async function getFeaturedListings(limit = 8) {
+  const featuredFirst = sql`CASE WHEN ${listings.isFeatured} = true AND (${listings.featuredUntil} IS NULL OR ${listings.featuredUntil} > now()) THEN 0 ELSE 1 END`;
   const rows = await db
     .select({ listing: listings, categoryName: categories.name })
     .from(listings)
@@ -406,7 +455,7 @@ export async function getFeaturedListings(limit = 8) {
         sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`
       )
     )
-    .orderBy(desc(listings.createdAt))
+    .orderBy(featuredFirst, desc(listings.createdAt))
     .limit(limit);
 
   return rows.map((r) => mapListingPublic(r.listing, r.categoryName));
@@ -435,12 +484,14 @@ export async function getShopListings(
 
   const offset = (page - 1) * limit;
 
+  const featuredFirst = sql`CASE WHEN ${listings.isFeatured} = true AND (${listings.featuredUntil} IS NULL OR ${listings.featuredUntil} > now()) THEN 0 ELSE 1 END`;
+
   const rows = await db
     .select({ listing: listings, categoryName: categories.name })
     .from(listings)
     .innerJoin(categories, eq(listings.categoryId, categories.id))
     .where(and(...conditions))
-    .orderBy(desc(listings.createdAt))
+    .orderBy(featuredFirst, desc(listings.createdAt))
     .limit(limit)
     .offset(offset);
 
@@ -568,6 +619,7 @@ export async function getSimilarListings(
   categoryId: string,
   limit = 8
 ) {
+  const featuredFirst = sql`CASE WHEN ${listings.isFeatured} = true AND (${listings.featuredUntil} IS NULL OR ${listings.featuredUntil} > now()) THEN 0 ELSE 1 END`;
   const rows = await db
     .select({ listing: listings, categoryName: categories.name })
     .from(listings)
@@ -580,7 +632,7 @@ export async function getSimilarListings(
         sql`(${listings.expiresAt} IS NULL OR ${listings.expiresAt} > now())`
       )
     )
-    .orderBy(desc(listings.createdAt))
+    .orderBy(featuredFirst, desc(listings.createdAt))
     .limit(limit);
 
   return rows.map((r) => mapListingPublic(r.listing, r.categoryName));

@@ -44,6 +44,10 @@ export async function getListingTiersConfig() {
   return parseListingTiersConfig(raw);
 }
 
+export async function getFeaturedListingFeeCents(): Promise<number> {
+  return (await getPlatformConfig<number>("featured_listing_fee_cents")) ?? 0;
+}
+
 export async function getPlatformMonetizationModel(): Promise<MonetizationModel> {
   const [value, commissionEnabled] = await Promise.all([
     getPlatformConfig<MonetizationModel>("platform_monetization_model"),

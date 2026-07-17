@@ -31,6 +31,7 @@ interface PaymentModalProps {
   listingId: string | null;
   amountCents: number;
   enabledProviders?: readonly string[];
+  featureListing?: boolean;
   onSuccess: () => void;
 }
 
@@ -41,6 +42,7 @@ export function PaymentModal({
   listingId,
   amountCents,
   enabledProviders = WALLET_PROVIDERS,
+  featureListing = false,
   onSuccess,
 }: PaymentModalProps) {
   const providers = (enabledProviders.length > 0 ? enabledProviders : WALLET_PROVIDERS) as string[];
@@ -71,6 +73,7 @@ export function PaymentModal({
           orderId: null,
           provider: provider as (typeof WALLET_PROVIDERS)[number],
           phone,
+          featureListing,
         },
       });
       setMerchantRef(result.merchantRef);
@@ -108,9 +111,13 @@ export function PaymentModal({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Pay listing fee</DialogTitle>
+          <DialogTitle>
+            {featureListing ? "Pay feature fee" : "Pay listing fee"}
+          </DialogTitle>
           <DialogDescription>
-            Activate your listing for {formatPrice(amountCents)} via mobile money.
+            {featureListing
+              ? `Feature this listing for ${formatPrice(amountCents)} via mobile money.`
+              : `Activate your listing for ${formatPrice(amountCents)} via mobile money.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -119,7 +126,9 @@ export function PaymentModal({
             <CheckCircle2 className="h-12 w-12 text-celis-success" />
             <p className="text-lg font-medium">Payment received</p>
             <p className="text-sm text-celis-ink-secondary">
-              Your listing is now live on Celis.
+              {featureListing
+                ? "Your listing is now featured for 7 days."
+                : "Your listing is now live on Celis."}
             </p>
           </div>
         ) : (

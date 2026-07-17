@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
+import { Sparkles } from "lucide-react";
 import type { ListingPublic } from "~/server/listings.server";
 
 interface ListingCardProps {
@@ -14,13 +15,19 @@ export function ListingCard({ listing }: ListingCardProps) {
   return (
     <Link to="/listings/$id" params={{ id: listing.id }} className="group block">
       <Card className="overflow-hidden transition-shadow hover:shadow-md">
-        <div className="aspect-[4/3] overflow-hidden bg-celis-surface-inset">
+        <div className="relative aspect-[4/3] overflow-hidden bg-celis-surface-inset">
           <img
             src={cover}
             alt={listing.title}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
           />
+          {listing.isFeatured && (
+            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-celis-caution px-2 py-1 text-xs font-medium text-celis-ink">
+              <Sparkles className="h-3 w-3" />
+              Featured
+            </span>
+          )}
         </div>
         <CardContent className="space-y-2 p-4">
           <div className="flex items-start justify-between gap-2">
