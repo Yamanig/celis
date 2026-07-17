@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { SiteHeader } from "~/components/layout/site-header";
 import { SiteFooter } from "~/components/layout/site-footer";
@@ -23,6 +23,10 @@ import {
   fetchListingReviews,
   createListingReview,
   fetchSimilarListings,
+  deactivateSellerListing,
+  reactivateSellerListing,
+  markSellerListingSold,
+  removeListing,
 } from "~/server/listings.functions";
 import { fetchCategoryMetadataSchema } from "~/server/categories.functions";
 import { getFeaturedListingFee } from "~/server/config.functions";
@@ -40,13 +44,21 @@ import {
   MessageCircle,
   Star,
   Sparkles,
+  Pause,
+  Play,
+  Trash2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/listings/$id")({
   component: ListingDetailPage,
-  loader: async ({ params }) => {
+  loader: async ({ params, context }) => {
     const listing = await fetchListingById({ data: { id: params.id } });
-    if (!listing || listing.status !== "active") {
+    if (!listing) {
+      throw new Error("Listing not found");
+    }
+    const isOwner = context.user?.id === listing.sellerId;
+    const canView = listing.status === "active" || isOwner;
+    if (!canView) {
       throw new Error("Listing not found");
     }
     const [reviews, similar, metadataSchema, featuredFeeCents] = await Promise.all([
@@ -113,6 +125,7 @@ function ListingDetailPage() {
     Route.useLoaderData();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const router = useRouter();
   const [showContact, setShowContact] = useState(false);
   const [featureModalOpen, setFeatureModalOpen] = useState(false);
   const [callbackOpen, setCallbackOpen] = useState(false);
@@ -130,6 +143,45 @@ function ListingDetailPage() {
 
   const dialNumber = listing.sellerPhone ?? "";
   const whatsappNumber = dialNumber.replace(/\D/g, "");
+
+  const handleDeactivate = async () => {
+    if (!confirm("Deactivate this listing? It will be hidden from buyers.")) return;
+    try {
+      await deactivateSellerListing({ data: { id: listing.id } });
+      await router.invalidate();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Deactivation failed");
+    }
+  };
+
+  const handleReactivate = async () => {
+    try {
+      await reactivateSellerListing({ data: { id: listing.id } });
+      await router.invalidate();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Reactivation failed");
+    }
+  };
+
+  const handleMarkSold = async () => {
+    if (!confirm("Mark this listing as sold?")) return;
+    try {
+      await markSellerListingSold({ data: { id: listing.id } });
+      await router.invalidate();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Mark as sold failed");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this listing? This cannot be undone.")) return;
+    try {
+      await removeListing({ data: { id: listing.id } });
+      navigate({ to: "/dashboard" });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed");
+    }
+  };
 
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -221,6 +273,65 @@ function ListingDetailPage() {
                       ? `Extend feature (${formatPrice(featuredFeeCents)})`
                       : `Feature listing (${formatPrice(featuredFeeCents)})`}
                   </Button>
+                )}
+
+                {user?.id === listing.sellerId && (
+                  <div className="grid gap-2">
+                    {listing.status === "active" && (
+                      <>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={handleDeactivate}
+                        >
+                          <Pause className="mr-2 h-4 w-4" />
+                          Deactivate
+                        </Button>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={handleMarkSold}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Mark as sold
+                        </Button>
+                      </>
+                    )}
+                    {listing.status === "inactive" && (
+                      <>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={handleReactivate}
+                        >
+                          <Play className="mr-2 h-4 w-4" />
+                          Reactivate
+                        </Button>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={handleMarkSold}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Mark as sold
+                        </Button>
+                      </>
+                    )}
+                    {(listing.status === "draft" ||
+                      listing.status === "pending_review" ||
+                      listing.status === "rejected" ||
+                      listing.status === "expired" ||
+                      listing.status === "inactive") && (
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        onClick={handleDelete}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </Button>
+                    )}
+                  </div>
                 )}
 
                 {localReviews.count > 0 && (

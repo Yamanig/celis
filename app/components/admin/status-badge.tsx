@@ -4,6 +4,7 @@ const listingStatusVariants: Record<string, string> = {
   active: "default",
   draft: "secondary",
   pending_review: "caution",
+  inactive: "secondary",
   sold: "success",
   expired: "caution",
   rejected: "destructive",

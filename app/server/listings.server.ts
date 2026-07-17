@@ -31,6 +31,10 @@ export type ListingPublic = {
   monetizationType: string;
   deliveryMethod: string;
   status: string;
+  deactivatedAt: Date | null;
+  deactivationReason: string | null;
+  soldAt: Date | null;
+  soldToOrderId: string | null;
   isFeatured: boolean;
   featuredUntil: Date | null;
   featuredFeeCents: number | null;
@@ -72,6 +76,10 @@ function mapListingPublic(
     monetizationType: row.monetizationType,
     deliveryMethod: row.deliveryMethod,
     status: row.status,
+    deactivatedAt: row.deactivatedAt,
+    deactivationReason: row.deactivationReason,
+    soldAt: row.soldAt,
+    soldToOrderId: row.soldToOrderId,
     isFeatured: row.isFeatured,
     featuredUntil: row.featuredUntil,
     featuredFeeCents: row.featuredFeeCents,
@@ -561,12 +569,129 @@ export async function getSellerListings(
   };
 }
 
+export async function deactivateListing(
+  id: string,
+  sellerId: string,
+  reason?: string
+) {
+  const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status !== "active") {
+    throw new CelisError("Only active listings can be deactivated", "LISTING_NOT_ACTIVE", 400);
+  }
+
+  const [updated] = await db
+    .update(listings)
+    .set({
+      status: "inactive",
+      deactivatedAt: new Date(),
+      deactivationReason: reason?.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  return updated;
+}
+
+export async function reactivateListing(id: string, sellerId: string) {
+  const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status, expiresAt: listings.expiresAt })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status !== "inactive") {
+    throw new CelisError("Only inactive listings can be reactivated", "LISTING_NOT_INACTIVE", 400);
+  }
+  if (listing.expiresAt && listing.expiresAt <= new Date()) {
+    throw new CelisError("Listing has expired. Please create a new listing.", "LISTING_EXPIRED", 400);
+  }
+
+  const [updated] = await db
+    .update(listings)
+    .set({
+      status: "active",
+      deactivatedAt: null,
+      deactivationReason: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  return updated;
+}
+
+export async function markListingAsSold(
+  id: string,
+  sellerId: string,
+  orderId?: string
+) {
+  const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status !== "active" && listing.status !== "inactive") {
+    throw new CelisError("Only active or inactive listings can be marked as sold", "LISTING_CANNOT_BE_SOLD", 400);
+  }
+
+  const [updated] = await db
+    .update(listings)
+    .set({
+      status: "sold",
+      soldAt: new Date(),
+      soldToOrderId: orderId ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id))
+    .returning();
+  return updated;
+}
+
 export async function deleteListing(id: string, sellerId: string) {
   const [listing] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+  if (!listing) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
+  }
+  if (listing.sellerId !== sellerId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  if (listing.status === "active" || listing.status === "sold") {
+    throw new CelisError(
+      "Active or sold listings cannot be deleted. Deactivate or mark as sold first.",
+      "LISTING_CANNOT_BE_DELETED",
+      400
+    );
+  }
+
+  const [deleted] = await db
     .delete(listings)
     .where(and(eq(listings.id, id), eq(listings.sellerId, sellerId)))
     .returning();
-  return listing;
+  return deleted;
 }
 
 export async function expireStaleListings() {

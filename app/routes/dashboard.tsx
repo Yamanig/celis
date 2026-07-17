@@ -17,12 +17,31 @@ import { ListingStatusBadge } from "~/components/admin/status-badge";
 import {
   fetchSellerListings,
   removeListing,
+  deactivateSellerListing,
+  reactivateSellerListing,
+  markSellerListingSold,
   fetchCurrentSellerSubscription,
 } from "~/server/listings.functions";
 import { PaymentModal } from "~/components/listings/payment-modal";
 import { getFeaturedListingFee } from "~/server/config.functions";
 import { formatPrice } from "~/lib/format";
-import { Trash2, Package, Store, Calendar, Sparkles } from "lucide-react";
+import {
+  Trash2,
+  Package,
+  Store,
+  Calendar,
+  Sparkles,
+  Pause,
+  Play,
+  CheckCircle2,
+  MoreHorizontal,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 
 const dashboardSearchSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -83,9 +102,48 @@ function DashboardPage() {
   }, [user]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this listing?")) return;
-    await removeListing({ data: { id } });
-    setListings((prev) => prev.filter((l) => l.id !== id));
+    if (!confirm("Delete this listing? This cannot be undone.")) return;
+    try {
+      await removeListing({ data: { id } });
+      setListings((prev) => prev.filter((l) => l.id !== id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed");
+    }
+  };
+
+  const handleDeactivate = async (id: string) => {
+    if (!confirm("Deactivate this listing? It will be hidden from buyers.")) return;
+    try {
+      await deactivateSellerListing({ data: { id } });
+      setListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: "inactive" } : l))
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Deactivation failed");
+    }
+  };
+
+  const handleReactivate = async (id: string) => {
+    try {
+      await reactivateSellerListing({ data: { id } });
+      setListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: "active" } : l))
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Reactivation failed");
+    }
+  };
+
+  const handleMarkSold = async (id: string) => {
+    if (!confirm("Mark this listing as sold?")) return;
+    try {
+      await markSellerListingSold({ data: { id } });
+      setListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: "sold" } : l))
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Mark as sold failed");
+    }
   };
 
   return (
@@ -247,14 +305,53 @@ function DashboardPage() {
                           {listing.isFeatured ? "Extend feature" : "Feature"}
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(listing.id)}
-                        aria-label="Delete listing"
-                      >
-                        <Trash2 className="h-4 w-4 text-celis-destructive" />
-                      </Button>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" aria-label="Listing actions">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {listing.status === "active" && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleDeactivate(listing.id)}>
+                                <Pause className="mr-2 h-4 w-4" />
+                                Deactivate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleMarkSold(listing.id)}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                Mark as sold
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {listing.status === "inactive" && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleReactivate(listing.id)}>
+                                <Play className="mr-2 h-4 w-4" />
+                                Reactivate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleMarkSold(listing.id)}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                Mark as sold
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {(listing.status === "draft" ||
+                            listing.status === "pending_review" ||
+                            listing.status === "rejected" ||
+                            listing.status === "expired" ||
+                            listing.status === "inactive") && (
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(listing.id)}
+                              className="text-celis-destructive focus:text-celis-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 ))}

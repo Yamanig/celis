@@ -9,6 +9,9 @@ import {
   getFeaturedListings,
   getSellerListings,
   deleteListing,
+  deactivateListing,
+  reactivateListing,
+  markListingAsSold,
   getListingReviews,
   insertListingReview,
   submitShopListingForReview,
@@ -163,16 +166,48 @@ export const fetchSellerListings = createServerFn({ method: "GET" })
     return getSellerListings(user.id, data);
   });
 
-const deleteListingSchema = z.object({ id: z.string().uuid() });
+const listingActionSchema = z.object({ id: z.string().uuid() });
 
 export const removeListing = createServerFn({ method: "POST" })
-  .validator(deleteListingSchema)
+  .validator(listingActionSchema)
   .handler(async ({ data }) => {
     const { getCurrentUser } = await import("./auth.server");
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
     const deleted = await deleteListing(data.id, user.id);
     return { success: !!deleted, id: deleted?.id };
+  });
+
+export const deactivateSellerListing = createServerFn({ method: "POST" })
+  .validator(listingActionSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    const updated = await deactivateListing(data.id, user.id);
+    return { success: !!updated, id: updated?.id, status: updated?.status };
+  });
+
+export const reactivateSellerListing = createServerFn({ method: "POST" })
+  .validator(listingActionSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    const updated = await reactivateListing(data.id, user.id);
+    return { success: !!updated, id: updated?.id, status: updated?.status };
+  });
+
+const markSoldSchema = z.object({ id: z.string().uuid(), orderId: z.string().uuid().optional() });
+
+export const markSellerListingSold = createServerFn({ method: "POST" })
+  .validator(markSoldSchema)
+  .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    const updated = await markListingAsSold(data.id, user.id, data.orderId);
+    return { success: !!updated, id: updated?.id, status: updated?.status };
   });
 
 export const fetchListingReviews = createServerFn({ method: "GET" })
