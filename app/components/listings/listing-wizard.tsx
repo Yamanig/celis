@@ -502,6 +502,34 @@ export function ListingWizard({
               </div>
 
               <div className="rounded-lg border border-celis-border bg-celis-surface-inset p-4 text-sm text-celis-ink-secondary">
+                <p className="mb-2 font-medium text-celis-ink">Listing fee tiers</p>
+                <ul className="space-y-1">
+                  {tiersConfig.tiers.map((tier) => {
+                    const min = tier.minCents / 100;
+                    const max = tier.maxCents === null ? null : tier.maxCents / 100;
+                    const range = max === null
+                      ? `$${min.toLocaleString()}+`
+                      : `$${min.toLocaleString()} – $${max.toLocaleString()}`;
+                    return (
+                      <li
+                        key={tier.label}
+                        className={`flex items-center justify-between ${
+                          preview.tierLabel === tier.label
+                            ? "font-medium text-celis-ink"
+                            : ""
+                        }`}
+                      >
+                        <span>
+                          {tier.label}: {range}
+                        </span>
+                        <span>{formatPrice(tier.feeCents)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              <div className="rounded-lg border border-celis-border bg-celis-surface-inset p-4 text-sm text-celis-ink-secondary">
                 <p className="font-medium text-celis-ink">
                   {preview.tierLabel} tier
                 </p>
