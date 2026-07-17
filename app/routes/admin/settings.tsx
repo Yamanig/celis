@@ -129,6 +129,19 @@ function bpsToPercent(bps: number): string {
   return `${(bps / 100).toFixed(2)}%`;
 }
 
+function centsToDollars(cents: number | null): string {
+  if (cents === null || Number.isNaN(cents)) return "";
+  return (cents / 100).toFixed(2);
+}
+
+function dollarsToCents(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const parsed = parseFloat(trimmed);
+  if (Number.isNaN(parsed)) return null;
+  return Math.round(parsed * 100);
+}
+
 function valuesEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a === "number" && typeof b === "number" && Number.isNaN(a) && Number.isNaN(b))
@@ -739,9 +752,9 @@ function AdminSettingsPage() {
               <thead>
                 <tr className="border-b border-celis-border text-left text-celis-ink-secondary">
                   <th className="pb-2 font-medium">Label</th>
-                  <th className="pb-2 font-medium">Min price (cents)</th>
-                  <th className="pb-2 font-medium">Max price (cents)</th>
-                  <th className="pb-2 font-medium">Fee (cents)</th>
+                  <th className="pb-2 font-medium">Min price ($)</th>
+                  <th className="pb-2 font-medium">Max price ($)</th>
+                  <th className="pb-2 font-medium">Fee ($)</th>
                   <th className="pb-2 font-medium">Expiry days</th>
                 </tr>
               </thead>
@@ -760,43 +773,43 @@ function AdminSettingsPage() {
                       <Input
                         type="number"
                         min={0}
-                        step={1}
-                        value={tier.minCents}
-                        onChange={(e) =>
-                          updateTier(idx, {
-                            minCents: Math.round(Number(e.target.value)) || 0,
-                          })
-                        }
+                        step={0.01}
+                        value={centsToDollars(tier.minCents)}
+                        onChange={(e) => {
+                          const cents = dollarsToCents(e.target.value);
+                          if (cents !== null) {
+                            updateTier(idx, { minCents: cents });
+                          }
+                        }}
                       />
                     </td>
                     <td className="py-2 pr-3">
                       <Input
                         type="number"
                         min={0}
-                        step={1}
+                        step={0.01}
                         placeholder="No max"
-                        value={tier.maxCents ?? ""}
-                        onChange={(e) =>
+                        value={centsToDollars(tier.maxCents)}
+                        onChange={(e) => {
+                          const cents = dollarsToCents(e.target.value);
                           updateTier(idx, {
-                            maxCents:
-                              e.target.value === ""
-                                ? null
-                                : Math.round(Number(e.target.value)) || 0,
-                          })
-                        }
+                            maxCents: cents,
+                          });
+                        }}
                       />
                     </td>
                     <td className="py-2 pr-3">
                       <Input
                         type="number"
                         min={0}
-                        step={1}
-                        value={tier.feeCents}
-                        onChange={(e) =>
-                          updateTier(idx, {
-                            feeCents: Math.round(Number(e.target.value)) || 0,
-                          })
-                        }
+                        step={0.01}
+                        value={centsToDollars(tier.feeCents)}
+                        onChange={(e) => {
+                          const cents = dollarsToCents(e.target.value);
+                          if (cents !== null) {
+                            updateTier(idx, { feeCents: cents });
+                          }
+                        }}
                       />
                     </td>
                     <td className="py-2">

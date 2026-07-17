@@ -26,23 +26,23 @@ export const DEFAULT_LISTING_TIERS: ListingTiersConfig = {
   tiers: [
     {
       label: "Basic",
-      minCents: 10,
-      maxCents: 499,
-      feeCents: 50,
+      minCents: 1000, // $10.00
+      maxCents: 49999, // $499.99
+      feeCents: 50, // $0.50
       expiryDays: 7,
     },
     {
       label: "Standard",
-      minCents: 500,
-      maxCents: 4999,
-      feeCents: 100,
+      minCents: 50000, // $500.00
+      maxCents: 499999, // $4,999.99
+      feeCents: 100, // $1.00
       expiryDays: 14,
     },
     {
       label: "Premium",
-      minCents: 5000,
-      maxCents: null,
-      feeCents: 250,
+      minCents: 500000, // $5,000.00
+      maxCents: null, // unlimited
+      feeCents: 250, // $2.50
       expiryDays: 30,
     },
   ],

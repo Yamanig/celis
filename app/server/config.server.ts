@@ -108,25 +108,14 @@ export async function getListingPricing(
     getPlatformMonetizationModel(),
   ]);
 
-  const [listingFeeRule, commissionRule] = await Promise.all([
-    (monetizationModel === "fixed_only" || monetizationModel === "hybrid")
-      ? getActiveCategoryFee(categoryId ?? null, "listing_fee")
-      : Promise.resolve(null),
-    (monetizationModel === "commission_only" || monetizationModel === "hybrid")
-      ? getActiveCategoryFee(categoryId ?? null, "commission")
-      : Promise.resolve(null),
-  ]);
+  const commissionRule =
+    monetizationModel === "commission_only" || monetizationModel === "hybrid"
+      ? await getActiveCategoryFee(categoryId ?? null, "commission")
+      : null;
 
   return calculateListingPricing(priceCents, config, {
     monetizationModel,
-    listingFeeRule: listingFeeRule
-      ? {
-          id: listingFeeRule.id,
-          feeType: listingFeeRule.feeType,
-          amount: listingFeeRule.amount,
-          currency: "USD",
-        }
-      : undefined,
+    listingFeeRule: undefined,
     commissionRule: commissionRule
       ? {
           id: commissionRule.id,

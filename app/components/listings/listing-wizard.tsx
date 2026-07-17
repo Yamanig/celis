@@ -510,12 +510,7 @@ export function ListingWizard({
                     Listing fee:{" "}
                     <strong className="text-celis-ink">
                       {formatPrice(preview.feeCents)}
-                    </strong>{" "}
-                    {preview.baseFeeCents !== preview.feeCents && (
-                      <span className="text-xs">
-                        ({formatPrice(preview.baseFeeCents)} × condition multiplier)
-                      </span>
-                    )}
+                    </strong>
                   </p>
                 )}
                 {preview.commissionAmountCents !== null && preview.commissionAmountCents > 0 && (
