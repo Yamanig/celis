@@ -127,6 +127,13 @@
       "when": 1784301326381,
       "tag": "0017_mobile_app_support",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784302000000,
+      "tag": "0018_mobile_rls",
+      "breakpoints": true
     }
   ]
 }
