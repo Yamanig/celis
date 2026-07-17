@@ -239,7 +239,7 @@ export function ListingWizard({
   }, [step, form]);
 
   const [preview, setPreview] = useState<ListingPricing>(() =>
-    calculateListingPricing(form.price, form.condition, tiersConfig, {
+    calculateListingPricing(form.price, tiersConfig, {
       monetizationModel,
     })
   );
@@ -248,7 +248,7 @@ export function ListingWizard({
     const timeout = setTimeout(() => {
       if (!form.categoryId) {
         setPreview(
-          calculateListingPricing(form.price, form.condition, tiersConfig, {
+          calculateListingPricing(form.price, tiersConfig, {
             monetizationModel,
           })
         );
@@ -257,7 +257,6 @@ export function ListingWizard({
       getListingPricingPreview({
         data: {
           price: form.price,
-          condition: form.condition ?? undefined,
           categoryId: form.categoryId,
         },
       }).then(setPreview);

@@ -722,7 +722,6 @@ export async function getAdminListings(options?: {
     items: rows.map((r) => {
       const pricing = calculateListingPricing(
         r.listing.price,
-        r.listing.condition,
         config,
         { monetizationModel: "fixed_only" }
       );

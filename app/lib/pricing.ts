@@ -1,5 +1,3 @@
-import { ITEM_CONDITIONS, type ItemCondition } from "~/db/schema";
-
 export type MonetizationModel = "fixed_only" | "commission_only" | "hybrid";
 
 export interface FeeRuleInput {
@@ -19,49 +17,35 @@ export interface PricingTier {
 }
 
 export interface ListingTiersConfig {
-  mode: "price_condition";
   currency: string;
   tiers: PricingTier[];
-  conditionMultipliers: Record<ItemCondition, number>;
 }
 
 export const DEFAULT_LISTING_TIERS: ListingTiersConfig = {
-  mode: "price_condition",
   currency: "USD",
   tiers: [
     {
-      label: "Budget",
-      minCents: 0,
-      maxCents: 4_999,
+      label: "Basic",
+      minCents: 10,
+      maxCents: 499,
       feeCents: 50,
       expiryDays: 7,
     },
     {
       label: "Standard",
-      minCents: 5_000,
-      maxCents: 49_999,
+      minCents: 500,
+      maxCents: 4999,
       feeCents: 100,
       expiryDays: 14,
     },
     {
       label: "Premium",
-      minCents: 50_000,
+      minCents: 5000,
       maxCents: null,
       feeCents: 250,
       expiryDays: 30,
     },
   ],
-  conditionMultipliers: {
-    new_with_tags: 1.0,
-    like_new: 1.0,
-    good: 1.0,
-    fair: 1.1,
-    poor: 1.25,
-    brand_new: 1.0,
-    used: 1.0,
-    refurbished: 1.0,
-    local_used: 1.0,
-  },
 };
 
 export function parseListingTiersConfig(raw: unknown): ListingTiersConfig {
@@ -88,24 +72,9 @@ export function parseListingTiersConfig(raw: unknown): ListingTiersConfig {
         }))
     : [];
 
-  const multipliers = ITEM_CONDITIONS.reduce((acc, condition) => {
-    const value =
-      obj.conditionMultipliers &&
-      typeof obj.conditionMultipliers === "object" &&
-      condition in obj.conditionMultipliers
-        ? Number(
-            (obj.conditionMultipliers as Record<string, unknown>)[condition]
-          )
-        : NaN;
-    acc[condition] = Number.isFinite(value) ? value : 1;
-    return acc;
-  }, {} as Record<ItemCondition, number>);
-
   return {
-    mode: "price_condition",
     currency: "USD",
     tiers: tiers.length > 0 ? tiers : DEFAULT_LISTING_TIERS.tiers,
-    conditionMultipliers: multipliers,
   };
 }
 
@@ -132,7 +101,6 @@ export interface CalculateListingPricingOptions {
 
 export function calculateListingPricing(
   priceCents: number,
-  condition: ItemCondition | null | undefined,
   config: ListingTiersConfig,
   options: CalculateListingPricingOptions = {},
   referenceDate: Date = new Date()
@@ -151,24 +119,19 @@ export function calculateListingPricing(
       return aboveMin && belowMax;
     }) ?? config.tiers[config.tiers.length - 1];
 
-  const multiplier = condition ? config.conditionMultipliers[condition] ?? 1 : 1;
   const baseFeeCents = tier.feeCents;
-  const tierFeeCents = Math.round(baseFeeCents * multiplier);
 
   let feeCents = 0;
   let commissionBps: number | null = null;
   let commissionAmountCents: number | null = null;
   let appliedFeeRuleId: string | null = null;
 
-  if (
-    monetizationModel === "fixed_only" ||
-    monetizationModel === "hybrid"
-  ) {
+  if (monetizationModel === "fixed_only" || monetizationModel === "hybrid") {
     if (listingFeeRule?.amount !== undefined) {
       feeCents = listingFeeRule.amount;
       appliedFeeRuleId = listingFeeRule.id ?? null;
     } else {
-      feeCents = tierFeeCents;
+      feeCents = baseFeeCents;
     }
   }
 

@@ -1,7 +1,6 @@
 import { db } from "~/db";
 import { platformConfigs, categoryFees } from "~/db/schema";
 import { eq, and, isNull, or } from "drizzle-orm";
-import type { ItemCondition } from "~/db/schema";
 import {
   calculateListingPricing,
   parseListingTiersConfig,
@@ -98,7 +97,6 @@ async function getActiveCategoryFee(
 
 export async function getListingPricing(
   priceCents: number,
-  condition: ItemCondition | null | undefined,
   categoryId?: string | null
 ): Promise<ListingPricing> {
   const [config, monetizationModel] = await Promise.all([
@@ -115,7 +113,7 @@ export async function getListingPricing(
       : Promise.resolve(null),
   ]);
 
-  return calculateListingPricing(priceCents, condition, config, {
+  return calculateListingPricing(priceCents, config, {
     monetizationModel,
     listingFeeRule: listingFeeRule
       ? {

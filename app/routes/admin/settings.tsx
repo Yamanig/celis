@@ -32,7 +32,6 @@ import {
   type ListingTiersConfig,
   type PricingTier,
 } from "~/lib/pricing";
-import { ITEM_CONDITIONS } from "~/db/schema";
 
 export const Route = createFileRoute("/admin/settings")({
   component: AdminSettingsPage,
@@ -387,26 +386,36 @@ function AdminSettingsPage() {
     });
   };
 
-  const updateMultiplier = (condition: string, multiplier: number) => {
-    setValues((v) => {
-      const current = isListingTiersConfig(v.listing_tiers)
-        ? v.listing_tiers
-        : DEFAULT_LISTING_TIERS;
-      return {
-        ...v,
-        listing_tiers: {
-          ...current,
-          conditionMultipliers: {
-            ...current.conditionMultipliers,
-            [condition]: multiplier,
-          },
-        },
-      };
-    });
-  };
-
   const resetTiers = () => {
     setValues((v) => ({ ...v, listing_tiers: DEFAULT_LISTING_TIERS }));
+  };
+
+  const handleSaveTiers = async () => {
+    const value = values.listing_tiers;
+    const fieldError = validate("listing_tiers", value);
+    if (fieldError) {
+      setErrors((e) => ({ ...e, listing_tiers: fieldError }));
+      return;
+    }
+    setLoading(true);
+    setSaved(false);
+    try {
+      await updateAdminPlatformConfig({
+        data: {
+          key: "listing_tiers",
+          value: value as string | number | boolean | Record<string, unknown>,
+        },
+      });
+      await router.invalidate();
+      setTouched((prev) => {
+        const next = new Set(prev);
+        next.delete("listing_tiers");
+        return next;
+      });
+      setSaved(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const feeConfigs = configs.filter(
@@ -800,37 +809,12 @@ function AdminSettingsPage() {
             </table>
           </div>
 
-          <div>
-            <h4 className="mb-3 text-sm font-medium text-celis-ink">
-              Condition fee multipliers
-            </h4>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {ITEM_CONDITIONS.map((condition) => (
-                <div
-                  key={condition}
-                  className="flex items-center justify-between gap-3"
-                >
-                  <Label htmlFor={`mult-${condition}`} className="capitalize">
-                    {condition.replace(/_/g, " ")}
-                  </Label>
-                  <Input
-                    id={`mult-${condition}`}
-                    type="number"
-                    min={0}
-                    step={0.05}
-                    className="w-28"
-                    value={tiersConfig.conditionMultipliers[condition] ?? 1}
-                    onChange={(e) =>
-                      updateMultiplier(condition, Number(e.target.value))
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
+          {errors.listing_tiers && (
+            <p className="text-sm text-destructive">{errors.listing_tiers}</p>
+          )}
 
           <div className="flex items-center gap-3">
-            <Button onClick={handleSaveAll} disabled={loading}>
+            <Button onClick={handleSaveTiers} disabled={loading}>
               {loading ? "Saving..." : "Save pricing"}
             </Button>
             {saved && (

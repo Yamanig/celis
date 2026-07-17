@@ -91,7 +91,6 @@ export const createListing = createServerFn({ method: "POST" })
     const { getListingPricing } = await import("./config.server");
     const pricing = await getListingPricing(
       data.listing.price,
-      data.listing.condition,
       data.listing.categoryId
     );
 

@@ -59,11 +59,7 @@ export const initiatePayment = createServerFn({ method: "POST" })
         .where(eq(listings.id, data.listingId))
         .limit(1);
       if (listing) {
-        const pricing = await getListingPricing(
-          listing.price,
-          listing.condition,
-          listing.categoryId
-        );
+        const pricing = await getListingPricing(listing.price, listing.categoryId);
         amountCents = pricing.feeCents;
 
         // Snapshot the pricing inputs/outputs on the listing so the fee
