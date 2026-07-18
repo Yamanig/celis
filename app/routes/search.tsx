@@ -10,7 +10,6 @@ import {
 import { Button } from "~/components/ui/button";
 import { fetchListings } from "~/server/listings.functions";
 import { listCategories } from "~/server/categories.functions";
-import type { ItemCondition } from "~/db/schema";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const searchParamsSchema = z.object({
@@ -43,7 +42,7 @@ export const Route = createFileRoute("/search")({
           categoryId: search.categoryId,
           minPrice: search.minPrice,
           maxPrice: search.maxPrice,
-          condition: (search.condition as ItemCondition | undefined) || undefined,
+          condition: search.condition || undefined,
           metadata: search.metadata,
           sort: search.sort || "newest",
           page: search.page || 1,

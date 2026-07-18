@@ -4,7 +4,6 @@ import { users } from "./users";
 import { categories } from "./categories";
 import { categoryFees } from "./platform-configs";
 import {
-  itemConditionEnum,
   deliveryMethodEnum,
   listingStatusEnum,
   monetizationTypeEnum,
@@ -23,7 +22,7 @@ export const listings = pgTable(
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "restrict" }),
-    condition: itemConditionEnum("condition"),
+    condition: varchar("condition", { length: 100 }),
     price: integer("price").notNull(), // USD cents
     monetizationType: monetizationTypeEnum("monetization_type")
       .notNull()

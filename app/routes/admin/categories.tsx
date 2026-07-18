@@ -28,7 +28,7 @@ import {
   fetchCategoryMetadataSchema,
   saveCategoryMetadataSchema,
 } from "~/server/categories.functions";
-import { ITEM_CONDITIONS } from "~/db/schema";
+
 import { formatRelativeDate } from "~/lib/format";
 import type {
   MetadataField,
@@ -491,24 +491,25 @@ function AdminCategoriesPage() {
                 >
                   <div>
                     <Label className="text-xs">Code</Label>
-                    <select
-                      className="h-10 w-full rounded-md border border-celis-border bg-celis-surface-inset px-2 text-sm"
+                    <Input
                       value={c.code}
                       disabled={!canManage}
+                      placeholder="e.g. healthy"
                       onChange={(e) =>
                         setConditions((prev) =>
                           prev.map((cond, i) =>
-                            i === idx ? { ...cond, code: e.target.value } : cond
+                            i === idx
+                              ? {
+                                  ...cond,
+                                  code: e.target.value
+                                    .toLowerCase()
+                                    .replace(/[^a-z0-9_]/g, "_"),
+                                }
+                              : cond
                           )
                         )
                       }
-                    >
-                      {ITEM_CONDITIONS.map((ic) => (
-                        <option key={ic} value={ic}>
-                          {ic.replace(/_/g, " ")}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Label</Label>
@@ -577,7 +578,7 @@ function AdminCategoriesPage() {
                     setConditions((prev) => [
                       ...prev,
                       {
-                        code: ITEM_CONDITIONS[0],
+                        code: "",
                         label: "",
                         description: "",
                         sortOrder: prev.length + 1,

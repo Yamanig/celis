@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  ITEM_CONDITIONS,
   DELIVERY_METHODS,
   MONETIZATION_TYPES,
   WALLET_PROVIDERS,
@@ -33,7 +32,7 @@ export const listingSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters").max(120),
   description: z.string().min(20, "Description must be at least 20 characters").max(5000),
   categoryId: z.string().uuid("Select a category"),
-  condition: z.enum(ITEM_CONDITIONS).nullable().optional(),
+  condition: z.string().max(100).nullable().optional(),
   price: z.coerce.number().int("Price must be a whole number").min(100, "Minimum price is $1.00"),
   monetizationType: z.enum(MONETIZATION_TYPES),
   deliveryMethod: z.enum(DELIVERY_METHODS),

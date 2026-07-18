@@ -13,7 +13,6 @@ import { db } from "~/db";
 import { categoryConditions } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { requirePermission } from "./auth.server";
-import type { ItemCondition } from "~/db/schema";
 import type { CategoryMetadataSchema } from "~/lib/category-metadata";
 
 export type CategoryListItem = {
@@ -114,7 +113,7 @@ export const saveCategoryConditions = createServerFn({ method: "POST" })
         await tx.insert(categoryConditions).values(
           data.conditions.map((c) => ({
             categoryId: data.categoryId,
-            code: c.code as ItemCondition,
+            code: c.code,
             label: c.label,
             description: c.description ?? null,
             sortOrder: c.sortOrder,

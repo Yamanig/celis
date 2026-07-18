@@ -12,9 +12,9 @@ import {
 } from "~/components/ui/select";
 import {
   fetchCategoryMetadataSchema,
+  fetchCategoryConditions,
   type CategoryListItem,
 } from "~/server/categories.functions";
-import { ITEM_CONDITIONS } from "~/db/schema";
 import type {
   CategoryMetadataSchema,
   MetadataField,
@@ -46,14 +46,6 @@ const DEFAULT_FILTERS: SearchFiltersState = {
   sort: "newest",
 };
 
-const conditionOptions = [
-  { value: "", label: "Any condition" },
-  ...ITEM_CONDITIONS.map((condition) => ({
-    value: condition,
-    label: condition.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-  })),
-];
-
 const sortOptions = [
   { value: "newest", label: "Newest" },
   { value: "price_asc", label: "Price: low to high" },
@@ -72,6 +64,10 @@ export function SearchFilters({
   const [metadataSchema, setMetadataSchema] =
     useState<CategoryMetadataSchema | null>(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
+  const [categoryConditions, setCategoryConditions] = useState<
+    { code: string; label: string }[]
+  >([]);
+  const [conditionsLoading, setConditionsLoading] = useState(false);
 
   useEffect(() => {
     setFilters((prev) => ({ ...prev, ...initial }));
@@ -80,12 +76,17 @@ export function SearchFilters({
   useEffect(() => {
     if (!filters.categoryId) {
       setMetadataSchema(null);
+      setCategoryConditions([]);
       return;
     }
     setSchemaLoading(true);
+    setConditionsLoading(true);
     fetchCategoryMetadataSchema({ data: { categoryId: filters.categoryId } })
       .then((schema) => setMetadataSchema(schema))
       .finally(() => setSchemaLoading(false));
+    fetchCategoryConditions({ data: { categoryId: filters.categoryId } })
+      .then((rows) => setCategoryConditions(rows))
+      .finally(() => setConditionsLoading(false));
   }, [filters.categoryId]);
 
   const update = <K extends keyof SearchFiltersState>(
@@ -106,6 +107,7 @@ export function SearchFilters({
     setFilters((prev) => ({
       ...prev,
       categoryId,
+      condition: "",
       metadata: {},
     }));
   };
@@ -237,10 +239,26 @@ export function SearchFilters({
         <Combobox
           value={filters.condition}
           onValueChange={(v) => update("condition", v)}
-          placeholder="Any condition"
+          placeholder={
+            filters.categoryId
+              ? categoryConditions.length > 0
+                ? "Any condition"
+                : "No conditions for this category"
+              : "Select a category first"
+          }
           searchPlaceholder="Search conditions..."
-          options={conditionOptions}
+          options={[
+            { value: "", label: "Any condition" },
+            ...categoryConditions.map((c) => ({
+              value: c.code,
+              label: c.label,
+            })),
+          ]}
+          disabled={!filters.categoryId || categoryConditions.length === 0}
         />
+        {conditionsLoading && (
+          <p className="text-xs text-celis-ink-secondary">Loading conditions...</p>
+        )}
       </div>
 
       {schemaLoading && (

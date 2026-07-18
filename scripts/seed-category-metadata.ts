@@ -2,10 +2,9 @@ import { db } from "../app/db";
 import { categories, categoryClosure, categoryConditions } from "../app/db/schema";
 import { eq } from "drizzle-orm";
 import type { MetadataField } from "../app/lib/category-metadata";
-import type { ItemCondition } from "../app/db/schema/enums";
 
 interface SeedCondition {
-  code: ItemCondition;
+  code: string;
   label: string;
   description?: string;
   sortOrder: number;
