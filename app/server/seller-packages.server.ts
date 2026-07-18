@@ -25,11 +25,28 @@ export async function generateUniqueSellerNumber(): Promise<string> {
 
 export async function ensureProfileSellerNumber(profileId: string) {
   const rows = await db
-    .select({ sellerNumber: profiles.sellerNumber })
+    .select({
+      sellerNumber: profiles.sellerNumber,
+      role: users.role,
+      isInternal: users.isInternal,
+    })
     .from(profiles)
+    .innerJoin(users, eq(profiles.id, users.id))
     .where(eq(profiles.id, profileId))
     .limit(1);
-  if (rows[0]?.sellerNumber) return rows[0].sellerNumber;
+  const row = rows[0];
+  if (!row || row.role !== "seller" || row.isInternal) {
+    // Only external sellers receive seller numbers. Clear any existing number
+    // for buyers or internal staff.
+    if (row?.sellerNumber) {
+      await db
+        .update(profiles)
+        .set({ sellerNumber: null, updatedAt: new Date() })
+        .where(eq(profiles.id, profileId));
+    }
+    return null;
+  }
+  if (row.sellerNumber) return row.sellerNumber;
   const sellerNumber = await generateUniqueSellerNumber();
   await db
     .update(profiles)

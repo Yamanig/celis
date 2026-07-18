@@ -655,6 +655,19 @@ export const assignAdminSellerPackage = createServerFn({ method: "POST" })
     }
 
     if (!sellerId) throw new Error("Seller not found");
+
+    const sellerRows = await db
+      .select({ role: users.role, isInternal: users.isInternal, email: users.email })
+      .from(users)
+      .where(eq(users.id, sellerId))
+      .limit(1);
+    const seller = sellerRows[0];
+    if (!seller || seller.role !== "seller" || seller.isInternal) {
+      throw new Error(
+        "Packages can only be assigned to external seller accounts."
+      );
+    }
+
     return assignSellerPackage(sellerId, data.packageId, {
       assignedBy: actor?.id,
       assignmentSource: data.assignmentSource,
