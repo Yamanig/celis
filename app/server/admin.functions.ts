@@ -618,6 +618,47 @@ export const updateAdminListingPackage = createServerFn({ method: "POST" })
     return updateListingPackage(id, input);
   });
 
+const sellerNumberSchema = z.object({ sellerNumber: z.string().min(1).max(20) });
+
+export const fetchSellerByNumber = createServerFn({ method: "GET" })
+  .validator(sellerNumberSchema)
+  .handler(async ({ data }) => {
+    await requirePermission("users:manage");
+    const { db } = await import("~/db");
+    const { users, profiles } = await import("~/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const rows = await db
+      .select({
+        id: profiles.id,
+        email: users.email,
+        displayName: profiles.displayName,
+        sellerType: profiles.sellerType,
+        verificationStatus: users.verificationStatus,
+        verifiedAt: users.verifiedAt,
+        role: users.role,
+        isInternal: users.isInternal,
+      })
+      .from(profiles)
+      .innerJoin(users, eq(profiles.id, users.id))
+      .where(eq(profiles.sellerNumber, data.sellerNumber))
+      .limit(1);
+
+    const seller = rows[0];
+    if (!seller || seller.role !== "seller" || seller.isInternal) {
+      throw new Error("No external seller found with that seller number.");
+    }
+
+    return {
+      id: seller.id,
+      email: seller.email,
+      displayName: seller.displayName,
+      sellerType: seller.sellerType,
+      verificationStatus: seller.verificationStatus,
+      isVerified: seller.verifiedAt !== null,
+    };
+  });
+
 const assignPackageSchema = z.object({
   sellerEmail: z.string().email().optional(),
   sellerNumber: z.string().min(1).max(20).optional(),

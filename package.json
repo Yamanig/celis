@@ -17,6 +17,7 @@
     "db:seed-admin": "node --env-file=.env --import tsx scripts/seed-admin.ts",
     "storage:create-bucket": "node --env-file=.env --import tsx scripts/create-storage-bucket.ts",
     "cron:expire-listings": "node --env-file=.env --import tsx scripts/expire-listings.ts",
+    "db:cleanup-non-seller-numbers": "node --env-file=.env --import tsx scripts/cleanup-non-seller-numbers.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
