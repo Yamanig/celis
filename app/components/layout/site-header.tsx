@@ -147,7 +147,7 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link to={user.role === "admin" ? "/admin" : "/dashboard"}>
+                      <Link to={user.isInternal ? "/admin" : "/dashboard"}>
                         <LayoutDashboard className="mr-2 h-4 w-4" />
                         Dashboard
                       </Link>
@@ -235,7 +235,7 @@ export function SiteHeader({ showSearch = true }: SiteHeaderProps) {
                 </Button>
                 <Button variant="ghost" asChild className="justify-start">
                   <Link
-                    to={user.role === "admin" ? "/admin" : "/dashboard"}
+                    to={user.isInternal ? "/admin" : "/dashboard"}
                     onClick={() => setMenuOpen(false)}
                   >
                     <LayoutDashboard className="mr-2 h-4 w-4" />

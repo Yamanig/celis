@@ -60,7 +60,7 @@ export const Route = createFileRoute("/dashboard")({
     if (!context.user) {
       throw redirect({ to: "/auth/sign-in", search: { redirect: "/dashboard" } });
     }
-    if (context.user.role === "admin") {
+    if (context.user.isInternal || context.user.role === "admin") {
       throw redirect({ to: "/admin" });
     }
   },

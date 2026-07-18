@@ -306,7 +306,7 @@ function AccountPage() {
                   {loading ? "Saving..." : "Save changes"}
                 </Button>
                 <Button variant="outline" asChild>
-                  <Link to={profile.role === "admin" ? "/admin" : "/dashboard"}>
+                  <Link to={profile.isInternal ? "/admin" : "/dashboard"}>
                     Back to dashboard
                   </Link>
                 </Button>
