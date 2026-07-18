@@ -78,6 +78,7 @@ export async function getActiveSellerSubscription(sellerId: string) {
       and(
         eq(sellerSubscriptions.sellerId, sellerId),
         eq(sellerSubscriptions.status, "active"),
+        eq(listingPackages.isActive, true),
         gte(sellerSubscriptions.expiresAt, now)
       )
     )
@@ -168,6 +169,7 @@ export async function assignSellerPackage(
     .where(eq(listingPackages.id, packageId))
     .limit(1);
   if (!pkg[0]) throw new Error("Package not found");
+  if (!pkg[0].isActive) throw new Error("Cannot assign an inactive package");
 
   const startedAt = new Date();
   const expiresAt = new Date();
@@ -281,6 +283,20 @@ export async function updateListingPackage(
     .set({ ...input, updatedAt: new Date() })
     .where(eq(listingPackages.id, id))
     .returning();
+
+  // Deactivating a package should revoke access for sellers currently on it.
+  if (pkg && input.isActive === false) {
+    await db
+      .update(sellerSubscriptions)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(
+        and(
+          eq(sellerSubscriptions.packageId, id),
+          eq(sellerSubscriptions.status, "active")
+        )
+      );
+  }
+
   return pkg;
 }
 
