@@ -38,6 +38,9 @@ export type ListingPublic = {
   isFeatured: boolean;
   featuredUntil: Date | null;
   featuredFeeCents: number | null;
+  feeAmountCents: number | null;
+  commissionBps: number | null;
+  currency: string | null;
   images: string[];
   metadata: ListingMetadata;
   expiresAt: Date | null;
@@ -83,6 +86,9 @@ function mapListingPublic(
     isFeatured: row.isFeatured,
     featuredUntil: row.featuredUntil,
     featuredFeeCents: row.featuredFeeCents,
+    feeAmountCents: row.feeAmountCents,
+    commissionBps: row.commissionBps,
+    currency: row.currency,
     images: row.images,
     metadata: (row.metadata as ListingMetadata) ?? {},
     expiresAt: row.expiresAt,

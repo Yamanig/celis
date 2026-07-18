@@ -86,6 +86,11 @@ function DashboardPage() {
     open: boolean;
     listingId: string | null;
   }>({ open: false, listingId: null });
+  const [payModal, setPayModal] = useState<{
+    open: boolean;
+    listingId: string | null;
+    amountCents: number;
+  }>({ open: false, listingId: null, amountCents: 0 });
   const [subscription, setSubscription] = useState<{
     packageName: string;
     listingAllowance: number | null;
@@ -309,6 +314,21 @@ function DashboardPage() {
                           {listing.isFeatured ? "Extend feature" : "Feature"}
                         </Button>
                       )}
+                      {listing.status === "draft" &&
+                        (listing.feeAmountCents ?? 0) > 0 && (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              setPayModal({
+                                open: true,
+                                listingId: listing.id,
+                                amountCents: listing.feeAmountCents ?? 0,
+                              })
+                            }
+                          >
+                            Pay now
+                          </Button>
+                        )}
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -381,6 +401,18 @@ function DashboardPage() {
         amountCents={featuredFeeCents}
         featureListing
         onSuccess={() => {
+          router.invalidate();
+        }}
+      />
+
+      <PaymentModal
+        open={payModal.open}
+        onOpenChange={(open) => setPayModal((m) => ({ ...m, open }))}
+        userId={user?.id ?? ""}
+        listingId={payModal.listingId}
+        amountCents={payModal.amountCents}
+        onSuccess={() => {
+          setPayModal({ open: false, listingId: null, amountCents: 0 });
           router.invalidate();
         }}
       />
