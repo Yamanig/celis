@@ -4,6 +4,7 @@ import {
   initiateWalletPayment,
   getWalletPaymentByMerchantRef,
   confirmWalletPayment,
+  failWalletPayment,
 } from "./payments.server";
 import {
   getListingFeeCents,
@@ -128,6 +129,25 @@ export const simulateConfirmPayment = createServerFn({ method: "POST" })
       } else {
         await submitListingForReview(data.listingId);
       }
+    }
+    return { success: true, payment: serializeWalletPayment(payment) };
+  });
+
+const failSchema = z.object({
+  merchantRef: z.string().min(1),
+  errorCode: z.string().optional(),
+  errorMessage: z.string().optional(),
+});
+
+export const simulateFailPayment = createServerFn({ method: "POST" })
+  .validator(failSchema)
+  .handler(async ({ data }) => {
+    const payment = await failWalletPayment(data.merchantRef, {
+      errorCode: data.errorCode,
+      errorMessage: data.errorMessage,
+    });
+    if (!payment) {
+      throw new Error("Payment not found");
     }
     return { success: true, payment: serializeWalletPayment(payment) };
   });

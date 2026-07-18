@@ -92,3 +92,26 @@ export async function confirmWalletPayment(merchantRef: string) {
   }
   return payment;
 }
+
+export async function failWalletPayment(
+  merchantRef: string,
+  opts?: { errorCode?: string; errorMessage?: string }
+) {
+  const existing = await getWalletPaymentByMerchantRef(merchantRef);
+  if (!existing || ["completed", "failed"].includes(existing.status)) {
+    return existing ?? null;
+  }
+  const [payment] = await db
+    .update(walletPayments)
+    .set({
+      status: "failed",
+      callbackPayload: {
+        code: opts?.errorCode ?? "cancelled",
+        error: opts?.errorMessage ?? "Payment was cancelled or failed",
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(walletPayments.merchantRef, merchantRef))
+    .returning();
+  return payment;
+}
