@@ -11,7 +11,6 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { itemConditionEnum } from "./enums";
 
 export const categories = pgTable(
   "categories",
@@ -41,7 +40,7 @@ export const categoryConditions = pgTable(
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "cascade" }),
-    code: itemConditionEnum("code").notNull(),
+    code: varchar("code", { length: 100 }).notNull(),
     label: varchar("label", { length: 100 }).notNull(),
     description: text("description"),
     sortOrder: integer("sort_order").notNull().default(0),

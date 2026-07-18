@@ -25,6 +25,7 @@ import {
 import {
   fetchCategoryConditions,
   fetchCategoryMetadataSchema,
+  listChildCategories,
   type CategoryConditionItem,
 } from "~/server/categories.functions";
 import { getListingPricingPreview } from "~/server/config.functions";
@@ -49,6 +50,13 @@ import {
 } from "~/lib/category-metadata";
 import { ChevronLeft, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
 import type { CategoryListItem } from "~/server/categories.functions";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "~/components/ui/select";
 
 interface FeatureToggles {
   localPickupEnabled: boolean;
@@ -144,10 +152,22 @@ export function ListingWizard({
     CategoryConditionItem[]
   >([]);
   const [metadataSchema, setMetadataSchema] = useState<CategoryMetadataSchema | null>(null);
+  const [parentCategoryId, setParentCategoryId] = useState<string>("");
+  const [subcategories, setSubcategories] = useState<CategoryListItem[]>([]);
 
   useEffect(() => {
     fetchSellerListingEligibility({ data: { sellerId } }).then(setEligibility);
   }, [sellerId]);
+
+  useEffect(() => {
+    if (!parentCategoryId) {
+      setSubcategories([]);
+      return;
+    }
+    listChildCategories({ data: { parentId: parentCategoryId } }).then(
+      setSubcategories
+    );
+  }, [parentCategoryId]);
 
   useEffect(() => {
     if (!form.categoryId) {
@@ -242,13 +262,21 @@ export function ListingWizard({
     })
   );
 
-  const categoryOptions = useMemo(
+  const rootCategoryOptions = useMemo(
     () => categories.map((cat) => ({ value: cat.id, label: cat.name })),
     [categories]
   );
+  const subcategoryOptions = useMemo(
+    () => subcategories.map((cat) => ({ value: cat.id, label: cat.name })),
+    [subcategories]
+  );
+  const allCategories = useMemo(
+    () => [...categories, ...subcategories],
+    [categories, subcategories]
+  );
   const conditionOptions = useMemo(
-    () => ITEM_CONDITIONS.map((c) => ({ value: c, label: titleCase(c) })),
-    []
+    () => categoryConditions.map((c) => ({ value: c.code, label: c.label })),
+    [categoryConditions]
   );
   const monetizationOptions = useMemo(
     () =>
@@ -379,27 +407,57 @@ export function ListingWizard({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
+                <Label htmlFor="parentCategory">Category</Label>
                 <Combobox
-                  value={form.categoryId}
-                  onValueChange={(v) => updateField("categoryId", v)}
+                  value={parentCategoryId}
+                  onValueChange={(v) => {
+                    setParentCategoryId(v);
+                    setForm((prev) => ({
+                      ...prev,
+                      categoryId: "",
+                      condition: null,
+                    }));
+                  }}
                   placeholder="Select a category"
                   searchPlaceholder="Search categories..."
-                  options={categoryOptions}
+                  options={rootCategoryOptions}
                 />
-                {errors.categoryId && (
-                  <p className="text-sm text-celis-destructive">{errors.categoryId}</p>
-                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="condition">Condition</Label>
-                <Combobox
-                  value={form.condition}
-                  onValueChange={(v) => updateField("condition", v as typeof form.condition)}
-                  options={conditionOptions}
-                />
-              </div>
+              {parentCategoryId && subcategoryOptions.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="subcategory">Subcategory</Label>
+                  <Combobox
+                    value={form.categoryId}
+                    onValueChange={(v) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        categoryId: v,
+                        condition: null,
+                      }))
+                    }
+                    placeholder="Select a subcategory"
+                    searchPlaceholder="Search subcategories..."
+                    options={subcategoryOptions}
+                  />
+                  {errors.categoryId && (
+                    <p className="text-sm text-celis-destructive">{errors.categoryId}</p>
+                  )}
+                </div>
+              )}
+
+              {form.categoryId && (
+                <div className="space-y-2">
+                  <Label htmlFor="condition">Condition</Label>
+                  <Combobox
+                    value={form.condition ?? undefined}
+                    onValueChange={(v) =>
+                      updateField("condition", v as NonNullable<ListingInput["condition"]>)
+                    }
+                    options={conditionOptions}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
@@ -558,7 +616,7 @@ export function ListingWizard({
                 <div className="flex justify-between py-2">
                   <dt className="text-celis-ink-secondary">Category</dt>
                   <dd className="font-medium">
-                    {categories.find((c) => c.id === form.categoryId)?.name ?? "—"}
+                    {allCategories.find((c) => c.id === form.categoryId)?.name ?? "—"}
                   </dd>
                 </div>
                 <div className="flex justify-between py-2">
@@ -671,7 +729,7 @@ export function ListingWizard({
         listingId={createdListingId}
         amountCents={serverFeeCents || preview.totalFeeCents}
         enabledProviders={enabledWalletProviders}
-        onSuccess={() => setFinished(true)}
+        onSuccess={() => setSubmittedForReview(true)}
       />
     </>
   );

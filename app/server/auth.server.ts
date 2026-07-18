@@ -366,7 +366,10 @@ export async function ensureLocalUserRecord(
     await db.insert(profiles).values({
       id,
       displayName: email.split("@")[0],
-      sellerNumber: await generateUniqueSellerNumber(),
+      sellerNumber:
+        role === "seller" && !isInternal
+          ? await generateUniqueSellerNumber()
+          : null,
     });
   } else {
     await ensureProfileSellerNumber(id);

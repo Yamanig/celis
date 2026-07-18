@@ -13,7 +13,7 @@ import {
 } from "drizzle-orm";
 import type { ListingInput } from "~/lib/validation";
 import { CelisError } from "~/lib/errors";
-import type { listings as listingsTable, ItemCondition } from "~/db/schema";
+import type { listings as listingsTable } from "~/db/schema";
 import { getSellerListingEligibility } from "./seller-packages.server";
 import { createNotification } from "./notifications.server";
 
@@ -26,7 +26,7 @@ export type ListingPublic = {
   description: string;
   categoryId: string;
   categoryName: string;
-  condition: ItemCondition | null;
+  condition: string | null;
   price: number;
   monetizationType: string;
   deliveryMethod: string;
@@ -38,6 +38,9 @@ export type ListingPublic = {
   isFeatured: boolean;
   featuredUntil: Date | null;
   featuredFeeCents: number | null;
+  feeAmountCents: number | null;
+  commissionBps: number | null;
+  currency: string | null;
   images: string[];
   metadata: ListingMetadata;
   expiresAt: Date | null;
@@ -83,6 +86,9 @@ function mapListingPublic(
     isFeatured: row.isFeatured,
     featuredUntil: row.featuredUntil,
     featuredFeeCents: row.featuredFeeCents,
+    feeAmountCents: row.feeAmountCents,
+    commissionBps: row.commissionBps,
+    currency: row.currency,
     images: row.images,
     metadata: (row.metadata as ListingMetadata) ?? {},
     expiresAt: row.expiresAt,
@@ -400,7 +406,7 @@ export async function searchListings(filters: SearchListingsFilters) {
   if (categoryId) conditions.push(eq(listings.categoryId, categoryId));
   if (minPrice !== undefined) conditions.push(gte(listings.price, minPrice));
   if (maxPrice !== undefined) conditions.push(lte(listings.price, maxPrice));
-  if (condition) conditions.push(eq(listings.condition, condition as ItemCondition));
+  if (condition) conditions.push(eq(listings.condition, condition));
 
   if (metadataFilters && categoryId) {
     for (const [key, value] of Object.entries(metadataFilters)) {

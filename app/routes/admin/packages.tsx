@@ -13,6 +13,13 @@ import {
   DialogFooter,
 } from "~/components/ui/dialog";
 import { Combobox } from "~/components/ui/combobox";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "~/components/ui/select";
 import { PageHeader } from "~/components/admin/page-header";
 import { AdminTable } from "~/components/admin/admin-table";
 import {
@@ -20,6 +27,7 @@ import {
   createAdminListingPackage,
   updateAdminListingPackage,
   assignAdminSellerPackage,
+  fetchSellerByNumber,
 } from "~/server/admin.functions";
 import { formatPrice } from "~/lib/format";
 
@@ -81,6 +89,16 @@ function AdminPackagesPage() {
   const [assignPaymentRef, setAssignPaymentRef] = useState("");
   const [assignPricePaid, setAssignPricePaid] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
+  const [verifiedSeller, setVerifiedSeller] = useState<{
+    id: string;
+    email: string;
+    displayName: string | null;
+    sellerType: "individual" | "shop" | null;
+    verificationStatus: string;
+    isVerified: boolean;
+  } | null>(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
   const packageOptions = packages.map((p) => ({
     value: p.id,
     label: `${p.name} (${p.listingAllowance} listings / ${p.durationDays} days)`,
@@ -168,8 +186,27 @@ function AdminPackagesPage() {
       setAssignSource("admin");
       setAssignPaymentRef("");
       setAssignPricePaid("");
+      setVerifiedSeller(null);
+      setVerifyError(null);
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  const handleVerifySeller = async () => {
+    setVerifyError(null);
+    setVerifiedSeller(null);
+    if (!assignSellerNumber.trim()) return;
+    setVerifyLoading(true);
+    try {
+      const seller = await fetchSellerByNumber({
+        data: { sellerNumber: assignSellerNumber.trim() },
+      });
+      setVerifiedSeller(seller);
+    } catch (err) {
+      setVerifyError(err instanceof Error ? err.message : "Verification failed");
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -461,7 +498,22 @@ function AdminPackagesPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+      <Dialog
+        open={assignOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignSellerNumber("");
+            setAssignEmail("");
+            setAssignPackageId("");
+            setAssignSource("admin");
+            setAssignPaymentRef("");
+            setAssignPricePaid("");
+            setVerifiedSeller(null);
+            setVerifyError(null);
+          }
+          setAssignOpen(open);
+        }}
+      >
         <DialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto p-4 sm:max-w-md md:p-6">
           <DialogHeader>
             <DialogTitle>Assign package to seller</DialogTitle>
@@ -469,12 +521,49 @@ function AdminPackagesPage() {
           <form onSubmit={handleAssign} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="sellerNumber">Seller number</Label>
-              <Input
-                id="sellerNumber"
-                value={assignSellerNumber}
-                onChange={(e) => setAssignSellerNumber(e.target.value)}
-                placeholder="e.g. 12345678"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="sellerNumber"
+                  value={assignSellerNumber}
+                  onChange={(e) => {
+                    setAssignSellerNumber(e.target.value);
+                    setVerifiedSeller(null);
+                    setVerifyError(null);
+                  }}
+                  placeholder="e.g. 12345678"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleVerifySeller}
+                  disabled={verifyLoading || !assignSellerNumber.trim()}
+                >
+                  {verifyLoading ? "..." : "Verify"}
+                </Button>
+              </div>
+              {verifyError && (
+                <p className="text-sm text-celis-destructive">{verifyError}</p>
+              )}
+              {verifiedSeller && (
+                <div className="rounded-md border border-celis-border bg-celis-surface-inset p-3 text-sm">
+                  <p>
+                    <span className="text-celis-ink-secondary">Name:</span>{" "}
+                    {verifiedSeller.displayName ?? "—"}
+                  </p>
+                  <p>
+                    <span className="text-celis-ink-secondary">Email:</span>{" "}
+                    {verifiedSeller.email}
+                  </p>
+                  <p>
+                    <span className="text-celis-ink-secondary">Type:</span>{" "}
+                    {verifiedSeller.sellerType ?? "—"}
+                  </p>
+                  <p>
+                    <span className="text-celis-ink-secondary">Verification:</span>{" "}
+                    {verifiedSeller.isVerified ? "Verified" : verifiedSeller.verificationStatus}
+                  </p>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="sellerEmail">Or seller email</Label>
@@ -544,7 +633,12 @@ function AdminPackagesPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={assignLoading || !assignPackageId || (!assignSellerNumber && !assignEmail)}
+                disabled={
+                  assignLoading ||
+                  !assignPackageId ||
+                  (!assignSellerNumber && !assignEmail) ||
+                  (!!assignSellerNumber && !verifiedSeller)
+                }
               >
                 {assignLoading ? "Assigning..." : "Assign"}
               </Button>

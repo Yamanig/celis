@@ -32,7 +32,7 @@ export function SiteFooter() {
                 <>
                   <li>
                     <Link
-                      to={user.role === "admin" ? "/admin" : "/dashboard"}
+                      to={user.isInternal ? "/admin" : "/dashboard"}
                       className="hover:text-celis-ink"
                     >
                       Dashboard

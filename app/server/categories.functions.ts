@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
   getRootCategories,
+  getChildCategories,
   getCategoryCounts,
   getMinMaxPrices,
   getCategoryConditions as getCategoryConditionsDb,
@@ -12,7 +13,6 @@ import { db } from "~/db";
 import { categoryConditions } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { requirePermission } from "./auth.server";
-import type { ItemCondition } from "~/db/schema";
 import type { CategoryMetadataSchema } from "~/lib/category-metadata";
 
 export type CategoryListItem = {
@@ -44,6 +44,23 @@ export const listCategories = createServerFn({ method: "GET" }).handler(async ()
     updatedAt: c.updatedAt,
   }));
 });
+
+const parentCategoryIdSchema = z.object({ parentId: z.string().uuid() });
+
+export const listChildCategories = createServerFn({ method: "GET" })
+  .validator(parentCategoryIdSchema)
+  .handler(async ({ data }) => {
+    const rows = await getChildCategories(data.parentId);
+    return rows.map<CategoryListItem>((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      parentId: c.parentId,
+      sortOrder: c.sortOrder,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    }));
+  });
 
 export const fetchCategoryCounts = createServerFn({ method: "GET" }).handler(
   async () => {
@@ -96,7 +113,7 @@ export const saveCategoryConditions = createServerFn({ method: "POST" })
         await tx.insert(categoryConditions).values(
           data.conditions.map((c) => ({
             categoryId: data.categoryId,
-            code: c.code as ItemCondition,
+            code: c.code,
             label: c.label,
             description: c.description ?? null,
             sortOrder: c.sortOrder,

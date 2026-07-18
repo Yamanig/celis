@@ -28,7 +28,7 @@ import {
   fetchCategoryMetadataSchema,
   saveCategoryMetadataSchema,
 } from "~/server/categories.functions";
-import { ITEM_CONDITIONS } from "~/db/schema";
+
 import { formatRelativeDate } from "~/lib/format";
 import type {
   MetadataField,
@@ -71,6 +71,7 @@ interface CategoryForm {
   name: string;
   slug: string;
   sortOrder: number;
+  parentId?: string;
 }
 
 function slugify(name: string) {
@@ -100,6 +101,10 @@ function AdminCategoriesPage() {
     slug: "",
     sortOrder: 0,
   });
+  const [creatingSubcategoryOf, setCreatingSubcategoryOf] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [conditionsOpen, setConditionsOpen] = useState(false);
   const [conditionsCategory, setConditionsCategory] = useState<{
@@ -139,11 +144,18 @@ function AdminCategoriesPage() {
 
   const reset = () => {
     setEditing(null);
+    setCreatingSubcategoryOf(null);
     setForm({ name: "", slug: "", sortOrder: 0 });
   };
 
   const openCreate = () => {
     reset();
+    setOpen(true);
+  };
+
+  const openCreateSubcategory = (parent: (typeof items)[number]) => {
+    reset();
+    setCreatingSubcategoryOf({ id: parent.id, name: parent.name });
     setOpen(true);
   };
 
@@ -182,6 +194,7 @@ function AdminCategoriesPage() {
             name: form.name,
             slug: form.slug,
             sortOrder: form.sortOrder,
+            parentId: creatingSubcategoryOf?.id,
           },
         });
       }
@@ -303,7 +316,7 @@ function AdminCategoriesPage() {
             key: "name",
             header: "Name",
             cell: (c) => (
-              <div>
+              <div className={c.parentId ? "pl-6 border-l-2 border-celis-border ml-2" : ""}>
                 <p className="font-medium text-celis-ink">{c.name}</p>
                 <p className="text-xs text-celis-ink-secondary">/{c.slug}</p>
               </div>
@@ -341,6 +354,16 @@ function AdminCategoriesPage() {
                 >
                   Edit
                 </Button>
+                {!c.parentId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canManage}
+                    onClick={() => openCreateSubcategory(c)}
+                  >
+                    Add subcategory
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -375,7 +398,11 @@ function AdminCategoriesPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Edit category" : "Add category"}
+              {editing
+                ? "Edit category"
+                : creatingSubcategoryOf
+                ? `Add subcategory under ${creatingSubcategoryOf.name}`
+                : "Add category"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -464,24 +491,25 @@ function AdminCategoriesPage() {
                 >
                   <div>
                     <Label className="text-xs">Code</Label>
-                    <select
-                      className="h-10 w-full rounded-md border border-celis-border bg-celis-surface-inset px-2 text-sm"
+                    <Input
                       value={c.code}
                       disabled={!canManage}
+                      placeholder="e.g. healthy"
                       onChange={(e) =>
                         setConditions((prev) =>
                           prev.map((cond, i) =>
-                            i === idx ? { ...cond, code: e.target.value } : cond
+                            i === idx
+                              ? {
+                                  ...cond,
+                                  code: e.target.value
+                                    .toLowerCase()
+                                    .replace(/[^a-z0-9_]/g, "_"),
+                                }
+                              : cond
                           )
                         )
                       }
-                    >
-                      {ITEM_CONDITIONS.map((ic) => (
-                        <option key={ic} value={ic}>
-                          {ic.replace(/_/g, " ")}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Label</Label>
@@ -550,7 +578,7 @@ function AdminCategoriesPage() {
                     setConditions((prev) => [
                       ...prev,
                       {
-                        code: ITEM_CONDITIONS[0],
+                        code: "",
                         label: "",
                         description: "",
                         sortOrder: prev.length + 1,

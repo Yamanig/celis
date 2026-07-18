@@ -13,7 +13,11 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Combobox } from "~/components/ui/combobox";
-import { initiatePayment, simulateConfirmPayment } from "~/server/payments.functions";
+import {
+  initiatePayment,
+  simulateConfirmPayment,
+  simulateFailPayment,
+} from "~/server/payments.functions";
 import { WALLET_PROVIDERS } from "~/db/schema";
 import { formatPrice } from "~/lib/format";
 import { Loader2, CheckCircle2 } from "lucide-react";
@@ -99,14 +103,38 @@ export function PaymentModal({
     }
   };
 
+  const markFailed = async (opts?: { errorCode?: string; errorMessage?: string }) => {
+    if (!merchantRef) return;
+    setLoading(true);
+    try {
+      await simulateFailPayment({
+        data: {
+          merchantRef,
+          errorCode: opts?.errorCode ?? "cancelled",
+          errorMessage: opts?.errorMessage ?? "Payment was cancelled",
+        },
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    await markFailed();
+    reset();
+    onOpenChange(false);
+  };
+
+  const handleClose = async (next: boolean) => {
+    if (!next && merchantRef && !success) {
+      await markFailed();
+    }
+    if (!next) reset();
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) reset();
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
@@ -177,10 +205,24 @@ export function PaymentModal({
             </Button>
           )}
           {!success && merchantRef && (
-            <Button onClick={handleSimulateConfirm} disabled={loading} className="w-full sm:w-auto">
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Simulate approval
-            </Button>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                disabled={loading}
+                className="w-full sm:w-auto"
+              >
+                Cancel payment
+              </Button>
+              <Button
+                onClick={handleSimulateConfirm}
+                disabled={loading}
+                className="w-full sm:w-auto"
+              >
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Simulate approval
+              </Button>
+            </div>
           )}
           {success && (
             <Button onClick={() => onOpenChange(false)} className="w-full sm:w-auto">

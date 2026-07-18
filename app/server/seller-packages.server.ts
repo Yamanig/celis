@@ -25,11 +25,28 @@ export async function generateUniqueSellerNumber(): Promise<string> {
 
 export async function ensureProfileSellerNumber(profileId: string) {
   const rows = await db
-    .select({ sellerNumber: profiles.sellerNumber })
+    .select({
+      sellerNumber: profiles.sellerNumber,
+      role: users.role,
+      isInternal: users.isInternal,
+    })
     .from(profiles)
+    .innerJoin(users, eq(profiles.id, users.id))
     .where(eq(profiles.id, profileId))
     .limit(1);
-  if (rows[0]?.sellerNumber) return rows[0].sellerNumber;
+  const row = rows[0];
+  if (!row || row.role !== "seller" || row.isInternal) {
+    // Only external sellers receive seller numbers. Clear any existing number
+    // for buyers or internal staff.
+    if (row?.sellerNumber) {
+      await db
+        .update(profiles)
+        .set({ sellerNumber: null, updatedAt: new Date() })
+        .where(eq(profiles.id, profileId));
+    }
+    return null;
+  }
+  if (row.sellerNumber) return row.sellerNumber;
   const sellerNumber = await generateUniqueSellerNumber();
   await db
     .update(profiles)
@@ -61,6 +78,7 @@ export async function getActiveSellerSubscription(sellerId: string) {
       and(
         eq(sellerSubscriptions.sellerId, sellerId),
         eq(sellerSubscriptions.status, "active"),
+        eq(listingPackages.isActive, true),
         gte(sellerSubscriptions.expiresAt, now)
       )
     )
@@ -151,6 +169,7 @@ export async function assignSellerPackage(
     .where(eq(listingPackages.id, packageId))
     .limit(1);
   if (!pkg[0]) throw new Error("Package not found");
+  if (!pkg[0].isActive) throw new Error("Cannot assign an inactive package");
 
   const startedAt = new Date();
   const expiresAt = new Date();
@@ -264,6 +283,20 @@ export async function updateListingPackage(
     .set({ ...input, updatedAt: new Date() })
     .where(eq(listingPackages.id, id))
     .returning();
+
+  // Deactivating a package should revoke access for sellers currently on it.
+  if (pkg && input.isActive === false) {
+    await db
+      .update(sellerSubscriptions)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(
+        and(
+          eq(sellerSubscriptions.packageId, id),
+          eq(sellerSubscriptions.status, "active")
+        )
+      );
+  }
+
   return pkg;
 }
 

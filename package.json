@@ -19,6 +19,7 @@
     "db:seed-fields": "node --env-file=.env --import tsx scripts/seed-category-fields.ts",
     "storage:create-bucket": "node --env-file=.env --import tsx scripts/create-storage-bucket.ts",
     "cron:expire-listings": "node --env-file=.env --import tsx scripts/expire-listings.ts",
+    "db:cleanup-non-seller-numbers": "node --env-file=.env --import tsx scripts/cleanup-non-seller-numbers.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

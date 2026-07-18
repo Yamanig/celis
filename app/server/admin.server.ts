@@ -5,6 +5,7 @@ import {
   authUsers,
   listings,
   categories,
+  categoryClosure,
   walletPayments,
   orders,
   payouts,
@@ -32,7 +33,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { requireAdmin, requirePermission, isInternalRole } from "./auth.server";
 import { insertAuditLog } from "./audit.server";
 import { createNotification } from "./notifications.server";
-import { generateUniqueSellerNumber } from "./seller-packages.server";
+
 import type { UserRole, ListingStatus, VerificationStatus } from "~/db/schema";
 import { getServiceSupabase } from "~/lib/supabase/server";
 import {
@@ -415,7 +416,7 @@ export async function createInternalUser(input: {
   await db.insert(profiles).values({
     id,
     displayName: input.email.split("@")[0],
-    sellerNumber: await generateUniqueSellerNumber(),
+    sellerNumber: null,
   });
 
   await insertAuditLog({
@@ -892,6 +893,7 @@ export async function getAdminCategories(options?: {
       id: r.category.id,
       name: r.category.name,
       slug: r.category.slug,
+      parentId: r.category.parentId,
       sortOrder: r.category.sortOrder,
       listingCount: r.listingCount,
       createdAt: r.category.createdAt,
@@ -906,27 +908,60 @@ export async function getAdminCategories(options?: {
 export async function createCategory(input: {
   name: string;
   slug: string;
+  parentId?: string | null;
   sortOrder?: number;
 }) {
   await requirePermission("categories:manage");
+
   const [row] = await db
     .insert(categories)
     .values({
       name: input.name,
       slug: input.slug,
+      parentId: input.parentId ?? null,
       sortOrder: input.sortOrder ?? 0,
     })
     .returning();
+
+  // Maintain category closure table for tree queries.
+  if (input.parentId) {
+    // The new category is its own descendant (depth 0).
+    await db.insert(categoryClosure).values({
+      ancestorId: row.id,
+      descendantId: row.id,
+      depth: 0,
+    });
+    // Copy all ancestors of the parent and point them to the new descendant.
+    const parentAncestors = await db
+      .select({ ancestorId: categoryClosure.ancestorId, depth: categoryClosure.depth })
+      .from(categoryClosure)
+      .where(eq(categoryClosure.descendantId, input.parentId));
+    await db.insert(categoryClosure).values(
+      parentAncestors.map((a) => ({
+        ancestorId: a.ancestorId,
+        descendantId: row.id,
+        depth: a.depth + 1,
+      }))
+    );
+  } else {
+    await db.insert(categoryClosure).values({
+      ancestorId: row.id,
+      descendantId: row.id,
+      depth: 0,
+    });
+  }
+
   await insertAuditLog({
     action: "category_created",
     resourceType: "category",
     resourceId: row.id,
-    metadata: { name: row.name, slug: row.slug },
+    metadata: { name: row.name, slug: row.slug, parentId: input.parentId },
   });
   return {
     id: row.id,
     name: row.name,
     slug: row.slug,
+    parentId: row.parentId,
     sortOrder: row.sortOrder,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

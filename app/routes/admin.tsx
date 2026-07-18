@@ -27,7 +27,7 @@ export const Route = createFileRoute("/admin")({
       fetchCurrentUser(),
       fetchCurrentUserPermissions(),
     ]);
-    if (!user || !permissions.includes("admin:access")) {
+    if (!user || !(user.isInternal || permissions.includes("admin:access"))) {
       throw redirect({ to: "/" });
     }
     return { user, permissions };
