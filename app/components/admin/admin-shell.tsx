@@ -1,6 +1,7 @@
 import { Link, useRouterState, Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
+import { useAuth } from "~/lib/auth-context";
 import { CelisLogo } from "~/components/branding/celis-logo";
 import { AdminPendingContentScope } from "~/components/layout/route-pending";
 import { ThemeToggle } from "~/components/theme/theme-toggle";
@@ -22,6 +23,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   UserCheck,
+  LogOut,
 } from "lucide-react";
 
 interface AdminShellProps {
@@ -102,6 +104,17 @@ export function AdminShell({ permissions }: AdminShellProps) {
   const { location } = useRouterState();
   const pathname = location.pathname;
   const [collapsed, setCollapsed] = useState(false);
+  const { logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   const visibleNav = nav.filter((item) =>
     permissions.includes(item.permission)
@@ -211,6 +224,22 @@ export function AdminShell({ permissions }: AdminShellProps) {
               )}
             </Link>
           </Button>
+          <Button
+            variant="ghost"
+            size={collapsed ? "icon" : "sm"}
+            title="Log out"
+            disabled={loggingOut}
+            onClick={handleLogout}
+          >
+            {collapsed ? (
+              <LogOut className="h-4 w-4" />
+            ) : (
+              <>
+                <LogOut className="mr-2 h-4 w-4" />
+                Log out
+              </>
+            )}
+          </Button>
           <ThemeToggle />
         </div>
       </aside>
@@ -221,7 +250,18 @@ export function AdminShell({ permissions }: AdminShellProps) {
           <CelisLogo variant="primary" size={32} badge />
           <span className="font-semibold text-celis-ink">Admin</span>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Log out"
+            disabled={loggingOut}
+            onClick={handleLogout}
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* Mobile nav */}
