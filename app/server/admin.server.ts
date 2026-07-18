@@ -6,6 +6,7 @@ import {
   listings,
   categories,
   categoryClosure,
+  categoryConditions,
   walletPayments,
   orders,
   payouts,
@@ -992,6 +993,49 @@ export async function updateCategory(
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+export async function deleteCategory(id: string) {
+  await requirePermission("categories:manage");
+
+  const [{ listingCount }] = await db
+    .select({ listingCount: count(listings.id) })
+    .from(listings)
+    .where(eq(listings.categoryId, id));
+
+  if (listingCount > 0) {
+    throw new Error(
+      "Cannot delete a category that has listings. Reassign or remove the listings first."
+    );
+  }
+
+  const [{ childCount }] = await db
+    .select({ childCount: count(categories.id) })
+    .from(categories)
+    .where(eq(categories.parentId, id));
+
+  if (childCount > 0) {
+    throw new Error(
+      "Cannot delete a category that has subcategories. Remove the subcategories first."
+    );
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.delete(categoryConditions).where(eq(categoryConditions.categoryId, id));
+    await tx.delete(categoryClosure).where(eq(categoryClosure.ancestorId, id));
+    await tx.delete(categoryClosure).where(eq(categoryClosure.descendantId, id));
+    await tx.delete(categoryFees).where(eq(categoryFees.categoryId, id));
+    await tx.delete(categories).where(eq(categories.id, id));
+  });
+
+  await insertAuditLog({
+    action: "category_deleted",
+    resourceType: "category",
+    resourceId: id,
+    metadata: {},
+  });
+
+  return { success: true };
 }
 
 export async function getAdminCategoryFees(categoryId: string) {

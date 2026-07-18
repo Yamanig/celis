@@ -18,6 +18,7 @@ import {
   fetchAdminCategories,
   createAdminCategory,
   updateAdminCategory,
+  deleteAdminCategory,
 } from "~/server/admin.functions";
 import {
   fetchCurrentUserPermissions,
@@ -128,6 +129,11 @@ function AdminCategoriesPage() {
   } | null>(null);
   const [fields, setFields] = useState<MetadataField[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    category: (typeof items)[number] | null;
+  }>({ open: false, category: null });
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     if (
@@ -203,6 +209,20 @@ function AdminCategoriesPage() {
       reset();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!canManage || !deleteDialog.category) return;
+    setDeleteLoading(true);
+    try {
+      await deleteAdminCategory({ data: { id: deleteDialog.category.id } });
+      await router.invalidate();
+      setDeleteDialog({ open: false, category: null });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete category");
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -379,6 +399,19 @@ function AdminCategoriesPage() {
                   onClick={() => openFields(c)}
                 >
                   Fields
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={!canManage || c.listingCount > 0}
+                  title={
+                    c.listingCount > 0
+                      ? "Cannot delete: category has listings"
+                      : "Delete category"
+                  }
+                  onClick={() => setDeleteDialog({ open: true, category: c })}
+                >
+                  Remove
                 </Button>
               </div>
             ),
@@ -782,6 +815,43 @@ function AdminCategoriesPage() {
               onClick={handleSaveFields}
             >
               {fieldsLoading ? "Saving..." : "Save fields"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteDialog.open}
+        onOpenChange={(open) =>
+          setDeleteDialog((prev) => ({ ...prev, open }))
+        }
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete category</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-celis-ink-secondary">
+            Are you sure you want to delete{" "}
+            <strong>{deleteDialog.category?.name}</strong>? This cannot be undone.
+            Subcategories must be removed first.
+          </p>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                setDeleteDialog({ open: false, category: null })
+              }
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!canManage || deleteLoading}
+              onClick={handleDelete}
+            >
+              {deleteLoading ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -20,6 +20,7 @@ import {
   getAdminCategories,
   createCategory,
   updateCategory,
+  deleteCategory,
   getAdminCategoryFees,
   createCategoryFee,
   updateCategoryFee,
@@ -287,6 +288,14 @@ export const updateAdminCategory = createServerFn({ method: "POST" })
       slug: data.slug,
       sortOrder: data.sortOrder,
     });
+  });
+
+const deleteCategorySchema = z.object({ id: z.string().uuid() });
+
+export const deleteAdminCategory = createServerFn({ method: "POST" })
+  .validator(deleteCategorySchema)
+  .handler(async ({ data }) => {
+    return deleteCategory(data.id);
   });
 
 const categoryFeesQuerySchema = z.object({
