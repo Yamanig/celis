@@ -262,6 +262,7 @@ export const fetchAdminCategories = createServerFn({ method: "GET" })
 const categorySchema = z.object({
   name: z.string().min(1).max(100),
   slug: z.string().min(1).max(100),
+  parentId: z.string().uuid().optional(),
   sortOrder: z.number().int().optional(),
 });
 

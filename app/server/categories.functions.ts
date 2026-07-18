@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
   getRootCategories,
+  getChildCategories,
   getCategoryCounts,
   getMinMaxPrices,
   getCategoryConditions as getCategoryConditionsDb,
@@ -44,6 +45,23 @@ export const listCategories = createServerFn({ method: "GET" }).handler(async ()
     updatedAt: c.updatedAt,
   }));
 });
+
+const parentCategoryIdSchema = z.object({ parentId: z.string().uuid() });
+
+export const listChildCategories = createServerFn({ method: "GET" })
+  .validator(parentCategoryIdSchema)
+  .handler(async ({ data }) => {
+    const rows = await getChildCategories(data.parentId);
+    return rows.map<CategoryListItem>((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      parentId: c.parentId,
+      sortOrder: c.sortOrder,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    }));
+  });
 
 export const fetchCategoryCounts = createServerFn({ method: "GET" }).handler(
   async () => {

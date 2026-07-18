@@ -24,7 +24,6 @@ import {
   updateAdminListingStatus,
   reviewAdminListing,
   extendAdminListingExpiry,
-  notifyAdminExpiringSeller,
   fetchAdminListingPackages,
   runAdminExpirySweep,
 } from "~/server/admin.functions";
@@ -52,7 +51,7 @@ export const Route = createFileRoute("/admin/listings")({
   validateSearch: listingsSearchSchema,
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {
-    const [listings, categories, packages] = await Promise.all([
+    const [listings, categories, _packages] = await Promise.all([
       fetchAdminListings({
         data: {
           status:
@@ -68,7 +67,7 @@ export const Route = createFileRoute("/admin/listings")({
       listCategories(),
       fetchAdminListingPackages(),
     ]);
-    return { listings, categories, packages };
+    return { listings, categories, packages: _packages };
   },
 });
 
@@ -82,14 +81,6 @@ const STATUSES = [
   "suspended",
 ];
 
-const FILTER_TABS = [
-  { value: "", label: "All" },
-  { value: "pending_review", label: "Pending review" },
-  { value: "active", label: "Active" },
-  { value: "rejected", label: "Rejected" },
-  { value: "suspended", label: "Suspended" },
-];
-
 const EXPIRY_WINDOWS = [
   { value: 0, label: "Expired" },
   { value: 1, label: "≤ 1 day" },
@@ -99,14 +90,14 @@ const EXPIRY_WINDOWS = [
 ];
 
 function AdminListingsPage() {
-  const { listings, categories, packages } = Route.useLoaderData();
+  const { listings, categories, packages: _packages } = Route.useLoaderData();
   const { items, page, totalPages } = listings;
   const search = Route.useSearch();
   const router = useRouter();
   const navigate = useNavigate({ from: "/admin/listings" });
   const [status, setStatus] = useState<string>(search.status ?? "");
   const [categoryId, setCategoryId] = useState<string>(search.categoryId ?? "");
-  const [packageId, setPackageId] = useState<string>(search.packageId ?? "");
+  const [_packageId, _setPackageId] = useState<string>(search.packageId ?? "");
   const [expiryWindow, setExpiryWindow] = useState<number | null>(
     search.expiryWindow ?? null
   );
@@ -165,16 +156,6 @@ function AdminListingsPage() {
         },
       });
       setExtendDialog({ open: false, id: "", days: 7, reason: "" });
-      await router.invalidate();
-    } finally {
-      setLoadingId(null);
-    }
-  };
-
-  const handleNotify = async (id: string) => {
-    setLoadingId(id);
-    try {
-      await notifyAdminExpiringSeller({ data: { id, channel: "sms" } });
       await router.invalidate();
     } finally {
       setLoadingId(null);

@@ -7,6 +7,10 @@ export async function getRootCategories() {
   return db.select().from(categories).where(isNull(categories.parentId));
 }
 
+export async function getChildCategories(parentId: string) {
+  return db.select().from(categories).where(eq(categories.parentId, parentId)).orderBy(asc(categories.sortOrder), asc(categories.name));
+}
+
 export async function getCategoryById(id: string) {
   const rows = await db.select().from(categories).where(eq(categories.id, id)).limit(1);
   return rows[0] ?? null;

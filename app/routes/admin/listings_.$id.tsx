@@ -125,7 +125,7 @@ function AdminListingDetailPage() {
               <div className="flex items-center justify-between">
                 <span className="text-celis-ink-secondary">Condition</span>
                 <Badge variant="secondary">
-                  {listing.condition.replace(/_/g, " ")}
+                  {listing.condition?.replace(/_/g, " ") ?? "N/A"}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">

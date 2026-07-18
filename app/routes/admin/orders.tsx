@@ -13,13 +13,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "~/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
 import { Pagination } from "~/components/ui/pagination";
 import { AdminTable } from "~/components/admin/admin-table";
 import { PageHeader } from "~/components/admin/page-header";
