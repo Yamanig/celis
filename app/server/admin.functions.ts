@@ -44,7 +44,7 @@ import {
 } from "./admin.server";
 import { getAdminAuditLogs } from "./audit.server";
 import {
-  listListingPackages,
+  listAllListingPackages,
   assignSellerPackage,
 } from "./seller-packages.server";
 import { requirePermission } from "./auth.server";
@@ -601,7 +601,7 @@ const packageSchema = z.object({
 export const fetchAdminListingPackages = createServerFn({ method: "GET" }).handler(
   async () => {
     await requirePermission("settings:manage");
-    return listListingPackages();
+    return listAllListingPackages();
   }
 );
 
