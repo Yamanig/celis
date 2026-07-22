@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
+import { Badge } from "~/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -99,10 +100,12 @@ function AdminPackagesPage() {
   } | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
-  const packageOptions = packages.map((p) => ({
-    value: p.id,
-    label: `${p.name} (${p.listingAllowance} listings / ${p.durationDays} days)`,
-  }));
+  const packageOptions = packages
+    .filter((p) => p.isActive)
+    .map((p) => ({
+      value: p.id,
+      label: `${p.name} (${p.listingAllowance} listings / ${p.durationDays} days)`,
+    }));
 
   const reset = () => {
     setEditing(null);
@@ -285,6 +288,15 @@ function AdminPackagesPage() {
                     {p.autoRenew ? "Auto" : "Manual"}
                     {p.gracePeriodDays ? ` · ${p.gracePeriodDays}d grace` : ""}
                   </span>
+                ),
+              },
+              {
+                key: "status",
+                header: "Status",
+                cell: (p) => (
+                  <Badge variant={p.isActive ? "default" : "secondary"}>
+                    {p.isActive ? "Active" : "Inactive"}
+                  </Badge>
                 ),
               },
               {

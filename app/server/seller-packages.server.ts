@@ -226,6 +226,13 @@ export async function listListingPackages(
     .orderBy(listingPackages.price, listingPackages.name);
 }
 
+export async function listAllListingPackages() {
+  return db
+    .select()
+    .from(listingPackages)
+    .orderBy(desc(listingPackages.createdAt), listingPackages.name);
+}
+
 export async function createListingPackage(input: {
   code: string;
   name: string;
