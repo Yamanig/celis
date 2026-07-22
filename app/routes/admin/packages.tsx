@@ -294,7 +294,7 @@ function AdminPackagesPage() {
                 key: "status",
                 header: "Status",
                 cell: (p) => (
-                  <Badge variant={p.isActive ? "default" : "secondary"}>
+                  <Badge variant={p.isActive ? "success" : "outline"}>
                     {p.isActive ? "Active" : "Inactive"}
                   </Badge>
                 ),
@@ -487,6 +487,7 @@ function AdminPackagesPage() {
             {editing && (
               <div className="flex items-center gap-2">
                 <Switch
+                  id="package-active-toggle"
                   checked={editing.isActive}
                   onCheckedChange={async (checked) => {
                     await updateAdminListingPackage({
@@ -495,7 +496,7 @@ function AdminPackagesPage() {
                     await router.invalidate();
                   }}
                 />
-                <Label>Active</Label>
+                <Label htmlFor="package-active-toggle">Active</Label>
               </div>
             )}
             <DialogFooter>
