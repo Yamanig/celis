@@ -79,6 +79,13 @@ export const Route = createFileRoute("/admin/users")({
   },
 });
 
+function formatRoleLabel(role: string) {
+  return role
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 function AdminUsersPage() {
   const { result, currentUser, permissions, roles } = Route.useLoaderData();
   const { items, page, totalPages } = result;
@@ -374,15 +381,21 @@ function AdminUsersPage() {
           {
             key: "role",
             header: "Role",
-            cell: (u) => (
-              <Combobox
-                value={u.role}
-                disabled={!canManageUsers || loadingId === u.id}
-                onValueChange={(v) => handleRoleChange(u.id, v)}
-                className="w-40"
-                options={roleOptions}
-              />
-            ),
+            cell: (u) => {
+              const currentRoleOption = { value: u.role, label: formatRoleLabel(u.role) };
+              const userRoleOptions = roleOptions.some((r) => r.value === u.role)
+                ? roleOptions
+                : [currentRoleOption, ...roleOptions];
+              return (
+                <Combobox
+                  value={u.role}
+                  disabled={!canManageUsers || loadingId === u.id}
+                  onValueChange={(v) => handleRoleChange(u.id, v)}
+                  className="w-full min-w-[10rem] sm:min-w-[12rem]"
+                  options={userRoleOptions}
+                />
+              );
+            },
           },
           {
             key: "verified",
