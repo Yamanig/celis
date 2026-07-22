@@ -50,6 +50,7 @@ export function Combobox({
   label,
 }: ComboboxProps) {
   const rootRef = React.useRef<HTMLDivElement>(null);
+  const portalRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const optionRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
@@ -75,15 +76,15 @@ export function Combobox({
   // Scroll the first option into view when nothing is selected, or the selected
   // option when one exists. On mobile this runs once the bottom sheet opens.
   React.useEffect(() => {
-    if (!open) return;
+    if (!open || !listRef.current) return;
     const timeout = setTimeout(() => {
-      const target = value
-        ? optionRefs.current[value]
-        : listRef.current?.querySelector('[role="option"]') as HTMLElement | null;
+      if (!value) {
+        listRef.current!.scrollTop = 0;
+        return;
+      }
+      const target = optionRefs.current[value];
       if (target) {
         target.scrollIntoView({ block: "nearest", inline: "nearest" });
-      } else if (listRef.current) {
-        listRef.current.scrollTop = 0;
       }
     }, 0);
     return () => clearTimeout(timeout);
@@ -126,11 +127,14 @@ export function Combobox({
     }
   }, [open]);
 
-  // Close on click outside (desktop) or Escape.
+  // Close on click outside (desktop or mobile portal) or Escape.
   React.useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const insideTrigger = rootRef.current?.contains(target) ?? false;
+      const insidePortal = portalRef.current?.contains(target) ?? false;
+      if (!insideTrigger && !insidePortal) {
         setOpen(false);
       }
     };
@@ -269,7 +273,8 @@ export function Combobox({
     isMobile && open
       ? createPortal(
           <div
-            className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50"
+            ref={portalRef}
+            className="fixed inset-0 z-50 flex flex-col justify-end overscroll-contain bg-black/50"
             role="dialog"
             aria-modal="true"
             aria-label={label ?? placeholder}
@@ -278,10 +283,13 @@ export function Combobox({
             }}
           >
             <div
-              className="flex max-h-[80dvh] flex-col rounded-t-xl border-t border-celis-border bg-celis-surface-elevated shadow-2xl"
-              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+              className="flex max-h-[min(80dvh,calc(100dvh-env(safe-area-inset-top)-1rem))] flex-col rounded-t-xl border-t border-celis-border bg-celis-surface-elevated shadow-2xl"
+              style={{
+                paddingBottom: "env(safe-area-inset-bottom)",
+                paddingTop: "env(safe-area-inset-top)",
+              }}
             >
-              <div className="flex items-center justify-between border-b border-celis-border px-3 py-2">
+              <div className="flex shrink-0 items-center justify-between border-b border-celis-border px-3 py-3">
                 <span className="text-sm font-medium text-celis-ink">
                   {label ?? placeholder}
                 </span>
@@ -289,6 +297,7 @@ export function Combobox({
                   type="button"
                   variant="ghost"
                   size="icon"
+                  className="h-8 w-8"
                   onClick={() => setOpen(false)}
                   aria-label="Close"
                 >
@@ -296,7 +305,7 @@ export function Combobox({
                 </Button>
               </div>
               {searchInput}
-              <div className="flex-1 overflow-hidden">{optionList}</div>
+              <div className="min-h-0 flex-1 overflow-hidden">{optionList}</div>
             </div>
           </div>,
           document.body
