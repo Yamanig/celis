@@ -102,13 +102,7 @@ function AdminUsersPage() {
 
   const canManageUsers = permissions.includes("users:manage");
   const isCurrentUserSuper = currentUser?.isSuperAdmin ?? false;
-  const baseUserRoleOptions = [
-    { value: "", label: "All roles" },
-    { value: "buyer", label: "Buyer" },
-    { value: "seller", label: "Seller" },
-    { value: "admin", label: "Admin" },
-  ];
-  const userRoleOptions = baseUserRoleOptions.filter((option) => option.value);
+
 
   useEffect(() => {
     setSearchInput(search.search ?? "");
@@ -385,8 +379,8 @@ function AdminUsersPage() {
                 value={u.role}
                 disabled={!canManageUsers || loadingId === u.id}
                 onValueChange={(v) => handleRoleChange(u.id, v)}
-                className="w-32"
-                options={userRoleOptions}
+                className="w-40"
+                options={roleOptions}
               />
             ),
           },
