@@ -5,7 +5,7 @@ import {
   categoryFields,
   categoryFieldOptions,
 } from "../app/db/schema";
-import { eq, isNull } from "drizzle-orm";
+import { eq, isNull, sql } from "drizzle-orm";
 
 /**
  * Dynamic field + option seeder for the Celis marketplace.
@@ -37,6 +37,14 @@ type FieldDef = {
 };
 
 const COMMON_FIELDS: FieldDef[] = [
+  { key: "condition", label: "Condition", type: "single-select", required: true, isFilter: true, searchable: true,
+    options: [
+      { value: "brand_new", label: "Brand New" },
+      { value: "refurbished", label: "Refurbished" },
+      { value: "used_excellent", label: "Used - Excellent" },
+      { value: "used_good", label: "Used - Good" },
+      { value: "used_fair", label: "Used - Fair" },
+    ] },
   { key: "region", label: "Region", type: "single-select", required: true, isFilter: true, searchable: true,
     options: [
       { value: "mogadishu", label: "Mogadishu" },
@@ -44,6 +52,7 @@ const COMMON_FIELDS: FieldDef[] = [
       { value: "kismayo", label: "Kismayo" },
       { value: "bosaso", label: "Bosaso" },
       { value: "merka", label: "Merca" },
+      { value: "baidoa", label: "Baidoa" },
     ] },
   { key: "exchange", label: "Exchange Possible", type: "single-select", options: [
       { value: "yes", label: "Yes" },
@@ -52,7 +61,7 @@ const COMMON_FIELDS: FieldDef[] = [
 ];
 
 const CARS_FIELDS: FieldDef[] = [
-  { key: "make", label: "Make", type: "single-select", required: true, isFilter: true, searchable: true,
+  { key: "make", label: "Make / Brand", type: "single-select", required: true, isFilter: true, searchable: true,
     options: [
       { value: "toyota", label: "Toyota" },
       { value: "lexus", label: "Lexus" },
@@ -151,16 +160,25 @@ const PHONES_FIELDS: FieldDef[] = [
     ] },
   { key: "battery_health", label: "Battery Health", type: "single-select",
     options: [
-      { value: "excellent", label: "Excellent" },
-      { value: "good", label: "Good" },
-      { value: "fair", label: "Fair" },
-      { value: "needs_replacement", label: "Needs Replacement" },
+      { value: "100", label: "100%" },
+      { value: "90_99", label: "90% - 99%" },
+      { value: "80_89", label: "80% - 89%" },
+      { value: "below_80", label: "Below 80%" },
     ] },
   { key: "sim_slots", label: "SIM Slots", type: "number" },
   { key: "warranty_months", label: "Warranty (months)", type: "number" },
 ];
 
 const FASHION_FIELDS: FieldDef[] = [
+  { key: "brand", label: "Brand", type: "single-select", searchable: true,
+    options: [
+      { value: "nike", label: "Nike" },
+      { value: "adidas", label: "Adidas" },
+      { value: "puma", label: "Puma" },
+      { value: "zara", label: "Zara" },
+      { value: "gucci", label: "Gucci" },
+      { value: "local", label: "Local / Unbranded" },
+    ] },
   { key: "size", label: "Size", type: "single-select",
     options: [
       { value: "xs", label: "XS" },
@@ -183,8 +201,10 @@ const FASHION_FIELDS: FieldDef[] = [
 
 // slug -> fields
 const SEED: Record<string, FieldDef[]> = {
-  cars: [...COMMON_FIELDS, ...CARS_FIELDS],
-  "phones-tablets": [...COMMON_FIELDS, ...PHONES_FIELDS],
+  "vehicles-cars": [...COMMON_FIELDS, ...CARS_FIELDS],
+  "electronics-phones-tablets": [...COMMON_FIELDS, ...PHONES_FIELDS],
+  "fashion-men-clothing": [...COMMON_FIELDS, ...FASHION_FIELDS],
+  "fashion-women-clothing": [...COMMON_FIELDS, ...FASHION_FIELDS],
   fashion: [...COMMON_FIELDS, ...FASHION_FIELDS],
 };
 

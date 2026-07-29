@@ -7,6 +7,7 @@ import {
   boolean,
   numeric,
   timestamp,
+  jsonb,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -24,6 +25,19 @@ export const FIELD_TYPES = [
   "video-link",
 ] as const;
 export type CategoryFieldType = (typeof FIELD_TYPES)[number];
+
+export type ValidationRules = {
+  required?: boolean;
+  min?: number;
+  max?: number;
+  minLength?: number;
+  maxLength?: number;
+  integer?: boolean;
+  pattern?: string;
+  allowedOptionIds?: string[];
+  minSelections?: number;
+  maxSelections?: number;
+};
 
 export const categoryFields = pgTable(
   "category_fields",
@@ -48,6 +62,8 @@ export const categoryFields = pgTable(
     parentFieldId: uuid("parent_field_id"),
     parentValue: varchar("parent_value", { length: 120 }),
     isActive: boolean("is_active").notNull().default(true),
+    appliesToDescendants: boolean("applies_to_descendants").notNull().default(true),
+    validationRules: jsonb("validation_rules").$type<ValidationRules | null>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
