@@ -304,14 +304,25 @@ export async function approveListing(id: string, reviewerId: string) {
     .where(eq(listings.id, id))
     .returning();
 
+  const title = `"${listing.title}" has been approved and is now visible to buyers.`;
+
   await createNotification({
     userId: listing.sellerId,
     type: "listing_approved",
     title: "Your listing is live",
-    body: `"${listing.title}" has been approved and is now visible to buyers.`,
+    body: title,
     link: `/listings/${listing.id}`,
     metadata: { listingId: listing.id, title: listing.title },
   });
+
+  await (async () => {
+    const { sendPushToUser } = await import("~/lib/fcm");
+    await sendPushToUser(listing.sellerId, {
+      title: "Listing approved",
+      body: `Your listing "${listing.title}" is now live.`,
+      data: { type: "listing_approved", listing_id: listing.id },
+    });
+  })();
 
   return updated;
 }
@@ -342,16 +353,30 @@ export async function rejectListing(
     .where(eq(listings.id, id))
     .returning();
 
+  const body = reason
+    ? `"${listing.title}" was rejected. Reason: ${reason}`
+    : `"${listing.title}" was rejected.`;
+
   await createNotification({
     userId: listing.sellerId,
     type: "listing_rejected",
     title: "Your listing was not approved",
-    body: reason
-      ? `"${listing.title}" was rejected. Reason: ${reason}`
-      : `"${listing.title}" was rejected.`,
+    body,
     link: `/dashboard`,
     metadata: { listingId: listing.id, title: listing.title, reason },
   });
+
+  await (async () => {
+    const { sendPushToUser } = await import("~/lib/fcm");
+    const shortBody = reason
+      ? `"${listing.title}" needs changes: ${reason}`
+      : `"${listing.title}" needs changes.`;
+    await sendPushToUser(listing.sellerId, {
+      title: "Listing needs changes",
+      body: shortBody.slice(0, 200),
+      data: { type: "listing_rejected", listing_id: listing.id },
+    });
+  })();
 
   return updated;
 }

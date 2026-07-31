@@ -40,6 +40,11 @@ Thumbs.db
 # Testing
 coverage
 
+# Firebase service account private keys
+firebase-service-account*.json
+*service-account*.json
+fcm-service-account*.json
+
 # Misc
 .cache
 .temp

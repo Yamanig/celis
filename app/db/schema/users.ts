@@ -80,6 +80,7 @@ export const profiles = pgTable(
     }),
     businessAddress: text("business_address"),
     shopSlug: varchar("shop_slug", { length: 120 }),
+    fcmToken: text("fcm_token"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

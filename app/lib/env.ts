@@ -8,6 +8,7 @@ const envSchema = z.object({
   SUPABASE_STORAGE_BUCKET: z.string().default("listing-images"),
   APP_URL: z.string().url().default("http://localhost:3000"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

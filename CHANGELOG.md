@@ -2,6 +2,32 @@
 
 All notable changes to Celis will be documented in this file.
 
+## [v0.1.2] - 2026-07-31
+
+### Added
+
+- **FCM Push Notifications**: Firebase Admin SDK integration for remote push notifications.
+  - `lib/fcm.ts`: helper module with `sendPushToUser()`, `sendPushToToken()`, and automatic invalid-token cleanup.
+  - `scripts/send-test-fcm.ts`: CLI test sender (self-contained, reads `profiles.fcm_token`).
+  - `FIREBASE_SERVICE_ACCOUNT` env var (JSON string or file path).
+- **Listing approval/rejection pushes**: `approveListing()` and `rejectListing()` now send FCM push notifications to the seller in addition to in-app notifications.
+- **Chat message push (DB trigger + job queue)**:
+  - Migration `0028_notification_jobs.sql`: `notification_jobs` table + `enqueue_chat_notification()` trigger on `messages` INSERT.
+  - `scripts/process-notification-jobs.ts`: background worker that polls `notification_jobs` and sends FCM pushes via Firebase Admin.
+  - Push goes to the receiver only. Firebase credentials never exposed to mobile.
+- **`fcm_token` column** added to Drizzle `profiles` schema.
+
+### Changed
+
+- Updated `.env.example` with `FIREBASE_SERVICE_ACCOUNT` documentation.
+- Updated `docs/fcm-test-sender.md` with usage instructions.
+- Added `pnpm cron:process-notifications` and `pnpm notifications:test` scripts.
+
+### Deferred
+
+- Presence-based chat push suppression (pushes currently send even if receiver is viewing the chat).
+- Notification preferences gating (toggles exist in mobile UI but pushes always send for now).
+
 ## [v0.1.1] - 2026-07-17
 
 ### Fixed
