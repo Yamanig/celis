@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { initializeApp, cert, getApps, type ServiceAccount } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
+import fs from "node:fs";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -17,7 +18,6 @@ function initFirebase() {
   try {
     sa = JSON.parse(FIREBASE_SERVICE_ACCOUNT) as ServiceAccount;
   } catch {
-    const fs = require("node:fs") as typeof import("node:fs");
     if (!fs.existsSync(FIREBASE_SERVICE_ACCOUNT)) {
       console.error(`Service account file not found: ${FIREBASE_SERVICE_ACCOUNT}`);
       process.exit(1);
