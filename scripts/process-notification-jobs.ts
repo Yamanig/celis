@@ -18,6 +18,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { initializeApp, cert, getApps, type ServiceAccount } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
+import fs from "node:fs";
 
 // ── Config ──────────────────────────────────────────────────────
 
@@ -40,7 +41,6 @@ function initFirebase() {
   try {
     sa = JSON.parse(FIREBASE_SERVICE_ACCOUNT) as ServiceAccount;
   } catch {
-    const fs = require("node:fs") as typeof import("node:fs");
     if (!fs.existsSync(FIREBASE_SERVICE_ACCOUNT)) {
       console.error(`[notification-worker] Service account file not found: ${FIREBASE_SERVICE_ACCOUNT}`);
       process.exit(1);

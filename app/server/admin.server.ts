@@ -851,13 +851,31 @@ export async function notifyExpiringSeller(
 }
 
 export async function updateListingStatus(id: string, status: ListingStatus) {
-  await requirePermission("listings:moderate");
-  await db.update(listings).set({ status }).where(eq(listings.id, id));
+  const actor = await requirePermission("listings:moderate");
+  const [listing] = await db
+    .select({ status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, id))
+    .limit(1);
+
+  if (!listing) throw new Error("Listing not found");
+  if (listing.status === status) {
+    return { success: true, unchanged: true };
+  }
+
+  if (status === "active") {
+    await approveListing(id, actor.id);
+  } else if (status === "rejected") {
+    await rejectListing(id, actor.id, "Status changed by admin.");
+  } else {
+    await db.update(listings).set({ status, updatedAt: new Date() }).where(eq(listings.id, id));
+  }
+
   await insertAuditLog({
     action: "listing_status_changed",
     resourceType: "listing",
     resourceId: id,
-    metadata: { status },
+    metadata: { previousStatus: listing.status, status, actorId: actor.id },
   });
   return { success: true };
 }
