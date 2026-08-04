@@ -44,8 +44,8 @@
     "@tanstack/router-devtools": "^1.58.17",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
-    "drizzle-orm": "^0.34.1",
-    "drizzle-zod": "^0.5.1",
+    "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
     "firebase-admin": "^14.2.0",
     "framer-motion": "^11.11.0",
     "lucide-react": "^0.447.0",
@@ -63,7 +63,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
-    "drizzle-kit": "^0.25.0",
+    "drizzle-kit": "^0.31.10",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "tailwindcss-animate": "^1.0.7",
@@ -71,6 +71,12 @@
     "typescript": "^5.6.2",
     "vite": "^7.0.0",
     "vite-tsconfig-paths": "^5.0.1"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": "npm:tsx@^4.19.1",
+    "@esbuild-kit/esm-loader": "npm:tsx@^4.19.1",
+    "esbuild": "^0.25.0",
+    "uuid": "^11.1.1"
   },
   "packageManager": "pnpm@9.11.0"
 }
