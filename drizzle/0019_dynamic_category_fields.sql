@@ -65,13 +65,6 @@ CREATE INDEX IF NOT EXISTS "idx_category_fields_category"
 CREATE INDEX IF NOT EXISTS "idx_category_fields_parent"
   ON "category_fields" USING btree ("parent_field_id");
 --> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "category_fields" ADD CONSTRAINT "category_fields_parent_field_id_category_fields_id_fk"
-   FOREIGN KEY ("parent_field_id") REFERENCES "public"."category_fields"("id") ON DELETE set null ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS "category_field_options" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -184,6 +177,6 @@ CREATE POLICY "category_field_options_public_read" ON "category_field_options"
 -- DROP TRIGGER IF EXISTS "trg_sync_category_fields_to_metadata" ON "category_fields";
 -- DROP FUNCTION IF EXISTS "sync_category_fields_to_metadata"();
 -- DROP POLICY IF EXISTS "category_field_options_public_read" ON "category_field_options";
--- DROP POLICY IF EXISTS "category_fields_public_read" ON "category_field_options";
+-- DROP POLICY IF EXISTS "category_fields_public_read" ON "category_fields";
 -- DROP TABLE IF EXISTS "category_field_options";
 -- DROP TABLE IF EXISTS "category_fields";
