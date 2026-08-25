@@ -1,5 +1,14 @@
 # Changelog
 
+## [v1.2.0] - 2026-08-25
+
+- Added a guarded admin renewal action that reactivates paid expired listings,
+  records the new expiry, and writes a renewal audit event.
+- Reworked category management into a root-category browser with subcategories
+  loaded only after selection.
+- Scoped Conditions and Fields actions to subcategory rows and added hierarchy
+  counts so destructive actions remain safe.
+
 ## [v1.1.2] - 2026-08-25
 
 - Corrected direct WaafiPay purchases to use the documented `WEB` channel.

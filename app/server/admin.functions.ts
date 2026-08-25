@@ -250,6 +250,7 @@ export const reviewAdminListing = createServerFn({ method: "POST" })
 
 const categoriesQuerySchema = z
   .object({
+    parentId: z.string().uuid().nullable().optional().default(null),
     page: z.coerce.number().int().min(1).optional().default(1),
     limit: z.coerce.number().int().min(1).max(100).optional().default(10),
   })

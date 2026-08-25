@@ -81,6 +81,8 @@ Rules:
 - Use transactions for multi-record updates.
 - Do not hide failures behind generic UI states.
 - Never perform payment/payout changes without updating docs and changelog.
+- Admin renewal may reactivate an expired listing only when its monetization
+  status is active; renewal extends from the current time and is audit logged.
 - Payment-provider credentials are encrypted at rest and decrypted only inside server payment modules.
 - Client applications never choose the authoritative fee amount or receive provider credentials.
 - Waafi purchase success requires provider code `2001`, state `APPROVED`, a transaction ID, and amount reconciliation.

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Pagination } from "~/components/ui/pagination";
 import {
   Dialog,
@@ -44,6 +45,7 @@ const FIELD_TYPES = [
 ] as const;
 
 const categoriesSearchSchema = z.object({
+  categoryId: z.string().uuid().optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
 });
 
@@ -61,10 +63,15 @@ export const Route = createFileRoute("/admin/categories")({
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search } }) => {
     const [categories, permissions] = await Promise.all([
-      fetchAdminCategories({ data: { page: search.page, limit: 10 } }),
+      fetchAdminCategories({ data: { parentId: null, page: search.page, limit: 10 } }),
       fetchCurrentUserPermissions(),
     ]);
-    return { categories, permissions };
+    const subcategories = search.categoryId
+      ? await fetchAdminCategories({
+          data: { parentId: search.categoryId, page: 1, limit: 100 },
+        })
+      : null;
+    return { categories, subcategories, permissions };
   },
 });
 
@@ -84,12 +91,13 @@ function slugify(name: string) {
 }
 
 function AdminCategoriesPage() {
-  const { categories, permissions } = Route.useLoaderData();
+  const { categories, subcategories, permissions } = Route.useLoaderData();
   const { items, page, totalPages } = categories;
   const search = Route.useSearch();
   const router = useRouter();
   const navigate = useNavigate({ from: "/admin/categories" });
   const canManage = permissions.includes("categories:manage");
+  const selectedCategory = items.find((category) => category.id === search.categoryId) ?? null;
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<{
     id: string;
@@ -328,96 +336,164 @@ function AdminCategoriesPage() {
         </p>
       )}
 
-      <AdminTable
-        rows={items}
-        keyExtractor={(c) => c.id}
-        columns={[
-          {
-            key: "name",
-            header: "Name",
-            cell: (c) => (
-              <div className={c.parentId ? "pl-6 border-l-2 border-celis-border ml-2" : ""}>
-                <p className="font-medium text-celis-ink">{c.name}</p>
-                <p className="text-xs text-celis-ink-secondary">/{c.slug}</p>
-              </div>
-            ),
-          },
-          {
-            key: "listings",
-            header: "Listings",
-            cell: (c) => <span className="tabular-nums">{c.listingCount}</span>,
-          },
-          {
-            key: "sort",
-            header: "Sort order",
-            cell: (c) => <span className="tabular-nums">{c.sortOrder ?? 0}</span>,
-          },
-          {
-            key: "created",
-            header: "Created",
-            cell: (c) => (
-              <span className="text-xs text-celis-ink-secondary">
-                {formatRelativeDate(c.createdAt)}
-              </span>
-            ),
-          },
-          {
-            key: "actions",
-            header: "",
-            cell: (c) => (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!canManage}
-                  onClick={() => openEdit(c)}
-                >
-                  Edit
-                </Button>
-                {!c.parentId && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!canManage}
-                    onClick={() => openCreateSubcategory(c)}
-                  >
-                    Add subcategory
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!canManage}
-                  onClick={() => openConditions(c)}
-                >
-                  Conditions
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!canManage}
-                  onClick={() => openFields(c)}
-                >
-                  Fields
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={!canManage || c.listingCount > 0}
-                  title={
-                    c.listingCount > 0
-                      ? "Cannot delete: category has listings"
-                      : "Delete category"
+      <div className="grid gap-6 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
+        <Card className="h-fit border-celis-border bg-celis-surface-base">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Main categories</CardTitle>
+            <p className="text-sm text-celis-ink-secondary">
+              Select a category to manage its subcategories.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {items.map((category) => {
+              const selected = category.id === search.categoryId;
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                    selected
+                      ? "border-primary bg-primary/10"
+                      : "border-celis-border bg-celis-surface-inset hover:border-primary/50"
+                  }`}
+                  onClick={() =>
+                    navigate({
+                      search: (prev) => ({ ...prev, categoryId: category.id }),
+                    })
                   }
-                  onClick={() => setDeleteDialog({ open: true, category: c })}
                 >
-                  Remove
-                </Button>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-celis-ink">{category.name}</p>
+                      <p className="truncate text-xs text-celis-ink-secondary">/{category.slug}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-celis-surface-base px-2 py-1 text-xs tabular-nums text-celis-ink-secondary">
+                      {category.childCount} sub
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0 border-celis-border bg-celis-surface-base">
+          {selectedCategory ? (
+            <>
+              <CardHeader className="gap-3 border-b border-celis-border">
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                  <div>
+                    <CardTitle>{selectedCategory.name}</CardTitle>
+                    <p className="mt-1 text-sm text-celis-ink-secondary">
+                      {subcategories?.total ?? 0} subcategories · {selectedCategory.listingCount} direct listings
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" disabled={!canManage} onClick={() => openEdit(selectedCategory)}>
+                      Edit category
+                    </Button>
+                    <Button size="sm" disabled={!canManage} onClick={() => openCreateSubcategory(selectedCategory)}>
+                      Add subcategory
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={!canManage || selectedCategory.listingCount > 0 || selectedCategory.childCount > 0}
+                      title={
+                        selectedCategory.listingCount > 0 || selectedCategory.childCount > 0
+                          ? "Remove listings and subcategories first"
+                          : "Delete category"
+                      }
+                      onClick={() => setDeleteDialog({ open: true, category: selectedCategory })}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <AdminTable
+                  rows={subcategories?.items ?? []}
+                  keyExtractor={(c) => c.id}
+                  columns={[
+                    {
+                      key: "name",
+                      header: "Subcategory",
+                      cell: (c) => (
+                        <div>
+                          <p className="font-medium text-celis-ink">{c.name}</p>
+                          <p className="text-xs text-celis-ink-secondary">/{c.slug}</p>
+                        </div>
+                      ),
+                    },
+                    {
+                      key: "listings",
+                      header: "Listings",
+                      cell: (c) => <span className="tabular-nums">{c.listingCount}</span>,
+                    },
+                    {
+                      key: "configuration",
+                      header: "Listing form",
+                      cell: (c) => (
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" disabled={!canManage || conditionsLoading} onClick={() => openConditions(c)}>
+                            Conditions
+                          </Button>
+                          <Button variant="outline" size="sm" disabled={!canManage || fieldsLoading} onClick={() => openFields(c)}>
+                            Fields
+                          </Button>
+                        </div>
+                      ),
+                    },
+                    {
+                      key: "updated",
+                      header: "Created",
+                      cell: (c) => (
+                        <span className="text-xs text-celis-ink-secondary">{formatRelativeDate(c.createdAt)}</span>
+                      ),
+                    },
+                    {
+                      key: "actions",
+                      header: "",
+                      cell: (c) => (
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" disabled={!canManage} onClick={() => openEdit(c)}>Edit</Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={!canManage || c.listingCount > 0 || c.childCount > 0}
+                            title={c.listingCount > 0 || c.childCount > 0 ? "Remove listings and nested subcategories first" : "Delete subcategory"}
+                            onClick={() => setDeleteDialog({ open: true, category: c })}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+                {(subcategories?.items.length ?? 0) === 0 && (
+                  <div className="p-8 text-center">
+                    <p className="font-medium text-celis-ink">No subcategories yet</p>
+                    <p className="mt-1 text-sm text-celis-ink-secondary">
+                      Add a subcategory before configuring listing conditions and fields.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </>
+          ) : (
+            <CardContent className="flex min-h-72 items-center justify-center p-8 text-center">
+              <div>
+                <p className="font-medium text-celis-ink">Choose a main category</p>
+                <p className="mt-1 max-w-sm text-sm text-celis-ink-secondary">
+                  Its subcategories and listing-form configuration will load here only when selected.
+                </p>
               </div>
-            ),
-          },
-        ]}
-      />
+            </CardContent>
+          )}
+        </Card>
+      </div>
 
       <Pagination
         page={page}

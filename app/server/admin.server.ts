@@ -29,6 +29,7 @@ import {
   lte,
   sum,
   inArray,
+  isNull,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireAdmin, requirePermission, isInternalRole } from "./auth.server";
@@ -761,11 +762,19 @@ export async function extendListingExpiry(
 ) {
   await requirePermission("listings:moderate");
   const [listing] = await db
-    .select({ expiresAt: listings.expiresAt })
+    .select({
+      expiresAt: listings.expiresAt,
+      status: listings.status,
+      monetizationStatus: listings.monetizationStatus,
+    })
     .from(listings)
     .where(eq(listings.id, listingId))
     .limit(1);
   if (!listing) throw new Error("Listing not found");
+  const isRenewal = listing.status === "expired";
+  if (isRenewal && listing.monetizationStatus !== "active") {
+    throw new Error("This listing cannot be renewed until its listing fee is paid.");
+  }
 
   const previousExpiresAt = listing.expiresAt;
   const newExpiresAt = new Date();
@@ -786,19 +795,20 @@ export async function extendListingExpiry(
     .update(listings)
     .set({
       expiresAt: newExpiresAt,
+      status: isRenewal ? "active" : listing.status,
       expiryExtensionLog: sql`COALESCE(${listings.expiryExtensionLog}, '[]'::jsonb) || ${JSON.stringify([extensionLog])}::jsonb`,
       updatedAt: new Date(),
     })
     .where(eq(listings.id, listingId));
 
   await insertAuditLog({
-    action: "listing_expiry_extended",
+    action: isRenewal ? "listing_renewed" : "listing_expiry_extended",
     resourceType: "listing",
     resourceId: listingId,
     metadata: extensionLog,
   });
 
-  return { success: true, newExpiresAt };
+  return { success: true, newExpiresAt, renewed: isRenewal };
 }
 
 export async function notifyExpiringSeller(
@@ -883,6 +893,7 @@ export async function updateListingStatus(id: string, status: ListingStatus) {
 export { approveListing, rejectListing };
 
 export async function getAdminCategories(options?: {
+  parentId?: string | null;
   page?: number;
   limit?: number;
 }) {
@@ -890,18 +901,28 @@ export async function getAdminCategories(options?: {
 
   const page = options?.page ?? 1;
   const limit = options?.limit ?? 10;
+  const scope = options?.parentId
+    ? eq(categories.parentId, options.parentId)
+    : isNull(categories.parentId);
 
   const [{ value: total }] = await db
     .select({ value: count() })
-    .from(categories);
+    .from(categories)
+    .where(scope);
 
   const rows = await db
     .select({
       category: categories,
       listingCount: count(listings.id),
+      childCount: sql<number>`(
+        select count(*)::int
+        from categories as category_child
+        where category_child.parent_id = ${categories.id}
+      )`,
     })
     .from(categories)
     .leftJoin(listings, eq(listings.categoryId, categories.id))
+    .where(scope)
     .groupBy(categories.id)
     .orderBy(categories.sortOrder, categories.name)
     .limit(limit)
@@ -915,6 +936,7 @@ export async function getAdminCategories(options?: {
       parentId: r.category.parentId,
       sortOrder: r.category.sortOrder,
       listingCount: r.listingCount,
+      childCount: r.childCount,
       createdAt: r.category.createdAt,
     })),
     total,

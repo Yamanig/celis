@@ -108,7 +108,7 @@ function AdminListingsPage() {
     id: string;
     days: number;
     reason: string;
-  }>({ open: false, id: "", days: 7, reason: "" });
+  }>({ open: false, id: "", days: 30, reason: "" });
   const [rejectDialog, setRejectDialog] = useState<{
     open: boolean;
     id: string;
@@ -155,7 +155,7 @@ function AdminListingsPage() {
           reason: extendDialog.reason.trim(),
         },
       });
-      setExtendDialog({ open: false, id: "", days: 7, reason: "" });
+      setExtendDialog({ open: false, id: "", days: 30, reason: "" });
       await router.invalidate();
     } finally {
       setLoadingId(null);
@@ -410,13 +410,36 @@ function AdminListingsPage() {
                   </Button>
                 </div>
               ) : (
-                <Combobox
-                  value={l.status}
-                  disabled={loadingId === l.id}
-                  onValueChange={(v) => handleStatusChange(l.id, v)}
-                  className="w-full sm:w-40"
-                  options={rowStatusOptions}
-                />
+                <div className="flex min-w-44 flex-col gap-2">
+                  <Combobox
+                    value={l.status}
+                    disabled={loadingId === l.id}
+                    onValueChange={(v) => handleStatusChange(l.id, v)}
+                    className="w-full sm:w-40"
+                    options={rowStatusOptions}
+                  />
+                  {l.status === "expired" && (
+                    <Button
+                      size="sm"
+                      disabled={loadingId === l.id || l.monetizationStatus !== "active"}
+                      title={
+                        l.monetizationStatus !== "active"
+                          ? "The listing fee must be paid before renewal"
+                          : "Renew this listing"
+                      }
+                      onClick={() =>
+                        setExtendDialog({
+                          open: true,
+                          id: l.id,
+                          days: 30,
+                          reason: "Admin renewal",
+                        })
+                      }
+                    >
+                      Renew listing
+                    </Button>
+                  )}
+                </div>
               ),
           },
         ]}
@@ -443,12 +466,12 @@ function AdminListingsPage() {
       <Dialog
         open={extendDialog.open}
         onOpenChange={(open) =>
-          !open && setExtendDialog({ open: false, id: "", days: 7, reason: "" })
+          !open && setExtendDialog({ open: false, id: "", days: 30, reason: "" })
         }
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Extend listing expiry</DialogTitle>
+            <DialogTitle>Renew expired listing</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -481,7 +504,7 @@ function AdminListingsPage() {
               <Button
                 variant="outline"
                 onClick={() =>
-                  setExtendDialog({ open: false, id: "", days: 7, reason: "" })
+                  setExtendDialog({ open: false, id: "", days: 30, reason: "" })
                 }
               >
                 Cancel
@@ -490,7 +513,7 @@ function AdminListingsPage() {
                 disabled={!extendDialog.reason.trim() || !!loadingId}
                 onClick={handleExtend}
               >
-                Extend expiry
+                Renew listing
               </Button>
             </div>
           </div>
