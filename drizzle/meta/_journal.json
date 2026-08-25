@@ -155,6 +155,13 @@
       "when": 1787665494532,
       "tag": "0030_wallet_payment_reconciliation",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1787669000000,
+      "tag": "0031_unpaid_listings_stay_draft",
+      "breakpoints": true
     }
   ]
 }

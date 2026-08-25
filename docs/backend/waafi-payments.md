@@ -2,6 +2,19 @@
 
 Celis stores WaafiPay merchant credentials in the `payment_gateways` table and calls Waafi only from server code. Browser and mobile clients never receive credentials or determine charge amounts.
 
+## Mobile listing-fee endpoint
+
+`POST /api/mobile/payments/listing-fee` accepts a seller's Supabase bearer
+token, listing ID, wallet phone, and idempotency key. The server validates the
+session and listing ownership, recalculates the fee from the stored listing
+price, and then uses the encrypted Waafi credentials. Mobile clients never send
+an amount or receive provider credentials.
+
+Migration `0031_unpaid_listings_stay_draft.sql` enforces the payment lifecycle
+at the database boundary: `pending_paid` listings remain `draft`. The Waafi
+payment transaction changes both `monetization_status` to `active` and listing
+status to `pending_review`; only then can moderation begin.
+
 ## Configuration
 
 Set `PAYMENT_CREDENTIALS_ENCRYPTION_KEY` to a long random server secret before saving gateway credentials. All deployed instances must use the same value. Rotating this key requires re-encrypting stored credentials.

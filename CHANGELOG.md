@@ -2,6 +2,16 @@
 
 All notable changes to Celis will be documented in this file.
 
+## [v1.1.0] - 2026-08-25
+
+### Added
+
+- Added an authenticated mobile listing-fee endpoint that validates Supabase
+  bearer tokens, listing ownership, server-side pricing, and idempotency before
+  initiating WaafiPay.
+- Added migration `0031_unpaid_listings_stay_draft.sql` to prevent unpaid
+  listings from entering review or becoming active.
+
 ## [v1.0.1] - 2026-08-25
 
 ### Changed
