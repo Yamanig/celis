@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeWaafiAccountNo, parseWaafiPurchaseResponse } from "../app/lib/waafi";
+import { getWaafiUserMessage, normalizeWaafiAccountNo, parseWaafiPurchaseResponse } from "../app/lib/waafi";
 import { decryptPaymentCredential, encryptPaymentCredential } from "../app/server/payment-credentials.server";
 
 test("normalizes common Somali wallet formats", () => {
@@ -24,6 +24,17 @@ test("requires response code, APPROVED state, and transaction id", () => {
   assert.equal(approved.merchantChargesCents, 2);
   assert.equal(parseWaafiPurchaseResponse({ responseCode: "2001", params: { state: "FAILED", transactionId: "TX-2" } }).approved, false);
   assert.equal(parseWaafiPurchaseResponse({ responseCode: "2001", params: { state: "APPROVED" } }).approved, false);
+});
+
+test("translates gateway codes into seller-safe messages", () => {
+  assert.equal(
+    getWaafiUserMessage("RCS_INVALID_PAYMENTCHANNEL"),
+    "The payment gateway channel is not configured correctly. Please contact Celis support.",
+  );
+  assert.equal(
+    getWaafiUserMessage("UNRECOGNIZED_PROVIDER_DETAIL"),
+    "WaafiPay could not complete the payment. Please try again.",
+  );
 });
 
 test("payment credential encryption round-trips and uses a random nonce", () => {

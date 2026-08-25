@@ -28,6 +28,18 @@ export function normalizeWaafiAccountNo(value: string): string {
   return digits;
 }
 
+const WAAFI_USER_MESSAGES: Record<string, string> = {
+  RCS_INVALID_PAYMENTCHANNEL: "The payment gateway channel is not configured correctly. Please contact Celis support.",
+  RCS_USER_REJECTED: "The payment was declined from your wallet.",
+  RCS_INSUFFICIENT_FUNDS: "Your wallet does not have enough funds for this payment.",
+  RCS_NO_ENOUGH_BALANCE: "Your wallet does not have enough funds for this payment.",
+};
+
+export function getWaafiUserMessage(responseMessage: string | null): string {
+  if (!responseMessage) return "WaafiPay did not approve the payment.";
+  return WAAFI_USER_MESSAGES[responseMessage] ?? "WaafiPay could not complete the payment. Please try again.";
+}
+
 export function parseWaafiPurchaseResponse(payload: unknown): WaafiPurchaseResult {
   const body = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
   const params = body.params && typeof body.params === "object"

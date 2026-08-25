@@ -1,5 +1,12 @@
 # Changelog
 
+## [v1.1.2] - 2026-08-25
+
+- Corrected direct WaafiPay purchases to use the documented `WEB` channel.
+- Allowed definitively failed idempotent payments to retry safely while preserving
+  the same ledger record and merchant reference.
+- Replaced raw Waafi provider codes with seller-safe payment messages.
+
 ## [v1.1.1] - 2026-08-25
 
 - Exposed the local Vite payment API on the LAN for physical-device testing.

@@ -37,6 +37,8 @@ Changing to production disables the UI toggle until the administrator explicitly
 
 `app/server/waafi.server.ts` implements Waafi `API_PURCHASE` with `MWALLET_ACCOUNT`. A successful transport response is not sufficient. Celis accepts a payment only when:
 
+- direct purchase requests use Waafi's documented `WEB` channel;
+
 - `responseCode` is `2001`;
 - `params.state` is `APPROVED`;
 - `params.transactionId` is present;

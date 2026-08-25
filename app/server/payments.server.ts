@@ -3,7 +3,7 @@ import { db } from "~/db";
 import { listings, walletPayments } from "~/db/schema";
 import type { WalletProvider } from "~/db/schema";
 import { CelisError } from "~/lib/errors";
-import { normalizeWaafiAccountNo } from "~/lib/waafi";
+import { getWaafiUserMessage, normalizeWaafiAccountNo } from "~/lib/waafi";
 import { purchaseWithWaafi } from "./waafi.server";
 
 export type PaymentPurpose = "listing_fee" | "feature_listing" | "order";
@@ -47,6 +47,11 @@ export async function initiateWalletPayment(
     throw new CelisError("Premier Wallet is not connected yet", "PAYMENT_PROVIDER_UNAVAILABLE", 422);
   }
 
+  const normalizedPhone = normalizeWaafiAccountNo(phone);
+  let merchantRef = `celis-${crypto.randomUUID()}`;
+  let invoiceId = listingId ? `listing-${listingId}` : orderId ? `order-${orderId}` : merchantRef;
+  let retryingFailedPayment = false;
+
   if (idempotencyKey) {
     const [existing] = await db
       .select()
@@ -57,33 +62,49 @@ export async function initiateWalletPayment(
       if (existing.userId !== userId || existing.listingId !== listingId || existing.amount !== amountCents) {
         throw new CelisError("Payment key conflicts with another request", "PAYMENT_IDEMPOTENCY_CONFLICT", 409);
       }
-      return resultFromRow(existing);
+      if (existing.status !== "failed") return resultFromRow(existing);
+
+      retryingFailedPayment = true;
+      merchantRef = existing.merchantRef;
+      invoiceId = existing.invoiceId ?? invoiceId;
+      await db.update(walletPayments).set({
+        customerPhone: normalizedPhone,
+        status: "processing",
+        providerResponseCode: null,
+        providerState: null,
+        providerError: null,
+        retryCount: existing.retryCount + 1,
+        updatedAt: new Date(),
+      }).where(eq(walletPayments.id, existing.id));
+      console.info("[wallet-payment] retrying failed payment", {
+        merchantRef,
+        listingId,
+        retryCount: existing.retryCount + 1,
+      });
     }
   }
 
-  const merchantRef = `celis-${crypto.randomUUID()}`;
-  const invoiceId = listingId ? `listing-${listingId}` : orderId ? `order-${orderId}` : merchantRef;
-  const normalizedPhone = normalizeWaafiAccountNo(phone);
-
-  await db.insert(walletPayments).values({
-    userId,
-    listingId,
-    orderId,
-    walletProvider: provider,
-    amount: amountCents,
-    merchantRef,
-    idempotencyKey: idempotencyKey ?? null,
-    invoiceId,
-    customerPhone: normalizedPhone,
-    status: "processing",
-    purpose,
-  });
-  console.info("[wallet-payment] payment recorded", {
-    merchantRef,
-    listingId,
-    amountCents,
-    purpose,
-  });
+  if (!retryingFailedPayment) {
+    await db.insert(walletPayments).values({
+      userId,
+      listingId,
+      orderId,
+      walletProvider: provider,
+      amount: amountCents,
+      merchantRef,
+      idempotencyKey: idempotencyKey ?? null,
+      invoiceId,
+      customerPhone: normalizedPhone,
+      status: "processing",
+      purpose,
+    });
+    console.info("[wallet-payment] payment recorded", {
+      merchantRef,
+      listingId,
+      amountCents,
+      purpose,
+    });
+  }
 
   try {
     const response = await purchaseWithWaafi({
@@ -110,7 +131,7 @@ export async function initiateWalletPayment(
       ? "Provider approved a different amount; payment requires reconciliation."
       : response.approved
         ? null
-        : response.responseMessage ?? "WaafiPay did not approve the payment.";
+        : getWaafiUserMessage(response.responseMessage);
 
     await db.transaction(async (tx) => {
       await tx.update(walletPayments).set({

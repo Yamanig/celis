@@ -32,7 +32,9 @@ export async function purchaseWithWaafi(input: WaafiPurchaseInput): Promise<Waaf
         schemaVersion: "1.0",
         requestId: randomUUID(),
         timestamp: new Date().toISOString().replace("T", " ").replace("Z", ""),
-        channelName: "APP",
+        // Waafi's direct API_PURCHASE contract expects the merchant API channel.
+        // "APP" is a webhook transaction-channel value, not a valid purchase channel.
+        channelName: "WEB",
         serviceName: "API_PURCHASE",
         serviceParams: {
           merchantUid: credentials.merchantUid,
