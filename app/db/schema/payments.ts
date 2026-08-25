@@ -7,6 +7,7 @@ import {
   boolean,
   jsonb,
   index,
+  text,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
@@ -61,9 +62,14 @@ export const walletPayments = pgTable(
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
     walletRef: varchar("wallet_ref", { length: 100 }),
     merchantRef: varchar("merchant_ref", { length: 100 }).notNull().unique(),
+    idempotencyKey: varchar("idempotency_key", { length: 160 }).unique(),
+    invoiceId: varchar("invoice_id", { length: 100 }),
     customerPhone: varchar("customer_phone", { length: 15 }),
     status: varchar("status", { length: 20 }).notNull().default("pending"),
     purpose: varchar("purpose", { length: 40 }).notNull().default("listing_fee"),
+    providerResponseCode: varchar("provider_response_code", { length: 20 }),
+    providerState: varchar("provider_state", { length: 40 }),
+    providerError: text("provider_error"),
     callbackPayload: jsonb("callback_payload"),
     callbackReceivedAt: timestamp("callback_received_at", { withTimezone: true }),
     retryCount: integer("retry_count").notNull().default(0),
@@ -85,6 +91,9 @@ export const walletPayments = pgTable(
     ),
     idxWalletPaymentsMerchantRef: index("idx_wallet_payments_merchant_ref").on(
       table.merchantRef
+    ),
+    idxWalletPaymentsIdempotency: index("idx_wallet_payments_idempotency").on(
+      table.idempotencyKey
     ),
     idxWalletPaymentsWalletRef: index("idx_wallet_payments_wallet_ref").on(
       table.walletRef

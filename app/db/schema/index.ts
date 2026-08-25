@@ -8,6 +8,7 @@ export * from "./listings";
 export * from "./listing-reviews";
 export * from "./orders";
 export * from "./payments";
+export * from "./payment-gateways";
 export * from "./payouts";
 export * from "./platform-configs";
 export * from "./permissions";

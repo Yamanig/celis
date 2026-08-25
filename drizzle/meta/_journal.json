@@ -141,6 +141,20 @@
       "when": 1784369246426,
       "tag": "0018_happy_blob",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787665252049,
+      "tag": "0029_encrypted_payment_gateways",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787665494532,
+      "tag": "0030_wallet_payment_reconciliation",
+      "breakpoints": true
     }
   ]
 }
