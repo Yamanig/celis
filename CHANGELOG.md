@@ -1,5 +1,10 @@
 # Changelog
 
+## [v1.1.1] - 2026-08-25
+
+- Exposed the local Vite payment API on the LAN for physical-device testing.
+- Added credential-safe lifecycle logging for mobile listing-fee requests and Waafi gateway outcomes.
+
 All notable changes to Celis will be documented in this file.
 
 ## [v1.1.0] - 2026-08-25

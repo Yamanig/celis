@@ -78,6 +78,12 @@ export async function initiateWalletPayment(
     status: "processing",
     purpose,
   });
+  console.info("[wallet-payment] payment recorded", {
+    merchantRef,
+    listingId,
+    amountCents,
+    purpose,
+  });
 
   try {
     const response = await purchaseWithWaafi({
@@ -132,6 +138,13 @@ export async function initiateWalletPayment(
       }
     });
 
+    console.info("[wallet-payment] gateway response recorded", {
+      merchantRef,
+      status,
+      responseCode: response.responseCode,
+      providerState: response.state,
+    });
+
     return {
       merchantRef,
       status,
@@ -146,6 +159,11 @@ export async function initiateWalletPayment(
       .update(walletPayments)
       .set({ status, providerError: message, updatedAt: new Date() })
       .where(eq(walletPayments.merchantRef, merchantRef));
+    console.error("[wallet-payment] gateway request failed", {
+      merchantRef,
+      status,
+      message,
+    });
     return { merchantRef, status, message };
   }
 }

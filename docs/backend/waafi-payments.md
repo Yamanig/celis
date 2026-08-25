@@ -10,6 +10,11 @@ session and listing ownership, recalculates the fee from the stored listing
 price, and then uses the encrypted Waafi credentials. Mobile clients never send
 an amount or receive provider credentials.
 
+For physical-device development, `npm run dev` binds Vite to the LAN. The mobile
+API URL must use the development computer's reachable LAN address. Payment logs
+use the `[mobile-listing-payment]` and `[wallet-payment]` prefixes and omit wallet
+phone numbers and gateway credentials.
+
 Migration `0031_unpaid_listings_stay_draft.sql` enforces the payment lifecycle
 at the database boundary: `pending_paid` listings remain `draft`. The Waafi
 payment transaction changes both `monetization_status` to `active` and listing
