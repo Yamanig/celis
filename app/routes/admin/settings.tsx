@@ -1,5 +1,5 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -21,8 +21,11 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { PageHeader } from "~/components/admin/page-header";
+import { WaafiGatewaySettings } from "~/components/admin/waafi-gateway-settings";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
-  fetchPlatformConfigAll,
+  fetchPlatformConfigSection,
   updateAdminPlatformConfig,
   runAdminExpirySweep,
 } from "~/server/admin.functions";
@@ -42,9 +45,10 @@ export const Route = createFileRoute("/admin/settings")({
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
-
-  loader: async () => fetchPlatformConfigAll(),
+  loader: () => fetchPlatformConfigSection({ data: { section: "fees" } }),
 });
+
+type SettingsTab = "fees" | "waafi" | "features" | "pricing" | "audit";
 
 const PLATFORM_CURRENCY = "USD";
 const MAX_COMMISSION_BPS = 5000; // 50%
@@ -156,26 +160,59 @@ function valuesEqual(a: unknown, b: unknown): boolean {
 }
 
 function AdminSettingsPage() {
-  const configs = Route.useLoaderData();
-  const router = useRouter();
+  const initialConfigs = Route.useLoaderData() as ConfigItem[];
+  const [activeTab, setActiveTab] = useState<SettingsTab>("fees");
+  const [configs, setConfigs] = useState<ConfigItem[]>(initialConfigs);
+  const [sectionLoading, setSectionLoading] = useState(false);
+  const [sectionError, setSectionError] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, unknown>>(
-    () => Object.fromEntries(configs.map((c) => [c.key, c.value]))
+    () => Object.fromEntries(initialConfigs.map((config) => [config.key, config.value]))
   );
   const [effectiveDates, setEffectiveDates] = useState<
     Record<string, { from: string; until: string }>
-  >(
-    () =>
-      Object.fromEntries(
-        configs.map((c) => [
-          c.key,
-          { from: toDateTimeLocal(c.effectiveFrom), until: toDateTimeLocal(c.effectiveUntil) },
-        ])
-      )
+  >(() =>
+    Object.fromEntries(
+      initialConfigs.map((config) => [
+        config.key,
+        {
+          from: toDateTimeLocal(config.effectiveFrom),
+          until: toDateTimeLocal(config.effectiveUntil),
+        },
+      ])
+    )
   );
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [confirmFeesOpen, setConfirmFeesOpen] = useState(false);
+
+  const loadActiveSection = useCallback(async (tab: SettingsTab) => {
+    if (tab === "waafi") {
+      setConfigs([]);
+      setSectionLoading(false);
+      setSectionError(null);
+      return;
+    }
+    setSectionLoading(true);
+    setSectionError(null);
+    try {
+      const nextConfigs = await fetchPlatformConfigSection({ data: { section: tab } });
+      setConfigs(nextConfigs as ConfigItem[]);
+    } catch (cause) {
+      setConfigs([]);
+      setSectionError(cause instanceof Error ? cause.message : "Could not load settings.");
+    } finally {
+      setSectionLoading(false);
+    }
+  }, []);
+
+  const changeTab = (value: string) => {
+    const tab = value as SettingsTab;
+    setActiveTab(tab);
+    setSaved(false);
+    void loadActiveSection(tab);
+  };
 
   // Sync local state with refreshed loader data for fields the user is not
   // currently editing. This keeps saved values reflected after invalidate().
@@ -330,7 +367,7 @@ function AdminSettingsPage() {
           effectiveUntil: effectiveUntil || undefined,
         },
       });
-      await router.invalidate();
+      await loadActiveSection(activeTab);
       setTouched((prev) => {
         const next = new Set(prev);
         next.delete(key);
@@ -345,7 +382,7 @@ function AdminSettingsPage() {
 
   const handleSaveAll = async () => {
     const nextErrors: Record<string, string | null> = {};
-    for (const key of Object.keys(values)) {
+    for (const { key } of configs) {
       nextErrors[key] = validate(key, values[key]);
     }
     const depErrors = validateDependencies(values);
@@ -359,7 +396,8 @@ function AdminSettingsPage() {
     setSaved(false);
     try {
       await Promise.all(
-        Object.entries(values).map(([key, value]) => {
+        configs.map(({ key }) => {
+          const value = values[key];
           const dates = effectiveDates[key] ?? { from: "", until: "" };
           return updateAdminPlatformConfig({
             data: {
@@ -371,11 +409,12 @@ function AdminSettingsPage() {
           });
         })
       );
-      await router.invalidate();
+      await loadActiveSection(activeTab);
       setTouched(new Set());
       setSaved(true);
     } finally {
       setLoading(false);
+      setConfirmFeesOpen(false);
     }
   };
 
@@ -385,7 +424,6 @@ function AdminSettingsPage() {
     try {
       const result = await runAdminExpirySweep();
       setSweepResult(result);
-      await router.invalidate();
     } finally {
       setSweepLoading(false);
     }
@@ -428,7 +466,7 @@ function AdminSettingsPage() {
           value: value as string | number | boolean | Record<string, unknown>,
         },
       });
-      await router.invalidate();
+      await loadActiveSection(activeTab);
       setTouched((prev) => {
         const next = new Set(prev);
         next.delete("listing_tiers");
@@ -626,6 +664,36 @@ function AdminSettingsPage() {
     <div className="space-y-6">
       <PageHeader title="Settings" description="Platform configuration" />
 
+      <Tabs value={activeTab} onValueChange={changeTab}>
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="w-max min-w-full justify-start">
+            <TabsTrigger value="fees">Fees</TabsTrigger>
+            <TabsTrigger value="waafi">WaafiPay gateway</TabsTrigger>
+            <TabsTrigger value="features">Features & payments</TabsTrigger>
+            <TabsTrigger value="pricing">Listing pricing tiers</TabsTrigger>
+            <TabsTrigger value="audit">Audit log</TabsTrigger>
+          </TabsList>
+        </div>
+
+        {sectionLoading && activeTab !== "waafi" && (
+          <div className="mt-4 space-y-3" aria-label="Loading settings">
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-28 w-full" />
+          </div>
+        )}
+        {sectionError && (
+          <Card className="mt-4 border-destructive/40 bg-celis-surface-base">
+            <CardContent className="flex items-center justify-between gap-4 py-5">
+              <p className="text-sm text-destructive">{sectionError}</p>
+              <Button variant="outline" size="sm" onClick={() => loadActiveSection(activeTab)}>
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+      <TabsContent value="fees" className="mt-4">
+      {!sectionLoading && !sectionError && (
       <Card className="border-celis-border bg-celis-surface-base">
         <CardHeader>
           <CardTitle className="text-lg">Fees</CardTitle>
@@ -681,9 +749,23 @@ function AdminSettingsPage() {
               </div>
             </div>
           ))}
+          <div className="flex items-center gap-3 border-t border-celis-border pt-5">
+            <Button onClick={() => setConfirmFeesOpen(true)} disabled={loading}>
+              {loading ? "Saving..." : "Save fees"}
+            </Button>
+            {saved && <span className="text-sm text-celis-success">Saved.</span>}
+          </div>
         </CardContent>
       </Card>
+      )}
+      </TabsContent>
 
+      <TabsContent value="waafi" className="mt-4">
+      <WaafiGatewaySettings />
+      </TabsContent>
+
+      <TabsContent value="features" className="mt-4">
+      {!sectionLoading && !sectionError && (
       <Card className="border-celis-border bg-celis-surface-base">
         <CardHeader>
           <CardTitle className="text-lg">Features and payment methods</CardTitle>
@@ -736,7 +818,12 @@ function AdminSettingsPage() {
           </div>
         </CardContent>
       </Card>
+      )}
+      </TabsContent>
 
+      <TabsContent value="pricing" className="mt-4 space-y-6">
+      {!sectionLoading && !sectionError && (
+      <>
       <Card className="border-celis-border bg-celis-surface-base">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -868,7 +955,12 @@ function AdminSettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
+      </TabsContent>
 
+      <TabsContent value="audit" className="mt-4">
+      {!sectionLoading && !sectionError && (
       <Card className="border-celis-border bg-celis-surface-base">
         <CardHeader>
           <CardTitle className="text-lg">Audit log</CardTitle>
@@ -895,6 +987,28 @@ function AdminSettingsPage() {
           </div>
         </CardContent>
       </Card>
+      )}
+      </TabsContent>
+      </Tabs>
+
+      <Dialog open={confirmFeesOpen} onOpenChange={setConfirmFeesOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm fee changes</DialogTitle>
+            <DialogDescription>
+              Save all values currently shown in the Fees tab. These financial changes are recorded in the audit log.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmFeesOpen(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveAll} disabled={loading}>
+              {loading ? "Saving..." : "Confirm & save fees"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirm.open} onOpenChange={(open) => setConfirm((c) => ({ ...c, open }))}>
         <DialogContent className="sm:max-w-md">

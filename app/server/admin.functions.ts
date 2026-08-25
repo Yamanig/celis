@@ -39,6 +39,7 @@ import {
   exportNewUsersReport,
   exportNewListingsReport,
   getPlatformConfigAll,
+  getPlatformConfigSection,
   updatePlatformConfig,
   runListingExpirySweep,
 } from "./admin.server";
@@ -553,6 +554,14 @@ export const fetchPlatformConfigAll = createServerFn({ method: "GET" }).handler(
     return getPlatformConfigAll();
   }
 );
+
+const platformConfigSectionSchema = z.object({
+  section: z.enum(["fees", "features", "pricing", "audit"]),
+});
+
+export const fetchPlatformConfigSection = createServerFn({ method: "GET" })
+  .validator(platformConfigSectionSchema)
+  .handler(async ({ data }) => getPlatformConfigSection(data.section));
 
 export const runAdminExpirySweep = createServerFn({ method: "POST" }).handler(
   async () => {

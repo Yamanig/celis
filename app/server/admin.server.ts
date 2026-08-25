@@ -1770,6 +1770,50 @@ export async function getPlatformConfigAll() {
   });
 }
 
+export type PlatformConfigSection = "fees" | "features" | "pricing" | "audit";
+
+const PLATFORM_CONFIG_SECTION_KEYS: Record<PlatformConfigSection, string[]> = {
+  fees: ["listing_fee_cents", "commission_bps"],
+  features: [
+    "platform_monetization_model",
+    "featured_listing_fee_cents",
+    "local_pickup_enabled",
+    "platform_shipping_enabled",
+    "commission_model_enabled",
+    "evc_enabled",
+    "premier_wallet_enabled",
+    "edahab_enabled",
+    "bank_transfer_payouts_enabled",
+  ],
+  pricing: ["listing_tiers"],
+  audit: Object.keys(CONFIG_DEFAULTS),
+};
+
+export async function getPlatformConfigSection(section: PlatformConfigSection) {
+  await requirePermission("settings:manage");
+  const keys = PLATFORM_CONFIG_SECTION_KEYS[section];
+  const rows = await db
+    .select()
+    .from(platformConfigs)
+    .where(inArray(platformConfigs.key, keys));
+  const rowsByKey = new Map(rows.map((row) => [row.key, row]));
+
+  return keys.map((key) => {
+    const defaultValue = CONFIG_DEFAULTS[key];
+    const row = rowsByKey.get(key);
+    return {
+      key,
+      value: (row?.value ?? defaultValue) as string | number | boolean | object,
+      defaultValue,
+      updatedAt: row?.updatedAt ?? null,
+      updatedBy: row?.updatedBy ?? null,
+      description: row?.description ?? null,
+      effectiveFrom: row?.effectiveFrom ?? null,
+      effectiveUntil: row?.effectiveUntil ?? null,
+    };
+  });
+}
+
 export async function updatePlatformConfig(
   key: string,
   value: string | number | boolean | object,
