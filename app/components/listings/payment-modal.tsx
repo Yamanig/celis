@@ -15,8 +15,6 @@ import { Label } from "~/components/ui/label";
 import { Combobox } from "~/components/ui/combobox";
 import {
   initiatePayment,
-  simulateConfirmPayment,
-  simulateFailPayment,
 } from "~/server/payments.functions";
 import { WALLET_PROVIDERS } from "~/db/schema";
 import { formatPrice } from "~/lib/format";
@@ -50,6 +48,7 @@ export function PaymentModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const providerOptions = WALLET_PROVIDERS.map((p) => ({
     value: p,
     label: p.charAt(0).toUpperCase() + p.slice(1),
@@ -62,6 +61,7 @@ export function PaymentModal({
     setError(null);
     setSuccess(false);
     setLoading(false);
+    setIdempotencyKey(crypto.randomUUID());
   };
 
   const handleInitiate = async () => {
@@ -76,9 +76,19 @@ export function PaymentModal({
           provider: provider as (typeof WALLET_PROVIDERS)[number],
           phone,
           featureListing,
+          idempotencyKey,
         },
       });
-      setMerchantRef(result.merchantRef);
+      if (result.status === "completed") {
+        setMerchantRef(result.merchantRef);
+        setSuccess(true);
+        onSuccess();
+      } else if (result.status === "pending_reconciliation") {
+        setMerchantRef(result.merchantRef);
+        setError(result.message ?? "Payment status is being reconciled. Do not retry yet.");
+      } else {
+        setError(result.message ?? "WaafiPay did not approve the payment.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment could not be started");
     } finally {
@@ -86,49 +96,7 @@ export function PaymentModal({
     }
   };
 
-  const handleSimulateConfirm = async () => {
-    if (!merchantRef || !listingId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await simulateConfirmPayment({
-        data: { merchantRef, listingId },
-      });
-      setSuccess(true);
-      onSuccess();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Payment confirmation failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const markFailed = async (opts?: { errorCode?: string; errorMessage?: string }) => {
-    if (!merchantRef) return;
-    setLoading(true);
-    try {
-      await simulateFailPayment({
-        data: {
-          merchantRef,
-          errorCode: opts?.errorCode ?? "cancelled",
-          errorMessage: opts?.errorMessage ?? "Payment was cancelled",
-        },
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCancel = async () => {
-    await markFailed();
-    reset();
-    onOpenChange(false);
-  };
-
   const handleClose = async (next: boolean) => {
-    if (!next && merchantRef && !success) {
-      await markFailed();
-    }
     if (!next) reset();
     onOpenChange(next);
   };
@@ -154,7 +122,7 @@ export function PaymentModal({
             <p className="text-sm text-celis-ink-secondary">
               {featureListing
                 ? "Your listing is now featured for 7 days."
-                : "Your listing is now live on Celis."}
+                : "Your payment is confirmed. The listing was submitted for review."}
             </p>
           </div>
         ) : (
@@ -182,13 +150,12 @@ export function PaymentModal({
 
             {merchantRef && (
               <div className="rounded-md bg-celis-primary-subtle p-3 text-sm text-celis-ink-secondary">
-                <p className="font-medium text-celis-ink">Payment initiated</p>
+                <p className="font-medium text-celis-ink">Payment requires reconciliation</p>
                 <p>
                   Reference: <code className="text-xs">{merchantRef}</code>
                 </p>
                 <p className="mt-1">
-                  In production you would confirm the prompt on your phone. For
-                  development, click the button below to simulate approval.
+                  Do not submit another payment. Celis support can reconcile this reference.
                 </p>
               </div>
             )}
@@ -205,24 +172,9 @@ export function PaymentModal({
             </Button>
           )}
           {!success && merchantRef && (
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-              <Button
-                variant="outline"
-                onClick={handleCancel}
-                disabled={loading}
-                className="w-full sm:w-auto"
-              >
-                Cancel payment
-              </Button>
-              <Button
-                onClick={handleSimulateConfirm}
-                disabled={loading}
-                className="w-full sm:w-auto"
-              >
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Simulate approval
-              </Button>
-            </div>
+            <Button variant="outline" onClick={() => handleClose(false)} className="w-full sm:w-auto">
+              Close
+            </Button>
           )}
           {success && (
             <Button onClick={() => onOpenChange(false)} className="w-full sm:w-auto">

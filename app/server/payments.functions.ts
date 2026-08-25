@@ -3,15 +3,13 @@ import { z } from "zod";
 import {
   initiateWalletPayment,
   getWalletPaymentByMerchantRef,
-  confirmWalletPayment,
-  failWalletPayment,
 } from "./payments.server";
 import {
   getListingFeeCents,
   getListingPricing,
   getFeaturedListingFeeCents,
 } from "./config.server";
-import { submitListingForReview, featureListing } from "./listings.server";
+import { featureListing } from "./listings.server";
 import { db } from "~/db";
 import { listings } from "~/db/schema";
 import { eq } from "drizzle-orm";
@@ -31,8 +29,13 @@ function serializeWalletPayment(payment: WalletPaymentRow) {
     currency: payment.currency,
     walletRef: payment.walletRef,
     merchantRef: payment.merchantRef,
+    idempotencyKey: payment.idempotencyKey,
+    invoiceId: payment.invoiceId,
     customerPhone: payment.customerPhone,
     status: payment.status,
+    providerResponseCode: payment.providerResponseCode,
+    providerState: payment.providerState,
+    providerError: payment.providerError,
     callbackReceivedAt: payment.callbackReceivedAt,
     retryCount: payment.retryCount,
     createdAt: payment.createdAt,
@@ -41,17 +44,21 @@ function serializeWalletPayment(payment: WalletPaymentRow) {
 }
 
 const initiateSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.string().uuid().optional(),
   listingId: z.string().uuid().nullable(),
   orderId: z.string().uuid().nullable(),
   provider: z.enum(WALLET_PROVIDERS),
   phone: z.string().min(1),
   featureListing: z.boolean().optional().default(false),
+  idempotencyKey: z.string().min(16).max(160).optional(),
 });
 
 export const initiatePayment = createServerFn({ method: "POST" })
   .validator(initiateSchema)
   .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
     let amountCents = await getListingFeeCents();
 
     if (data.listingId) {
@@ -59,11 +66,13 @@ export const initiatePayment = createServerFn({ method: "POST" })
         .select({
           price: listings.price,
           categoryId: listings.categoryId,
+          sellerId: listings.sellerId,
         })
         .from(listings)
         .where(eq(listings.id, data.listingId))
         .limit(1);
       if (listing) {
+        if (listing.sellerId !== user.id) throw new Error("Forbidden");
         if (data.featureListing) {
           amountCents = await getFeaturedListingFeeCents();
         } else {
@@ -91,15 +100,24 @@ export const initiatePayment = createServerFn({ method: "POST" })
       }
     }
 
-    return initiateWalletPayment(
-      data.userId,
+    const result = await initiateWalletPayment(
+      user.id,
       data.listingId,
       data.orderId,
       data.provider,
       data.phone,
       amountCents,
-      data.featureListing ? "feature_listing" : data.orderId ? "order" : "listing_fee"
+      data.featureListing ? "feature_listing" : data.orderId ? "order" : "listing_fee",
+      data.idempotencyKey
     );
+
+    if (result.status === "completed" && data.listingId) {
+      if (data.featureListing) {
+        await featureListing(data.listingId, user.id, amountCents);
+      }
+    }
+
+    return result;
   });
 
 const statusSchema = z.object({ merchantRef: z.string().min(1) });
@@ -107,47 +125,11 @@ const statusSchema = z.object({ merchantRef: z.string().min(1) });
 export const getPaymentStatus = createServerFn({ method: "GET" })
   .validator(statusSchema)
   .handler(async ({ data }) => {
+    const { getCurrentUser } = await import("./auth.server");
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
     const payment = await getWalletPaymentByMerchantRef(data.merchantRef);
+    if (payment && payment.userId !== user.id) throw new Error("Forbidden");
     return payment ? serializeWalletPayment(payment) : null;
   });
 
-const confirmSchema = z.object({
-  merchantRef: z.string().min(1),
-  listingId: z.string().uuid().optional(),
-});
-
-export const simulateConfirmPayment = createServerFn({ method: "POST" })
-  .validator(confirmSchema)
-  .handler(async ({ data }) => {
-    const payment = await confirmWalletPayment(data.merchantRef);
-    if (data.listingId && payment.listingId === data.listingId) {
-      if (payment.purpose === "feature_listing") {
-        const { getCurrentUser } = await import("./auth.server");
-        const user = await getCurrentUser();
-        if (!user) throw new Error("Unauthorized");
-        await featureListing(data.listingId, user.id, payment.amount);
-      } else {
-        await submitListingForReview(data.listingId);
-      }
-    }
-    return { success: true, payment: serializeWalletPayment(payment) };
-  });
-
-const failSchema = z.object({
-  merchantRef: z.string().min(1),
-  errorCode: z.string().optional(),
-  errorMessage: z.string().optional(),
-});
-
-export const simulateFailPayment = createServerFn({ method: "POST" })
-  .validator(failSchema)
-  .handler(async ({ data }) => {
-    const payment = await failWalletPayment(data.merchantRef, {
-      errorCode: data.errorCode,
-      errorMessage: data.errorMessage,
-    });
-    if (!payment) {
-      throw new Error("Payment not found");
-    }
-    return { success: true, payment: serializeWalletPayment(payment) };
-  });
