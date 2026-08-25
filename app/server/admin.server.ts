@@ -811,6 +811,54 @@ export async function extendListingExpiry(
   return { success: true, newExpiresAt, renewed: isRenewal };
 }
 
+export async function markListingPaidManually(
+  listingId: string,
+  reason: string
+) {
+  const actor = await requirePermission("listings:moderate");
+  const [listing] = await db
+    .select({
+      status: listings.status,
+      monetizationStatus: listings.monetizationStatus,
+    })
+    .from(listings)
+    .where(eq(listings.id, listingId))
+    .limit(1);
+
+  if (!listing) throw new Error("Listing not found");
+  if (listing.monetizationStatus === "active") {
+    return { success: true, unchanged: true };
+  }
+  if (listing.monetizationStatus !== "pending_paid") {
+    throw new Error("Only listings awaiting payment can be marked paid manually.");
+  }
+
+  await db
+    .update(listings)
+    .set({
+      monetizationStatus: "active",
+      status: "pending_review",
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, listingId));
+
+  await insertAuditLog({
+    action: "listing_payment_marked_paid_manually",
+    resourceType: "listing",
+    resourceId: listingId,
+    metadata: {
+      actorId: actor.id,
+      reason,
+      previousStatus: listing.status,
+      previousMonetizationStatus: listing.monetizationStatus,
+      status: "pending_review",
+      monetizationStatus: "active",
+    },
+  });
+
+  return { success: true, status: "pending_review" as const };
+}
+
 export async function notifyExpiringSeller(
   listingId: string,
   channel: string,

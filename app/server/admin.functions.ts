@@ -16,6 +16,7 @@ import {
   approveListing,
   rejectListing,
   extendListingExpiry,
+  markListingPaidManually,
   notifyExpiringSeller,
   getAdminCategories,
   createCategory,
@@ -194,6 +195,17 @@ export const extendAdminListingExpiry = createServerFn({ method: "POST" })
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
     return extendListingExpiry(data.id, data.days, data.reason, user.id);
+  });
+
+const markListingPaidSchema = z.object({
+  id: z.string().uuid(),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const markAdminListingPaid = createServerFn({ method: "POST" })
+  .validator(markListingPaidSchema)
+  .handler(async ({ data }) => {
+    return markListingPaidManually(data.id, data.reason);
   });
 
 const notifySellerSchema = z.object({

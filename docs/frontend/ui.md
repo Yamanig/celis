@@ -84,5 +84,5 @@ Rules:
 - Do not introduce another design language.
 - Keep admin UI dense and listing UI marketplace-friendly.
 - Admin category management uses a master-detail hierarchy: root categories load
-  first, subcategories load on selection, and listing Conditions/Fields are
-  configured from subcategory rows.
+  first in an expandable tree, subcategories load on expansion, and listing
+  Conditions/Fields are configured from subcategory rows.

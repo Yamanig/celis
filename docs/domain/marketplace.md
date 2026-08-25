@@ -83,6 +83,9 @@ Rules:
 - Never perform payment/payout changes without updating docs and changelog.
 - Admin renewal may reactivate an expired listing only when its monetization
   status is active; renewal extends from the current time and is audit logged.
+- A manual listing-payment override is limited to `pending_paid` listings,
+  requires an administrator reason, moves the listing to `pending_review`, and
+  must never create a fabricated wallet-provider transaction.
 - Payment-provider credentials are encrypted at rest and decrypted only inside server payment modules.
 - Client applications never choose the authoritative fee amount or receive provider credentials.
 - Waafi purchase success requires provider code `2001`, state `APPROVED`, a transaction ID, and amount reconciliation.

@@ -26,6 +26,7 @@ import {
   extendAdminListingExpiry,
   fetchAdminListingPackages,
   runAdminExpirySweep,
+  markAdminListingPaid,
 } from "~/server/admin.functions";
 import { listCategories } from "~/server/categories.functions";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
@@ -115,6 +116,12 @@ function AdminListingsPage() {
     reason: string;
   }>({ open: false, id: "", reason: "" });
   const [approveId, setApproveId] = useState<string | null>(null);
+  const [paidDialog, setPaidDialog] = useState({
+    open: false,
+    id: "",
+    title: "",
+    reason: "",
+  });
   const statusOptions = [
     { value: "", label: "All statuses" },
     ...STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
@@ -185,6 +192,20 @@ function AdminListingsPage() {
       await router.invalidate();
     } finally {
       setSweepLoading(false);
+    }
+  };
+
+  const handleMarkPaid = async () => {
+    if (!paidDialog.id || paidDialog.reason.trim().length < 3) return;
+    setLoadingId(paidDialog.id);
+    try {
+      await markAdminListingPaid({
+        data: { id: paidDialog.id, reason: paidDialog.reason.trim() },
+      });
+      setPaidDialog({ open: false, id: "", title: "", reason: "" });
+      await router.invalidate();
+    } finally {
+      setLoadingId(null);
     }
   };
 
@@ -371,9 +392,28 @@ function AdminListingsPage() {
             key: "payment",
             header: "Payment",
             cell: (l) => (
-              <Badge variant="outline" className="capitalize">
-                {l.monetizationStatus.replace(/_/g, " ")}
-              </Badge>
+              <div className="flex min-w-28 flex-col items-start gap-2">
+                <Badge variant="outline" className="capitalize">
+                  {l.monetizationStatus.replace(/_/g, " ")}
+                </Badge>
+                {l.monetizationStatus === "pending_paid" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={loadingId === l.id}
+                    onClick={() =>
+                      setPaidDialog({
+                        open: true,
+                        id: l.id,
+                        title: l.title,
+                        reason: "",
+                      })
+                    }
+                  >
+                    Mark paid
+                  </Button>
+                )}
+              </div>
             ),
           },
           {
@@ -462,6 +502,44 @@ function AdminListingsPage() {
         onConfirm={handleApprove}
         loading={!!loadingId}
       />
+
+      <Dialog
+        open={paidDialog.open}
+        onOpenChange={(open) =>
+          !open && setPaidDialog({ open: false, id: "", title: "", reason: "" })
+        }
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark listing fee as paid?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-celis-ink-secondary">
+              This manually activates payment for <strong className="text-celis-ink">{paidDialog.title}</strong> and submits it for review. No Waafi transaction will be created.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="manual-payment-reason">Admin reason</Label>
+              <Textarea
+                id="manual-payment-reason"
+                value={paidDialog.reason}
+                onChange={(event) =>
+                  setPaidDialog((current) => ({ ...current, reason: event.target.value }))
+                }
+                placeholder="For example: verified cash payment or corrected provider settlement"
+              />
+              <p className="text-xs text-celis-ink-tertiary">The reason and administrator are saved in the audit log.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setPaidDialog({ open: false, id: "", title: "", reason: "" })}>
+                Cancel
+              </Button>
+              <Button disabled={paidDialog.reason.trim().length < 3 || !!loadingId} onClick={handleMarkPaid}>
+                {loadingId === paidDialog.id ? "Saving..." : "Confirm paid"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={extendDialog.open}

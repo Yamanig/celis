@@ -348,30 +348,55 @@ function AdminCategoriesPage() {
             {items.map((category) => {
               const selected = category.id === search.categoryId;
               return (
-                <button
-                  key={category.id}
-                  type="button"
-                  className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                    selected
-                      ? "border-primary bg-primary/10"
-                      : "border-celis-border bg-celis-surface-inset hover:border-primary/50"
-                  }`}
-                  onClick={() =>
-                    navigate({
-                      search: (prev) => ({ ...prev, categoryId: category.id }),
-                    })
-                  }
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-celis-ink">{category.name}</p>
-                      <p className="truncate text-xs text-celis-ink-secondary">/{category.slug}</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-celis-surface-base px-2 py-1 text-xs tabular-nums text-celis-ink-secondary">
-                      {category.childCount} sub
+                <div key={category.id} className="relative">
+                  <button
+                    type="button"
+                    aria-expanded={selected}
+                    className={`flex w-full items-center gap-2 rounded-lg border p-3 text-left transition-colors ${
+                      selected
+                        ? "border-primary bg-primary/10"
+                        : "border-celis-border bg-celis-surface-inset hover:border-primary/50"
+                    }`}
+                    onClick={() =>
+                      navigate({
+                        search: (prev) => ({
+                          ...prev,
+                          categoryId: selected ? undefined : category.id,
+                        }),
+                      })
+                    }
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-sm text-celis-ink-secondary">
+                      {category.childCount > 0 ? (selected ? "▾" : "›") : "·"}
                     </span>
-                  </div>
-                </button>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-celis-ink">{category.name}</span>
+                      <span className="block truncate text-xs text-celis-ink-secondary">/{category.slug}</span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-celis-surface-base px-2 py-1 text-xs tabular-nums text-celis-ink-secondary">
+                      {category.childCount}
+                    </span>
+                  </button>
+
+                  {selected && (
+                    <div className="relative ml-5 border-l border-celis-border pl-4 pt-2">
+                      {(subcategories?.items ?? []).map((child) => (
+                        <div key={child.id} className="relative flex items-center gap-2 py-1.5 before:absolute before:-left-4 before:top-1/2 before:h-px before:w-3 before:bg-celis-border">
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-celis-ink">{child.name}</p>
+                            <p className="truncate text-xs text-celis-ink-tertiary">{child.listingCount} listings</p>
+                          </div>
+                        </div>
+                      ))}
+                      {(subcategories?.items.length ?? 0) === 0 && (
+                        <p className="relative py-2 text-xs text-celis-ink-tertiary before:absolute before:-left-4 before:top-1/2 before:h-px before:w-3 before:bg-celis-border">
+                          No subcategories
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </CardContent>

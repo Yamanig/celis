@@ -1,5 +1,13 @@
 # Changelog
 
+## [v1.3.0] - 2026-08-25
+
+- Replaced the category card list with an expandable tree that displays nested
+  subcategories using hierarchy branches while retaining lazy child loading.
+- Added an audited admin-only manual payment override for listings awaiting
+  payment; confirmed overrides activate monetization and submit the listing for
+  review without creating a fake provider transaction.
+
 ## [v1.2.0] - 2026-08-25
 
 - Added a guarded admin renewal action that reactivates paid expired listings,
