@@ -54,6 +54,12 @@ Rules:
 - Admin tables must use server-side pagination/filtering for real data.
 - Destructive, moderation, RBAC, package, payment, payout, and status actions require confirmation.
 - Admin charts should load scoped data and avoid unbounded aggregates.
+- Admin settings are split into Fees, WaafiPay gateway, Features & payments,
+  Listing pricing tiers, and Audit log tabs. A tab requests its protected server
+  data only when selected; hidden settings panels are not loaded by the route.
+- The WaafiPay settings tab uses a form-shaped loading skeleton and closes its
+  confirmation dialog only after the protected save succeeds. Fees can be saved
+  individually or with the tab-level save action.
 
 ## Forms, Dialogs & Tables
 

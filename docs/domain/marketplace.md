@@ -65,9 +65,12 @@ Rules:
 Key files:
 
 - `app/db/schema/payments.ts`
+- `app/db/schema/payment-gateways.ts`
 - `app/db/schema/payouts.ts`
 - `app/server/payments.server.ts`
 - `app/server/payments.functions.ts`
+- `app/server/payment-gateways.server.ts`
+- `app/server/waafi.server.ts`
 - `app/routes/admin/payouts.tsx`
 - `app/components/listings/payment-modal.tsx`
 
@@ -78,6 +81,9 @@ Rules:
 - Use transactions for multi-record updates.
 - Do not hide failures behind generic UI states.
 - Never perform payment/payout changes without updating docs and changelog.
+- Payment-provider credentials are encrypted at rest and decrypted only inside server payment modules.
+- Client applications never choose the authoritative fee amount or receive provider credentials.
+- Waafi purchase success requires provider code `2001`, state `APPROVED`, a transaction ID, and amount reconciliation.
 
 ## Seller Packages
 

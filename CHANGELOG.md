@@ -2,6 +2,36 @@
 
 All notable changes to Celis will be documented in this file.
 
+## [v1.0.1] - 2026-08-25
+
+### Changed
+
+- Reorganized Admin → Settings into five responsive tabs for fees, WaafiPay,
+  features and payment methods, listing pricing tiers, and audit information.
+- Removed the route-wide settings fetch and added permission-checked,
+  section-scoped loading when each tab is selected.
+- Replaced the WaafiPay loading message with a form-shaped skeleton, ensured
+  successful gateway saves close the confirmation dialog, and added a Fees-tab
+  save action.
+
+## [v1.0.0] - 2026-08-25
+
+### Added
+
+- Added an encrypted `payment_gateways` schema and migration for server-managed WaafiPay credentials.
+- Added audited Admin → Settings configuration for sandbox/production endpoints, enablement, timeouts, and masked credential replacement.
+- Added a server-only Waafi `API_PURCHASE` client with Somali wallet normalization, bounded timeouts, and strict approval parsing.
+- Replaced the simulated listing-fee approval path with a real server-initiated Waafi purchase and atomic payment/listing transition.
+- Added wallet-payment idempotency, invoice, provider-response, error, and reconciliation fields in migration `0030_wallet_payment_reconciliation.sql`.
+- Added focused tests for credential encryption, wallet normalization, and Waafi success-state validation.
+- Added `docs/backend/waafi-payments.md` describing configuration, migration, security boundaries, and remaining payment-workflow requirements.
+
+### Security
+
+- Waafi credentials are encrypted with AES-256-GCM using `PAYMENT_CREDENTIALS_ENCRYPTION_KEY` and are never returned to clients or written to audit metadata.
+- Provider code `2001` alone is not treated as payment approval; `APPROVED` state and a transaction ID are also required.
+- Payment amounts are calculated server-side, returned provider amounts must match, and ambiguous timeouts remain pending reconciliation rather than being marked failed.
+
 ## [v0.1.2] - 2026-07-31
 
 ### Added

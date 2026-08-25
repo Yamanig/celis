@@ -22,7 +22,8 @@
     "cron:process-notifications": "node --env-file=.env --import tsx scripts/process-notification-jobs.ts --watch",
     "notifications:test": "node --env-file=.env --import tsx scripts/send-test-fcm.ts",
     "db:cleanup-non-seller-numbers": "node --env-file=.env --import tsx scripts/cleanup-non-seller-numbers.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"tests/*.test.ts\""
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.1",
