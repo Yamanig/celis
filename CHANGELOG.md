@@ -1,5 +1,12 @@
 # Changelog
 
+## [v1.4.0] - 2026-08-30
+
+- Removed anonymous reads from the `profiles` and `users` base tables and added
+  a bounded public marketplace identity RPC containing no contact information.
+- Added the generated bilingual policy at `/privacy/` and linked it from the
+  public footer.
+
 ## [v1.3.0] - 2026-08-25
 
 - Replaced the category card list with an expandable tree that displays nested

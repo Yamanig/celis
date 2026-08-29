@@ -42,6 +42,9 @@ Rules:
 
 ## Supabase Storage
 
+The mobile account privacy boundary and limited public identity RPC are
+documented in `docs/backend/mobile-account-privacy.md`.
+
 Key files:
 
 - `app/lib/supabase/client.ts`
