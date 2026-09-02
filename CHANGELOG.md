@@ -19,6 +19,14 @@
   `seller_subscriptions` row references the package; referenced packages are
   blocked and the attempt is audited. Create/edit/status/archive/delete now
   write `audit_logs` events with the actor, timestamp, and old → new values.
+- Bilingual Terms of Service at `/terms` (pending qualified legal review).
+  Source lives at `public/terms/index.html` and is also reachable directly at
+  `/terms/index.html`.
+- `/privacy` and `/terms` now render inside the standard Celis header/footer
+  shell with an English / Somali toggle (`LegalDocument` +
+  `parseLegalDoc`), instead of as bare standalone HTML documents. The privacy
+  body is still pulled from the generated `public/privacy/index.html`, so it
+  stays the single source of truth.
 
 ### Fixed
 
@@ -26,6 +34,10 @@
   loaded data instead of a stale snapshot, routes through a confirmation, and
   reports success/failure. Required-field validation now surfaces on save.
   Mutating actions are gated on the `settings:manage` permission in the UI.
+- The footer Privacy link 404'd: the trailing-slash `/privacy/` redirected to
+  `/privacy`, which had no route and no static match. Added `app/routes/privacy.tsx`
+  and `app/routes/terms.tsx`; the footer now links to both with `<Link>`. The
+  Terms link previously pointed at the home page.
 
 ## [v1.4.0] - 2026-08-30
 

@@ -70,8 +70,8 @@ export function SiteFooter() {
         <div className="flex flex-col items-center justify-between gap-4 text-sm text-celis-ink-secondary sm:flex-row">
           <p>© {new Date().getFullYear()} Celis. All rights reserved.</p>
           <div className="flex gap-6">
-            <a href="/privacy/" className="hover:text-celis-ink">Privacy</a>
-            <Link to="/" className="hover:text-celis-ink">Terms</Link>
+            <Link to="/privacy" className="hover:text-celis-ink">Privacy</Link>
+            <Link to="/terms" className="hover:text-celis-ink">Terms</Link>
           </div>
         </div>
       </div>

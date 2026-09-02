@@ -14,6 +14,19 @@ The public policy at `/privacy/` is generated from the mobile app's typed
 Regenerate it from `D:\celis mobile` with `npm run privacy:generate`; do not
 hand-edit `public/privacy/index.html`.
 
+The web app exposes that file at the clean `/privacy` URL through
+`app/routes/privacy.tsx`. The route imports `public/privacy/index.html` with a
+`?raw` import, pulls out the title and the two `<article>` bodies with
+`parseLegalDoc` (`app/lib/legal-doc.ts`), and renders them inside the Celis site
+chrome (`LegalDocument`) with an English / Somali toggle. The untouched source
+file is still served verbatim at `/privacy/index.html`. Both paths therefore
+reflect the same generated document; regenerating the file is the only step
+needed to publish an update, provided it keeps the `<h1>` /
+`<article id="english">` / `<article id="somali">` shape the parser expects.
+
+The Terms of Service at `/terms` follows the same pattern (`app/routes/terms.tsx`
++ `public/terms/index.html`) but is authored in this repo, not generated.
+
 ## Live verification
 
 - Anonymous `profiles?id,phone` reads return zero rows.

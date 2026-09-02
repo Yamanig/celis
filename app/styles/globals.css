@@ -403,4 +403,29 @@
       transform: translateY(-0.5px);
     }
   }
+
+  /* Bilingual legal documents (privacy policy, terms of service). Body markup is
+     injected from public/{privacy,terms}/index.html, so styling is scoped here
+     rather than authored per-element. */
+  .legal-prose {
+    @apply text-sm leading-relaxed text-celis-ink-secondary;
+  }
+  .legal-prose .updated {
+    @apply mb-4 block text-xs font-medium uppercase tracking-wide text-celis-ink-tertiary;
+  }
+  .legal-prose .intro {
+    @apply mb-2 text-base text-celis-ink;
+  }
+  .legal-prose section {
+    @apply mt-6;
+  }
+  .legal-prose h2 {
+    @apply mb-1.5 text-base font-semibold text-celis-ink;
+  }
+  .legal-prose p + p {
+    @apply mt-3;
+  }
+  .legal-prose a {
+    @apply text-celis-primary underline underline-offset-2;
+  }
 }

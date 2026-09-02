@@ -9,8 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SellRouteImport } from './routes/sell'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BrowseRouteImport } from './routes/browse'
@@ -38,6 +40,11 @@ import { Route as AdminAuditLogRouteImport } from './routes/admin/audit-log'
 import { Route as AdminListingsIdRouteImport } from './routes/admin/listings_.$id'
 import { Route as ApiMobilePaymentsListingFeeRouteImport } from './routes/api.mobile.payments.listing-fee'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SellRoute = SellRouteImport.update({
   id: '/sell',
   path: '/sell',
@@ -46,6 +53,11 @@ const SellRoute = SellRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -187,8 +199,10 @@ export interface FileRoutesByFullPath {
   '/browse': typeof BrowseRoute
   '/dashboard': typeof DashboardRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
+  '/terms': typeof TermsRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/listings': typeof AdminListingsRoute
@@ -216,8 +230,10 @@ export interface FileRoutesByTo {
   '/browse': typeof BrowseRoute
   '/dashboard': typeof DashboardRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
+  '/terms': typeof TermsRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/listings': typeof AdminListingsRoute
@@ -247,8 +263,10 @@ export interface FileRoutesById {
   '/browse': typeof BrowseRoute
   '/dashboard': typeof DashboardRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
+  '/terms': typeof TermsRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/listings': typeof AdminListingsRoute
@@ -279,8 +297,10 @@ export interface FileRouteTypes {
     | '/browse'
     | '/dashboard'
     | '/notifications'
+    | '/privacy'
     | '/search'
     | '/sell'
+    | '/terms'
     | '/admin/audit-log'
     | '/admin/categories'
     | '/admin/listings'
@@ -308,8 +328,10 @@ export interface FileRouteTypes {
     | '/browse'
     | '/dashboard'
     | '/notifications'
+    | '/privacy'
     | '/search'
     | '/sell'
+    | '/terms'
     | '/admin/audit-log'
     | '/admin/categories'
     | '/admin/listings'
@@ -338,8 +360,10 @@ export interface FileRouteTypes {
     | '/browse'
     | '/dashboard'
     | '/notifications'
+    | '/privacy'
     | '/search'
     | '/sell'
+    | '/terms'
     | '/admin/audit-log'
     | '/admin/categories'
     | '/admin/listings'
@@ -369,8 +393,10 @@ export interface RootRouteChildren {
   BrowseRoute: typeof BrowseRoute
   DashboardRoute: typeof DashboardRoute
   NotificationsRoute: typeof NotificationsRoute
+  PrivacyRoute: typeof PrivacyRoute
   SearchRoute: typeof SearchRoute
   SellRoute: typeof SellRoute
+  TermsRoute: typeof TermsRoute
   AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   AuthSignInRoute: typeof AuthSignInRoute
@@ -382,6 +408,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sell': {
       id: '/sell'
       path: '/sell'
@@ -394,6 +427,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -622,8 +662,10 @@ const rootRouteChildren: RootRouteChildren = {
   BrowseRoute: BrowseRoute,
   DashboardRoute: DashboardRoute,
   NotificationsRoute: NotificationsRoute,
+  PrivacyRoute: PrivacyRoute,
   SearchRoute: SearchRoute,
   SellRoute: SellRoute,
+  TermsRoute: TermsRoute,
   AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
   AuthSignInRoute: AuthSignInRoute,
