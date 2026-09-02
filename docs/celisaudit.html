@@ -1,0 +1,1506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Celis Readiness Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  html { -webkit-text-size-adjust: 100%; }
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f9;
+    --surface: #ffffff;
+    --surface-2: #eef0f5;
+    --ink: #191f2c;
+    --ink-muted: #575f6d;
+    --ink-faint: #838a98;
+    --border: #e0e3ea;
+    --border-strong: #cdd2dc;
+    --accent: #3b4a72;
+    --accent-ink: #33426a;
+    --sev-critical: #a11f18;
+    --sev-high: #9c531d;
+    --sev-medium: #786213;
+    --sev-low: #47664f;
+    --good: #47664f;
+    --code-bg: #edeff4;
+    --code-ink: #2b3450;
+    --shadow: 0 1px 2px rgba(20, 26, 40, .04), 0 8px 24px -12px rgba(20, 26, 40, .12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f121a;
+      --surface: #161a23;
+      --surface-2: #1d2330;
+      --ink: #e7eaf1;
+      --ink-muted: #9ba4b3;
+      --ink-faint: #6d7583;
+      --border: #262d3a;
+      --border-strong: #38404f;
+      --accent: #94a3d6;
+      --accent-ink: #a9b6e0;
+      --sev-critical: #e46a60;
+      --sev-high: #dc8c50;
+      --sev-medium: #cdad54;
+      --sev-low: #7fa98a;
+      --good: #7fa98a;
+      --code-bg: #1e2431;
+      --code-ink: #c6cede;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0f121a;
+    --surface: #161a23;
+    --surface-2: #1d2330;
+    --ink: #e7eaf1;
+    --ink-muted: #9ba4b3;
+    --ink-faint: #6d7583;
+    --border: #262d3a;
+    --border-strong: #38404f;
+    --accent: #94a3d6;
+    --accent-ink: #a9b6e0;
+    --sev-critical: #e46a60;
+    --sev-high: #dc8c50;
+    --sev-medium: #cdad54;
+    --sev-low: #7fa98a;
+    --good: #7fa98a;
+    --code-bg: #1e2431;
+    --code-ink: #c6cede;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  a { color: var(--accent-ink); text-underline-offset: 2px; text-decoration-thickness: 1px; }
+  a:focus-visible,
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: .84em;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: .12em .4em;
+    border-radius: 3px;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  .eyebrow {
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: clamp(32px, 6vw, 72px) clamp(20px, 5vw, 56px) 0;
+  }
+  .masthead__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 14px;
+  }
+  .masthead__id {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .72rem;
+    letter-spacing: .04em;
+    color: var(--ink-muted);
+  }
+  .theme-toggle {
+    font: inherit;
+    font-size: .74rem;
+    letter-spacing: .04em;
+    color: var(--ink-muted);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 5px 13px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .masthead h1 {
+    font-family: "Newsreader", Georgia, "Times New Roman", serif;
+    font-weight: 500;
+    font-size: clamp(2.1rem, 5.4vw, 3.3rem);
+    line-height: 1.1;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+    margin: .5em 0 0;
+  }
+  .masthead .lede {
+    max-width: 60ch;
+    color: var(--ink-muted);
+    font-size: 1.06rem;
+    margin: .85em 0 0;
+  }
+
+  /* ---------- verdict ---------- */
+  .verdict {
+    max-width: 1180px;
+    margin: clamp(28px, 5vw, 44px) auto 0;
+    padding: 0 clamp(20px, 5vw, 56px);
+    display: grid;
+    gap: 18px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .verdict { grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); align-items: stretch; }
+  }
+  .verdict__panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+  .gauge {
+    --band: var(--sev-critical);
+    flex: none;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background:
+      radial-gradient(closest-side, var(--surface) 71%, transparent 72% 100%),
+      conic-gradient(var(--band) calc(var(--score) * 1%), var(--surface-2) 0);
+    display: grid;
+    place-items: center;
+    position: relative;
+  }
+  .gauge__num {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    font-size: 1.9rem;
+    line-height: 1;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .verdict__panel .meta { display: flex; flex-direction: column; gap: 6px; }
+  .verdict__panel .of100 { font-family: "IBM Plex Mono", monospace; font-size: .78rem; color: var(--ink-faint); }
+  .status {
+    align-self: flex-start;
+    font-weight: 700;
+    font-size: .92rem;
+    letter-spacing: .02em;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sev-critical) 14%, transparent);
+    color: var(--sev-critical);
+    border: 1px solid color-mix(in srgb, var(--sev-critical) 38%, transparent);
+  }
+  .verdict__panel .status-note { font-size: .82rem; color: var(--ink-muted); }
+
+  .tally {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+  }
+  .tally h2 { font: inherit; font-weight: 600; font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin: 0; }
+  .tally__row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 6px 12px 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    font-size: .82rem;
+    color: var(--ink-muted);
+  }
+  .count b {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 1rem;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .count::before { content: ""; width: 8px; height: 8px; border-radius: 2px; align-self: center; }
+  .count.c::before { background: var(--sev-critical); }
+  .count.h::before { background: var(--sev-high); }
+  .count.m::before { background: var(--sev-medium); }
+  .count.l::before { background: var(--sev-low); }
+
+  /* ---------- layout grid ---------- */
+  .report {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: clamp(40px, 7vw, 72px) clamp(20px, 5vw, 56px) 96px;
+    display: grid;
+    gap: 40px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 1000px) {
+    .report { grid-template-columns: 200px minmax(0, 1fr); align-items: start; gap: 48px; }
+    .toc {
+      position: sticky;
+      top: 24px;
+      align-self: start;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+  }
+
+  .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .toc a {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 5px;
+    text-decoration: none;
+    color: var(--ink-muted);
+    font-size: .84rem;
+    border-left: 2px solid transparent;
+  }
+  .toc a:hover { background: var(--surface-2); color: var(--ink); }
+  .toc a .n { font-family: "IBM Plex Mono", monospace; font-size: .78rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .toc .toc-head { font-size: .68rem; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint); padding: 0 10px 8px; }
+
+  .main-col { min-width: 0; max-width: 820px; }
+  .main-col :where(p, li, dd) { overflow-wrap: break-word; }
+  .main-col > section { scroll-margin-top: 24px; }
+  .main-col > section + section { margin-top: 56px; }
+
+  h2.sec {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(1.55rem, 3.4vw, 2rem);
+    letter-spacing: -.005em;
+    margin: 0;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .prose p { max-width: 68ch; color: var(--ink-muted); }
+  .prose p strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- meter ---------- */
+  .meter {
+    display: block;
+    height: 5px;
+    width: 100%;
+    background: var(--surface-2);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .meter__fill {
+    display: block;
+    height: 100%;
+    width: calc(var(--score) * 1%);
+    border-radius: 999px;
+    transform-origin: left center;
+  }
+  .meter__fill[data-band="critical"] { background: var(--sev-critical); }
+  .meter__fill[data-band="high"] { background: var(--sev-high); }
+  .meter__fill[data-band="medium"] { background: var(--sev-medium); }
+  .meter__fill[data-band="good"] { background: var(--good); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .meter__fill { animation: grow .9s cubic-bezier(.22,.61,.36,1) both; }
+    @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .verdict__panel, .tally { animation: rise .6s ease both; }
+    .verdict__panel { animation-delay: .05s; }
+    .tally { animation-delay: .12s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }
+
+  /* ---------- scorecard ---------- */
+  .scorecard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .score-cell {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 13px 14px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .score-cell__label { font-size: .74rem; color: var(--ink-muted); letter-spacing: .01em; }
+  .score-cell__num {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    font-size: 1.55rem;
+    line-height: 1;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .score-cell__num small { font-size: .6em; color: var(--ink-faint); font-weight: 400; }
+
+  /* ---------- callout ---------- */
+  .callout {
+    border: 1px solid var(--border-strong);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 16px 18px;
+    font-size: .92rem;
+    color: var(--ink-muted);
+  }
+  .callout p { margin: .4em 0; max-width: 72ch; }
+  .callout strong { color: var(--ink); }
+  .callout .k { font-family: "IBM Plex Mono", monospace; font-size: .82em; color: var(--ink); }
+
+  /* ---------- category header ---------- */
+  .cat {
+    display: grid;
+    gap: 6px 20px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cat .sec { min-width: 0; }
+  .cat__score { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 128px; }
+  .cat__num { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 1.5rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .cat__num small { font-size: .58em; color: var(--ink-faint); font-weight: 400; }
+  .cat__tally { grid-column: 1 / -1; margin: 4px 0 0; font-size: .8rem; color: var(--ink-faint); font-family: "IBM Plex Mono", monospace; letter-spacing: .01em; }
+
+  /* ---------- findings ---------- */
+  .findings { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
+  .finding {
+    display: grid;
+    grid-template-columns: 4px minmax(0, 1fr);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .finding__stripe { background: var(--border-strong); }
+  .finding[data-sev="critical"] .finding__stripe { background: var(--sev-critical); }
+  .finding[data-sev="high"] .finding__stripe { background: var(--sev-high); }
+  .finding[data-sev="medium"] .finding__stripe { background: var(--sev-medium); }
+  .finding[data-sev="low"] .finding__stripe { background: var(--sev-low); }
+  .finding__body { padding: 15px 18px 17px; min-width: 0; overflow-wrap: break-word; }
+  .finding__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px; }
+  .finding__id {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .74rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--ink-faint);
+  }
+  .finding__title {
+    font: inherit;
+    font-weight: 600;
+    font-size: 1.02rem;
+    line-height: 1.4;
+    color: var(--ink);
+    margin: 0;
+    flex: 1 1 60%;
+    text-wrap: pretty;
+  }
+  .chip {
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    align-self: center;
+  }
+  .chip--critical { color: var(--sev-critical); background: color-mix(in srgb, var(--sev-critical) 13%, transparent); border: 1px solid color-mix(in srgb, var(--sev-critical) 36%, transparent); }
+  .chip--high { color: var(--sev-high); background: color-mix(in srgb, var(--sev-high) 13%, transparent); border: 1px solid color-mix(in srgb, var(--sev-high) 36%, transparent); }
+  .chip--medium { color: var(--sev-medium); background: color-mix(in srgb, var(--sev-medium) 14%, transparent); border: 1px solid color-mix(in srgb, var(--sev-medium) 38%, transparent); }
+  .chip--low { color: var(--sev-low); background: color-mix(in srgb, var(--sev-low) 13%, transparent); border: 1px solid color-mix(in srgb, var(--sev-low) 36%, transparent); }
+
+  .finding dl { margin: 12px 0 0; display: grid; gap: 9px; }
+  .finding dl > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 540px) { .finding dl > div { grid-template-columns: 1fr; gap: 2px; } }
+  .finding dt {
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: 3px;
+  }
+  .finding dd { margin: 0; font-size: .92rem; color: var(--ink-muted); }
+  .finding dd strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- remediation ---------- */
+  .phase { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  .phase + .phase { margin-top: 14px; }
+  .phase__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 12px;
+    padding: 14px 18px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .phase__tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    font-size: .78rem;
+    letter-spacing: .06em;
+    color: var(--accent-ink);
+    padding: 2px 8px;
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    border-radius: 4px;
+  }
+  .phase__title { font-weight: 600; font-size: 1rem; color: var(--ink); margin: 0; }
+  .phase__when { font-size: .8rem; color: var(--ink-faint); margin-left: auto; font-family: "IBM Plex Mono", monospace; }
+  .phase ol { margin: 0; padding: 12px 18px 16px 20px; display: flex; flex-direction: column; gap: 10px; counter-reset: step; list-style: none; }
+  .phase li {
+    position: relative;
+    padding-left: 1.9em;
+    font-size: .92rem;
+    line-height: 1.55;
+    color: var(--ink-muted);
+    overflow-wrap: break-word;
+  }
+  .phase li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: .15em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .78rem;
+    color: var(--ink-faint);
+  }
+  .phase li b { color: var(--ink); font-weight: 600; }
+  .ref { font-family: "IBM Plex Mono", monospace; font-size: .8em; color: var(--accent-ink); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; font-size: .78rem; color: var(--ink-muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .legend .c { background: var(--sev-critical); }
+  .legend .h { background: var(--sev-high); }
+  .legend .m { background: var(--sev-medium); }
+  .legend .l { background: var(--sev-low); }
+
+  footer.foot {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px clamp(20px, 5vw, 56px) 64px;
+    border-top: 1px solid var(--border);
+    color: var(--ink-faint);
+    font-size: .8rem;
+  }
+
+  @media print {
+    .toc, .theme-toggle { display: none; }
+    body { background: #fff; color: #000; font-size: 11pt; }
+    .report { display: block; padding: 0; }
+    .finding, .phase, .verdict__panel, .tally, .score-cell { box-shadow: none; break-inside: avoid; }
+    .main-col > section { break-inside: avoid-page; }
+  }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="masthead__top">
+    <span class="masthead__id">CELIS / PROD-READINESS REVIEW &middot; 2 SEP 2026</span>
+    <button class="theme-toggle" type="button" data-toggle-theme aria-label="Switch colour theme">
+      <span data-toggle-label>Dark</span>
+    </button>
+  </div>
+  <span class="eyebrow" style="display:block;margin-top:22px;">Independent code &amp; infrastructure audit</span>
+  <h1>Celis Readiness Audit</h1>
+  <p class="lede">A production-readiness review of the Celis marketplace &mdash; database, backend, frontend, security, performance, and deployment &mdash; read from source. Verdict, 41 findings ranked by severity, and a four-phase plan to close them.</p>
+</div>
+
+<div class="verdict">
+  <div class="verdict__panel">
+    <div class="gauge" style="--score:34;">
+      <span class="gauge__num">34</span>
+    </div>
+    <div class="meta">
+      <span class="eyebrow">Overall readiness</span>
+      <span class="of100">34 / 100</span>
+      <span class="status">Not Ready</span>
+      <span class="status-note">Classifieds core is largely built; ship blockers in auth, access control, data integrity, and testing.</span>
+    </div>
+  </div>
+  <div class="tally">
+    <h2>Findings by severity</h2>
+    <div class="tally__row">
+      <span class="count c"><b>2</b> Critical</span>
+      <span class="count h"><b>12</b> High</span>
+      <span class="count m"><b>20</b> Medium</span>
+      <span class="count l"><b>7</b> Low</span>
+    </div>
+    <div class="scorecard">
+      <div class="score-cell"><span class="score-cell__label">Database</span><span class="score-cell__num">42<small>/100</small></span><span class="meter"><span class="meter__fill" data-band="high" style="--score:42;"></span></span></div>
+      <div class="score-cell"><span class="score-cell__label">Backend</span><span class="score-cell__num">48<small>/100</small></span><span class="meter"><span class="meter__fill" data-band="high" style="--score:48;"></span></span></div>
+      <div class="score-cell"><span class="score-cell__label">UI / UX</span><span class="score-cell__num">66<small>/100</small></span><span class="meter"><span class="meter__fill" data-band="medium" style="--score:66;"></span></span></div>
+      <div class="score-cell"><span class="score-cell__label">Security</span><span class="score-cell__num">20<small>/100</small></span><span class="meter"><span class="meter__fill" data-band="critical" style="--score:20;"></span></span></div>
+      <div class="score-cell"><span class="score-cell__label">Performance</span><span class="score-cell__num">52<small>/100</small></span><span class="meter"><span class="meter__fill" data-band="high" style="--score:52;"></span></span></div>
+      <div class="score-cell"><span class="score-cell__label">Testing</span><span class="score-cell__num">8<small>/100</small></span><span class="meter"><span class="meter__fill" data-band="critical" style="--score:8;"></span></span></div>
+      <div class="score-cell"><span class="score-cell__label">Prod readiness</span><span class="score-cell__num">28<small>/100</small></span><span class="meter"><span class="meter__fill" data-band="critical" style="--score:28;"></span></span></div>
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span><i class="c"></i> Critical &mdash; exploitable now / guaranteed broken in prod</span>
+      <span><i class="h"></i> High</span>
+      <span><i class="m"></i> Medium</span>
+      <span><i class="l"></i> Low</span>
+    </div>
+  </div>
+</div>
+
+<div class="report">
+  <nav class="toc" aria-label="Contents">
+    <div class="toc-head">Contents</div>
+    <ol>
+      <li><a href="#scope"><span>Scope &amp; limits</span></a></li>
+      <li><a href="#architecture"><span>Architecture</span></a></li>
+      <li><a href="#security"><span>Security</span><span class="n">20</span></a></li>
+      <li><a href="#database"><span>Database</span><span class="n">42</span></a></li>
+      <li><a href="#backend"><span>Backend</span><span class="n">48</span></a></li>
+      <li><a href="#uiux"><span>UI / UX</span><span class="n">66</span></a></li>
+      <li><a href="#performance"><span>Performance</span><span class="n">52</span></a></li>
+      <li><a href="#testing"><span>Testing</span><span class="n">8</span></a></li>
+      <li><a href="#prod"><span>Prod readiness</span><span class="n">28</span></a></li>
+      <li><a href="#plan"><span>Remediation plan</span></a></li>
+    </ol>
+  </nav>
+
+  <div class="main-col">
+
+    <section id="scope" class="prose">
+      <h2 class="sec">Scope &amp; limits</h2>
+      <p>The audit reads the actual repository: all 33 files in <code>drizzle/</code> plus the migration journal, every module under <code>app/server/**</code>, the Drizzle schema, routes, the listing wizard, payment modal, image uploader, admin shell, and auth pages, plus deploy config. <code>tsc --noEmit</code> passes. The test suite passes 8&nbsp;of&nbsp;8. <code>eslint</code> is referenced by <code>package.json</code> but is not installed.</p>
+      <div class="callout">
+        <p><strong>The live database was not inspected.</strong> The Supabase tooling available in this session is bound to a different project (<span class="k">gyjepnqtzaupbwuvkyxu</span>) than the one <span class="k">.env</span> targets (<span class="k">gbnnerrcezlgeuohaume</span>).</p>
+        <p>Unverified, and assumed only from source: whether every migration is applied, runtime RLS state, index existence, seeded RBAC rows (<span class="k">roles</span> / <span class="k">permissions</span> / <span class="k">role_permissions</span>), storage bucket &amp; policies, query plans, and the Supabase security / performance advisors. A full production build was not run. Treat every Database finding as &ldquo;from migration and schema source.&rdquo;</p>
+      </div>
+    </section>
+
+    <section id="architecture" class="prose">
+      <h2 class="sec">Architecture snapshot</h2>
+      <p><strong>Stack:</strong> Vite + TanStack Start / Router, React&nbsp;19 RC, Drizzle ORM over <code>postgres-js</code>, Supabase (Auth + Storage + Postgres), TanStack Query, Radix + Tailwind, Zod, Firebase Admin for FCM.</p>
+      <p><strong>Data access:</strong> the web app connects as the Postgres owner role and <strong>bypasses RLS entirely</strong>. RLS exists only to guard a separate React Native app that shares the same database through the anon / authenticated keys.</p>
+      <p><strong>Server functions:</strong> ~114 <code>createServerFn</code> endpoints with <strong>no global auth or RBAC middleware</strong> &mdash; each function must self-check, and several do not.</p>
+      <p><strong>Effective product today:</strong> a classifieds site &mdash; listings, tiered listing fees, seller packages, admin moderation, RBAC, and WaafiPay for listing fees. The transactional marketplace from the PRD (buyer checkout, orders, payouts, escrow, disputes, delivery confirmation) is <strong>schema plus admin stubs only</strong>.</p>
+    </section>
+
+    <!-- ============ SECURITY ============ -->
+    <section id="security">
+      <header class="cat">
+        <div><span class="eyebrow">Category</span><h2 class="sec">Security</h2></div>
+        <div class="cat__score">
+          <span class="cat__num">20<small>/100</small></span>
+          <span class="meter"><span class="meter__fill" data-band="critical" style="--score:20;"></span></span>
+        </div>
+        <p class="cat__tally">2 critical &middot; 3 high &middot; 6 medium &middot; 1 low</p>
+      </header>
+      <div class="findings">
+
+        <article class="finding" data-sev="critical">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-1</span>
+              <h3 class="finding__title">Password reset returns the reset token in the HTTP response &rarr; full account takeover</h3>
+              <span class="chip chip--critical">Critical</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/server/password-reset.functions.ts:18-41</code>, <code>routes/auth/forgot-password.tsx:41-45</code>, <code>routes/auth/reset-password.tsx:37-67</code></dd></div>
+              <div><dt>Problem</dt><dd><code>requestPasswordReset</code> returns <code>{ token, email }</code> to the caller; the client then navigates to <code>/auth/reset-password?token=&hellip;</code> and <code>resetPasswordByToken</code> calls <code>supabase.auth.admin.updateUserById</code>. No email is ever sent &mdash; there is no mail integration in the repo. <strong>Anyone who knows an email address can reset that account&rsquo;s password</strong>, including admins. The token also travels in a URL query string, and unknown emails return <code>404 "Email not found"</code> (enumeration).</dd></div>
+              <div><dt>Fix</dt><dd>Never return the token. Deliver it by email only; store a hash, single-use, short TTL. Return a generic <code>200</code> regardless of whether the address exists. Move the token out of the URL. Rate-limit per IP and per email.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="critical">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-2</span>
+              <h3 class="finding__title">Hardcoded admin credentials in the documented seed script</h3>
+              <span class="chip chip--critical">Critical</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>scripts/seed-admin.ts:6-7</code> (<code>admin@celis.so</code> / <code>CelisAdmin123!</code>), documented in <code>docs/operations/runbook.md</code> as <code>pnpm db:seed-admin</code></dd></div>
+              <div><dt>Problem</dt><dd>The only documented way to bootstrap a super-admin creates a well-known email and password committed to the repo and prints them. Run against production, the platform ships with a public super-admin login.</dd></div>
+              <div><dt>Fix</dt><dd>Require <code>ADMIN_EMAIL</code> / <code>ADMIN_PASSWORD</code> env vars (fail if absent) or generate a random password printed once; or use an invite flow. Rotate immediately anywhere this has run.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-3</span>
+              <h3 class="finding__title">Unauthenticated signed storage upload URLs</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/server/storage.functions.ts:11-15</code>, <code>storage.server.ts:26-49</code></dd></div>
+              <div><dt>Problem</dt><dd><code>getListingImageUploadUrl</code> does <strong>no auth and no ownership check</strong> &mdash; only shape validation. Any anonymous caller can obtain a Supabase <code>createSignedUploadUrl</code> for path <code>{sellerId}/&hellip;</code> in a public bucket (the function even creates the bucket if missing). Open write primitive: arbitrary file hosting, storage-cost abuse, content served from your project. <code>fileType</code> is accepted but ignored.</dd></div>
+              <div><dt>Fix</dt><dd>Require a session; force <code>sellerId = currentUser.id</code>; assert seller role; provision the bucket at deploy, not in the request; enforce content type and size on the signed URL.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-4</span>
+              <h3 class="finding__title">Broken access control &mdash; client-supplied <code>sellerId</code> / <code>listingId</code> trusted</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/server/listings.functions.ts:73-108</code> (<code>createListing</code>), <code>:41-46</code> (<code>submitShopListing</code>), <code>:37-39</code> (<code>fetchSellerListingEligibility</code>); <code>listings.server.ts:205-234</code></dd></div>
+              <div><dt>Problem</dt><dd><code>createListing</code> calls <code>requireSeller(data.sellerId)</code> (only checks the row exists) then <code>insertDraftListing(data.sellerId, &hellip;)</code> &mdash; <strong>it never checks <code>data.sellerId === currentUser.id</code></strong>. A user can create listings owned by any other user id. <code>submitShopListing</code> takes an arbitrary <code>listingId</code> + <code>sellerId</code> and <code>submitListingForReview</code> has no ownership check. <code>fetchSellerListingEligibility</code> discloses any seller&rsquo;s package state.</dd></div>
+              <div><dt>Fix</dt><dd>Derive <code>sellerId</code> from the session server-side; never accept it from the client. Add <code>listing.sellerId === user.id</code> to every listing mutation. Make <code>requireSeller</code> actually assert the seller role.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-5</span>
+              <h3 class="finding__title">No rate limiting or brute-force protection on auth; no email verification</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/server/auth.functions.ts</code> (<code>signIn</code>, <code>signUp</code>), <code>password-reset.functions.ts</code></dd></div>
+              <div><dt>Problem</dt><dd>No rate limiting, lockout, or CAPTCHA on sign-in, sign-up, or reset. <code>signUp</code> uses the service role with <code>email_confirm: true</code> &mdash; <strong>no email verification</strong>, so anyone can register unlimited accounts against any address and act as that identity. Compounds SEC-1.</dd></div>
+              <div><dt>Fix</dt><dd>Per-IP / per-identifier rate limiting at the edge; require email confirmation for customer signups; exponential backoff / lockout on failed sign-in.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-6</span>
+              <h3 class="finding__title">Stored XSS via JSON-LD injection on the listing detail page</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/routes/listings.$id.tsx:701-719</code></dd></div>
+              <div><dt>Problem</dt><dd><code>&lt;script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ name: listing.title, &hellip; }) }} /&gt;</code>. <code>JSON.stringify</code> does not escape <code>&lt;</code> or <code>/</code>, so a title containing <code>&lt;/script&gt;&lt;img src=x onerror=&hellip;&gt;</code> breaks out. Seller-controlled content; a seller can view their own unapproved listing, and a moderator views it pre-approval.</dd></div>
+              <div><dt>Fix</dt><dd>Escape <code>&lt; &gt; &amp;</code> and U+2028 / U+2029 in the serialized JSON, or emit JSON-LD through a vetted head-meta path instead of <code>dangerouslySetInnerHTML</code>.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-7</span>
+              <h3 class="finding__title">Listing detail server function leaks seller phone &amp; non-public listings</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/server/listings.functions.ts:112-116</code> &rarr; <code>getListingById</code> (<code>listings.server.ts:126-174</code>)</dd></div>
+              <div><dt>Problem</dt><dd>The route loader gates viewing to <code>status === "active" || isOwner</code>, but <code>fetchListingById</code> itself has no status or ownership check. A direct call returns full detail &mdash; including <code>sellerPhone</code> &mdash; for draft / pending / rejected / expired listings of other users, to any caller.</dd></div>
+              <div><dt>Fix</dt><dd>Enforce the same visibility rule inside <code>getListingById</code>; strip <code>sellerPhone</code> unless the listing is active or the caller is the owner / an authorized officer.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-8</span>
+              <h3 class="finding__title">CSV formula injection in admin exports</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/lib/csv.ts:8-14</code>; consumers in <code>admin.server.ts</code> (ledger, failed-payments, new-users, new-listings exports) and <code>routes/admin/reports.tsx</code></dd></div>
+              <div><dt>Problem</dt><dd><code>escape()</code> handles quotes / commas / newlines but not leading <code>= + - @ \t \r</code>. Exported cells hold user-controlled data (emails, names, business names, references); opened in Excel / Sheets, <code>=cmd|&hellip;</code> payloads execute.</dd></div>
+              <div><dt>Fix</dt><dd>Prefix any cell starting with <code>= + - @ \t \r</code> with <code>'</code>, or export <code>.xlsx</code> with text-typed cells.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-10</span>
+              <h3 class="finding__title">Audit log never records IP or request context</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/db/schema/audit-logs.ts:16</code> (<code>ipAddress</code> column) vs <code>app/server/audit.server.ts:36-45</code> (never set)</dd></div>
+              <div><dt>Problem</dt><dd><code>audit_logs.ip_address</code> is always <code>NULL</code>. <code>insertAuditLog</code> re-derives the actor from the session but many call sites also stuff <code>actorId</code> into <code>metadata</code> &mdash; inconsistent. No user-agent or request id. Weaker than AGENTS.md&rsquo;s &ldquo;reconstructable&rdquo; requirement for moderation / financial actions.</dd></div>
+              <div><dt>Fix</dt><dd>Capture IP + user-agent + request id from request context in <code>insertAuditLog</code>; stop double-storing <code>actorId</code>; consider an append-only / no-update policy on <code>audit_logs</code>.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-11</span>
+              <h3 class="finding__title"><code>SECURITY DEFINER</code> RPCs with a mutable <code>search_path</code></h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>drizzle/0022_*.sql</code>, <code>0023_*.sql</code>, <code>0024_*.sql</code> (<code>save_listing_with_fields</code>, <code>validate_listing_fields</code>, <code>update_listing_status</code>, <code>delete_listing</code>, <code>save_listing_images</code>) use <code>SET search_path TO public</code>; only <code>0032</code> uses the hardened <code>SET search_path = ''</code></dd></div>
+              <div><dt>Problem</dt><dd><code>SECURITY DEFINER</code> with <code>search_path</code> pointed at a schema untrusted roles can write to is a privilege-escalation vector the Supabase linter flags. <code>save_listing_with_fields</code> also catches <code>WHEN OTHERS</code> and returns raw <code>SQLERRM</code> to the client.</dd></div>
+              <div><dt>Fix</dt><dd><code>SET search_path = ''</code> and fully schema-qualify every object in all definer functions; return a generic error and log detail server-side.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-12</span>
+              <h3 class="finding__title">Secrets &amp; environment hygiene</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>.env</code>, <code>app/lib/fcm.ts:9-17</code>, <code>scripts/process-notification-jobs.ts</code></dd></div>
+              <div><dt>Problem</dt><dd><code>.env</code> (correctly gitignored) holds live-looking service-role key, DB password, and encryption key on the working machine. <code>FIREBASE_SERVICE_ACCOUNT</code> points to <code>C:\Users\munii\Downloads\&hellip;json</code> &mdash; absent in any deploy, so push notifications silently no-op in prod. <code>NODE_ENV=development</code> in <code>.env</code>. Key rotation for <code>PAYMENT_CREDENTIALS_ENCRYPTION_KEY</code> is one sentence with no runbook.</dd></div>
+              <div><dt>Fix</dt><dd>Secrets manager for deploys; ship Firebase creds as inline JSON; write a real key-rotation runbook; confirm <code>.env</code> never entered git history.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="low">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">SEC-9</span>
+              <h3 class="finding__title">Open-redirect potential on post-auth navigation</h3>
+              <span class="chip chip--low">Low</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>routes/auth/sign-in.tsx:44</code>, <code>routes/sell.tsx:26</code>, <code>routes/dashboard.tsx:61</code></dd></div>
+              <div><dt>Problem</dt><dd><code>navigate({ to: redirect || "/dashboard" })</code> with <code>redirect</code> an unvalidated query value, not constrained to begin with a single <code>/</code>.</dd></div>
+              <div><dt>Fix</dt><dd>Validate <code>redirect</code> matches <code>^/(?!/)</code> before use; otherwise fall back to <code>/dashboard</code>.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <div class="prose"><p style="font-size:.86rem;">Working well: payment credentials encrypted with AES-256-GCM, amounts computed server-side, RBAC enforced server-side on the admin surface, RLS present for the mobile client, secrets gitignored, queries parameterised via Drizzle / <code>sql</code> tagged templates (no string-built SQL seen).</p></div>
+      </div>
+    </section>
+
+    <!-- ============ DATABASE ============ -->
+    <section id="database">
+      <header class="cat">
+        <div><span class="eyebrow">Category</span><h2 class="sec">Database</h2></div>
+        <div class="cat__score">
+          <span class="cat__num">42<small>/100</small></span>
+          <span class="meter"><span class="meter__fill" data-band="high" style="--score:42;"></span></span>
+        </div>
+        <p class="cat__tally">3 high &middot; 3 medium &middot; 1 low</p>
+      </header>
+      <div class="findings">
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">DB-1</span>
+              <h3 class="finding__title">Two conflicting identity models in one database</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/db/schema/users.ts:22-25</code>; <code>drizzle/0000_small_ezekiel.sql:115</code> (<code>CREATE TABLE "auth.users"</code>), <code>:325</code>; vs <code>0025_chat_messaging.sql:13-14</code>, <code>0028_notification_jobs.sql:13</code> (<code>REFERENCES auth.users(id)</code>)</dd></div>
+              <div><dt>Problem</dt><dd>Web tables (<code>users</code>, <code>profiles</code>, <code>listings</code>, <code>orders</code>, <code>payouts</code>) FK to a <strong>mirror table literally named <code>"auth.users"</code> in the <code>public</code> schema</strong>, populated by app code. Mobile tables (<code>conversations</code>, <code>messages</code>, <code>notification_jobs</code>, <code>listing_feedback</code>, <code>seller_reviews</code>) FK to the real <code>auth.users</code>. An auth user created outside the web sign-in path has no mirror row and breaks web FKs; deleting from real <code>auth.users</code> does not cascade to the mirror; the two drift.</dd></div>
+              <div><dt>Fix</dt><dd>Reference <code>auth.users</code> directly via <code>pgSchema("auth")</code>; create the <code>profiles</code> row from an <code>on_auth_user_created</code> trigger; migrate the mirror away and backfill.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">DB-2</span>
+              <h3 class="finding__title">Cascade deletes on financial / transactional tables</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>orders.ts:22-27</code> (<code>buyerId</code>/<code>sellerId</code> &rarr; cascade), <code>payouts.ts:22</code>, <code>payments.ts:26,56</code>, plus <code>reviews</code>/<code>listingReviews</code></dd></div>
+              <div><dt>Problem</dt><dd>Deleting a user (or the upstream mirror row) cascades away orders, payouts, wallet payments and reviews &mdash; destroying the financial ledger and audit trail. Collides with <code>orders.listingId</code> &rarr; <code>restrict</code> (a partially-failing cascade chain). A future &ldquo;delete my account&rdquo; (public info page already exists) would erase records that must be retained.</dd></div>
+              <div><dt>Fix</dt><dd><code>ON DELETE RESTRICT</code> (or <code>SET NULL</code> with retained snapshots) for all money-bearing tables; implement account deletion as anonymisation.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">DB-3</span>
+              <h3 class="finding__title">Migration journal desynced; duplicate numbers; schema drift</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>drizzle/meta/_journal.json</code> (last entry <code>0031</code>, skips <code>0019</code>&ndash;<code>0028</code>); files <code>0018_happy_blob.sql</code> + <code>0018_mobile_rls.sql</code>, two <code>0026</code>; <code>app/db/schema/index.ts</code> has no model for <code>conversations</code>, <code>messages</code>, <code>listing_feedback</code>, <code>seller_reviews</code>, <code>notification_jobs</code></dd></div>
+              <div><dt>Problem</dt><dd>The journal does not track migrations <code>0019</code>&ndash;<code>0028</code> (hand-written SQL applied out of band). Two files share <code>0018</code>, two share <code>0026</code>. <code>drizzle-kit migrate</code> would not apply the untracked files and <code>generate</code>/<code>push</code> fights the hand-written state. At least 5 live tables have no Drizzle model.</dd></div>
+              <div><dt>Fix</dt><dd>Reconcile the journal (absorb or re-baseline), renumber duplicates, add models for every live table, pick one migration tool, add a drift check to CI, add a migration step to deploy.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">DB-4</span>
+              <h3 class="finding__title">Dead / ineffective indexes; no real search index</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/db/schema/listings.ts:53,87-90</code> (<code>search_vector</code> text column never written; btree index on it), <code>:52,90</code> (btree index on the <code>metadata</code> jsonb column)</dd></div>
+              <div><dt>Problem</dt><dd><code>search_vector</code> is never populated; its btree index is useless. <code>searchListings</code> uses <code>title/description ILIKE '%term%'</code> (leading wildcard, seq scan) and <code>metadata ->> key = value</code>; a btree on jsonb does not serve <code>->></code> queries. Marketplace search is a sequential scan.</dd></div>
+              <div><dt>Fix</dt><dd>Real <code>tsvector</code> column + trigger + GIN, or <code>pg_trgm</code> GIN on <code>title</code>/<code>description</code>. Replace the metadata btree with GIN (<code>jsonb_path_ops</code>) or per-key expression indexes. Drop <code>search_vector</code> if unused.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">DB-5</span>
+              <h3 class="finding__title">Late, partial RLS; primary app bypasses it</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>drizzle/0000_small_ezekiel.sql</code> (no RLS); first RLS in <code>0018_mobile_rls.sql</code>, more in <code>0019</code>, <code>0022</code>, <code>0025</code>&ndash;<code>0028</code>, <code>0032</code></dd></div>
+              <div><dt>Problem</dt><dd>RLS was retrofitted only for the mobile app and only on a subset of tables. The web app connects as owner and bypasses all of it, so RLS correctness is untested by the primary app. <code>0032</code> removed public reads from <code>profiles</code>/<code>users</code> and added <code>get_public_marketplace_profiles</code>, but the live deny-by-default state cannot be confirmed here.</dd></div>
+              <div><dt>Fix</dt><dd>Run the Supabase security advisor on the real project to zero; add RLS allow/deny tests (anon JWT) for every policy.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">DB-6</span>
+              <h3 class="finding__title">Idempotency keys persisted inside <code>listings.metadata</code></h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>drizzle/0022_*.sql:292-315</code>, <code>0023_*.sql:327-351</code> (<code>metadata->>'_idempotency_key'</code> full scan, then <code>jsonb_set</code> to store it permanently)</dd></div>
+              <div><dt>Problem</dt><dd>Every create does an unindexed scan over all listings&rsquo; <code>metadata</code>; the key is then stored on the row forever (bloat, and it leaks into any metadata read / <code>metadata_schema</code> sync).</dd></div>
+              <div><dt>Fix</dt><dd>Dedicated <code>listing_idempotency(key pk, listing_id, created_at)</code> table with TTL cleanup; keep it out of user-visible metadata.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="low">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">DB-7</span>
+              <h3 class="finding__title">Data-type &amp; modelling nits</h3>
+              <span class="chip chip--low">Low</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>listings.ts:49-50</code> (<code>locationLat/Lng</code> as <code>integer</code>), <code>:51</code> (<code>images text[]</code> of full URLs), <code>categories.ts</code> (no <code>is_active</code>)</dd></div>
+              <div><dt>Problem</dt><dd>Integer lat/lng loses all sub-degree precision (&asymp;111&nbsp;km). Storing full URLs (not storage paths) makes bucket migration / cleanup hard; no storage cleanup on listing delete (orphaned objects). No category soft-delete.</dd></div>
+              <div><dt>Fix</dt><dd><code>numeric(9,6)</code> or PostGIS <code>geography(Point)</code>; store paths and derive URLs; add <code>is_active</code>/<code>archived_at</code> to <code>categories</code>; delete storage objects on hard delete.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ============ BACKEND ============ -->
+    <section id="backend">
+      <header class="cat">
+        <div><span class="eyebrow">Category</span><h2 class="sec">Backend</h2></div>
+        <div class="cat__score">
+          <span class="cat__num">48<small>/100</small></span>
+          <span class="meter"><span class="meter__fill" data-band="high" style="--score:48;"></span></span>
+        </div>
+        <p class="cat__tally">2 high &middot; 2 medium &middot; 1 low</p>
+      </header>
+      <div class="findings">
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">BE-1</span>
+              <h3 class="finding__title">Buyer order lifecycle and payout lifecycle are unimplemented</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/server/orders.server.ts</code> &mdash; <code>createOrder</code> is called only from <code>createAdminOrder</code>; <code>completeOrder</code> ends with <code>// TODO: trigger seller payout&hellip;</code>; <code>payouts</code> is <strong>never inserted</strong> anywhere in <code>app/</code>; there is no <code>/checkout</code> route.</dd></div>
+              <div><dt>Problem</dt><dd>Listing detail offers &ldquo;Show contact / Request call back / WhatsApp&rdquo; only. No buyer checkout, order creation, payout creation, commission capture, or delivery / dispute handling &mdash; despite full schema and a documented order state machine. Admin Orders &amp; Payouts screens act on rows that can only be created by hand.</dd></div>
+              <div><dt>Fix</dt><dd>Decide v1 scope. If P2P transactions are in scope this is a major build (checkout, order state machine, payout initiation + provider, commission settlement, disputes). If not, hide the order / payout admin surfaces and unreachable schema and document the classifieds-only model.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">BE-2</span>
+              <h3 class="finding__title">No WaafiPay callback endpoint or reconciliation worker</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/server/payments.server.ts:33-190</code>, <code>waafi.server.ts</code>, <code>db/schema/payments.ts</code> (<code>callbackPayload</code>, <code>callbackReceivedAt</code>, status <code>pending_reconciliation</code>)</dd></div>
+              <div><dt>Problem</dt><dd>Payment status is decided only from the synchronous <code>API_PURCHASE</code> response. On timeout the row is left <code>pending_reconciliation</code> and the listing stays <code>draft</code> &mdash; but there is <strong>no webhook route</strong> and <strong>no background job</strong> to poll / reconcile. A seller can be debited while the listing never activates, recoverable only by a human.</dd></div>
+              <div><dt>Fix</dt><dd>Authenticated Waafi callback route that verifies the provider signature and transitions payment + listing atomically; a scheduled reconciliation job for stale <code>processing</code> / <code>pending_reconciliation</code> rows.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">BE-3</span>
+              <h3 class="finding__title">Inconsistent auth / error handling across server functions</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd>throughout <code>app/server/*.functions.ts</code> &mdash; bare <code>throw new Error("Unauthorized")</code> vs <code>CelisError</code> (<code>app/lib/errors.ts</code>, used only in <code>*.server.ts</code>); clients string-match messages</dd></div>
+              <div><dt>Problem</dt><dd>No consistent HTTP status mapping; <code>CelisError.status</code> never reaches the client; the UI branches on English strings. <code>fetchCurrentUserPermissions</code> returns <code>[]</code> on no-user while others throw. The shared <code>phoneSchema</code> is not reused in the profile-update path.</dd></div>
+              <div><dt>Fix</dt><dd>A thin <code>createServerFn</code> wrapper requiring auth / permission and serialising <code>CelisError</code> &rarr; <code>{ code, message, status }</code>, used everywhere; client branches on <code>code</code>. Reuse <code>phoneSchema</code> in every phone path.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">BE-5</span>
+              <h3 class="finding__title">Notification worker is not HA / crash-safe</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>scripts/process-notification-jobs.ts:135-167</code></dd></div>
+              <div><dt>Problem</dt><dd><code>SELECT &hellip; WHERE status='pending' &hellip; LIMIT 20</code> then <code>UPDATE &hellip; IN (ids)</code> is a race &mdash; two workers claim the same jobs. A crash mid-batch leaves jobs stuck in <code>processing</code> forever (no reclaim). No retry / backoff. Invalid-token cleanup does <code>update &hellip; eq('fcm_token', token)</code>, nulling the token for every profile sharing that value.</dd></div>
+              <div><dt>Fix</dt><dd>Claim with <code>UPDATE &hellip; WHERE id IN (SELECT id &hellip; FOR UPDATE SKIP LOCKED) RETURNING *</code>; add <code>attempts</code>, <code>next_attempt_at</code>, and a stale-<code>processing</code> reclaim; clear tokens by <code>id</code>.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="low">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">BE-4</span>
+              <h3 class="finding__title">Large files and triplicated config defaults</h3>
+              <span class="chip chip--low">Low</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>admin.server.ts</code> (1,949 lines), <code>listings.server.ts</code> (835), <code>routes/admin/settings.tsx</code> (1,051), <code>admin/categories.tsx</code> (963); defaults defined in <code>admin.server.ts</code> <code>CONFIG_DEFAULTS</code>, <code>config.server.ts</code> <code>DEFAULTS</code>, and <code>lib/pricing.ts</code> <code>DEFAULT_LISTING_TIERS</code></dd></div>
+              <div><dt>Problem</dt><dd>AGENTS.md flags these sizes as unacceptable for new work; the triplicated fee / commission defaults will diverge.</dd></div>
+              <div><dt>Fix</dt><dd>Split per AGENTS.md (shell / query / mutation / table / dialog); one source of truth for platform-config defaults.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <div class="prose"><p style="font-size:.86rem;">Working well: clean <code>*.server</code> / <code>*.functions</code> split, Zod on inputs, permission checks on the admin surface, transactions on the sensitive multi-writes (role perms, gateway save, category delete), audit logging, encrypted gateway credentials, server-side pricing, payment idempotency + reconciliation states, financial snapshotting at order creation.</p></div>
+
+      </div>
+    </section>
+
+    <!-- ============ UI/UX ============ -->
+    <section id="uiux">
+      <header class="cat">
+        <div><span class="eyebrow">Category</span><h2 class="sec">UI / UX</h2></div>
+        <div class="cat__score">
+          <span class="cat__num">66<small>/100</small></span>
+          <span class="meter"><span class="meter__fill" data-band="medium" style="--score:66;"></span></span>
+        </div>
+        <p class="cat__tally">3 medium &middot; 2 low</p>
+      </header>
+      <div class="findings">
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">UX-1</span>
+              <h3 class="finding__title">Native <code>confirm()</code> / <code>alert()</code> for destructive seller actions</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>routes/dashboard.tsx:110,120,143</code> and <code>routes/listings.$id.tsx:148,167,177</code></dd></div>
+              <div><dt>Problem</dt><dd>The design system ships <code>components/admin/confirm-dialog.tsx</code> and AGENTS.md requires confirmation UI for listing state changes, but seller flows use browser <code>confirm/alert</code> &mdash; unstyled, inaccessible, blocked in some embedded contexts.</dd></div>
+              <div><dt>Fix</dt><dd>Use <code>ConfirmDialog</code> for every destructive seller action; add a shared toast for success / error instead of <code>alert</code>.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">UX-2</span>
+              <h3 class="finding__title">No global feedback / toast system; ad-hoc error surfacing</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd>across routes; some swallow errors (<code>listings.$id.tsx:367</code> <code>catch {}</code> on tracking)</dd></div>
+              <div><dt>Problem</dt><dd>Each component invents its own error / success state; inconsistent placement, no <code>aria-live</code>, mutation failures sometimes vanish.</dd></div>
+              <div><dt>Fix</dt><dd>One toast provider; a <code>useMutationWithToast</code> pattern; error text in an <code>aria-live="polite"</code> region.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">UX-3</span>
+              <h3 class="finding__title">Accessibility gaps in forms</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>components/listings/listing-wizard.tsx</code>, auth pages, <code>image-uploader.tsx</code></dd></div>
+              <div><dt>Problem</dt><dd>Field errors are loose <code>&lt;p&gt;</code> with no <code>aria-describedby</code> / <code>aria-invalid</code>; the wizard has no error summary and no focus management on step change; upload progress isn&rsquo;t announced; custom <code>Combobox</code> ARIA unverified; no skip link; <code>formatRelativeDate</code> is day-granularity only.</dd></div>
+              <div><dt>Fix</dt><dd>Wire <code>aria-invalid</code> / <code>aria-describedby</code>; error summary with focus; move focus to the step heading; <code>aria-live</code> for upload status; audit <code>Combobox</code> against APG; add a skip link; multi-unit relative dates.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="low">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">UX-4</span>
+              <h3 class="finding__title">Redundant discovery surfaces &amp; overlapping review systems</h3>
+              <span class="chip chip--low">Low</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>routes/index.tsx</code>, <code>browse.tsx</code>, <code>search.tsx</code> (three near-duplicate browse pages); <code>reviews</code> vs <code>listing_reviews</code> vs <code>seller_reviews</code>; <code>listings.server.ts:797-835</code></dd></div>
+              <div><dt>Problem</dt><dd>Confusing IA. Three rating models, only <code>listing_reviews</code> wired in web; any signed-in user can review any active listing with no purchase / interaction &mdash; weak review integrity on a &ldquo;trust is the product&rdquo; marketplace.</dd></div>
+              <div><dt>Fix</dt><dd>Collapse <code>/browse</code> into <code>/search</code>; pick one review model; gate reviews behind a completed interaction or order.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="low">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">UX-5</span>
+              <h3 class="finding__title">Missing loading states for client-fetched sections</h3>
+              <span class="chip chip--low">Low</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>components/notifications/notification-bell.tsx</code> (no skeleton, 60&nbsp;s poll), <code>listing-wizard.tsx</code> (eligibility / subscription in <code>useEffect</code>), <code>dashboard.tsx</code> subscription card</dd></div>
+              <div><dt>Problem</dt><dd>Fetched in <code>useEffect</code> with no pending UI though the app already has <code>Skeleton</code>.</dd></div>
+              <div><dt>Fix</dt><dd>Move into loaders or React Query with <code>Suspense</code> / skeletons.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <div class="prose"><p style="font-size:.86rem;">Working well: coherent design system (Radix + Tailwind tokens), reusable admin table / badge / confirm / pagination, route pending skeletons, empty states, permission-gated nav, responsive admin shell with mobile nav, SSR meta / OG tags, a step-validated listing wizard.</p></div>
+
+      </div>
+    </section>
+
+    <!-- ============ PERFORMANCE ============ -->
+    <section id="performance">
+      <header class="cat">
+        <div><span class="eyebrow">Category</span><h2 class="sec">Performance</h2></div>
+        <div class="cat__score">
+          <span class="cat__num">52<small>/100</small></span>
+          <span class="meter"><span class="meter__fill" data-band="high" style="--score:52;"></span></span>
+        </div>
+        <p class="cat__tally">1 high &middot; 2 medium &middot; 1 low</p>
+      </header>
+      <div class="findings">
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PERF-1</span>
+              <h3 class="finding__title">Marketplace search cannot scale</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/server/listings.server.ts:408-483</code></dd></div>
+              <div><dt>Problem</dt><dd><code>title/description ILIKE '%q%'</code> (leading wildcard, seq scan), <code>metadata ->> key = value</code> with no usable index, then a <strong>second full query</strong> for the total count with the same joins. Every search is O(all active listings) twice.</dd></div>
+              <div><dt>Fix</dt><dd>FTS or <code>pg_trgm</code> (see DB-4); <code>count(*) OVER()</code> or an approximate count; cache category counts and price range.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PERF-2</span>
+              <h3 class="finding__title">In-memory pagination of the financial ledger</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>admin.server.ts:1459-1563</code> (<code>getAdminLedgerRows</code> loads all matching <code>wallet_payments</code> + <code>payouts</code>, concatenates, sorts and <code>.slice()</code>s in JS); exports hard-code <code>limit: 10_000</code></dd></div>
+              <div><dt>Problem</dt><dd>Unbounded memory and DB transfer as volume grows; violates AGENTS.md &ldquo;admin tables must paginate on the server.&rdquo;</dd></div>
+              <div><dt>Fix</dt><dd>Push pagination / sort into SQL (a <code>UNION ALL</code> view or two keyset-paginated queries merged); stream CSV exports.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PERF-3</span>
+              <h3 class="finding__title">Public pages: serial multi-fetch, no HTTP caching</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>routes/index.tsx:45-53</code> (4 server fns), <code>search.tsx:37-55</code> (2), <code>listings.$id.tsx:54-72</code> (5), <code>admin.tsx:25-33</code> (+ root <code>beforeLoad</code>)</dd></div>
+              <div><dt>Problem</dt><dd>Each <code>createServerFn</code> is a separate request / DB round-trip; landing and detail fan out 4&ndash;5. No <code>Cache-Control</code> on public GETs. Admin navigation costs 2&ndash;3 auth / permission round-trips.</dd></div>
+              <div><dt>Fix</dt><dd>Combine per-page reads into one server function; short <code>s-maxage</code> / <code>stale-while-revalidate</code> on public GETs; memoise current user + permissions per request.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="low">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PERF-4</span>
+              <h3 class="finding__title">Dashboard aggregates on every load</h3>
+              <span class="chip chip--low">Low</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>admin.server.ts:82-104</code> (one large CTE &mdash; acceptable), <code>:189-250</code> (3 top-10 joined queries per dashboard load)</dd></div>
+              <div><dt>Problem</dt><dd>Fine now; revisit with a materialised view or cached snapshot as data grows.</dd></div>
+              <div><dt>Fix</dt><dd>Cache recent-activity; keep the CTE.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <div class="prose"><p style="font-size:.86rem;">Working well: composite indexes on listing / order hot paths, server-side pagination throughout the admin, lazy admin tabs, image render-URL optimization, React Query caching, a pooled non-prepared <code>postgres-js</code> client.</p></div>
+
+      </div>
+    </section>
+
+    <!-- ============ TESTING ============ -->
+    <section id="testing">
+      <header class="cat">
+        <div><span class="eyebrow">Category</span><h2 class="sec">Testing</h2></div>
+        <div class="cat__score">
+          <span class="cat__num">8<small>/100</small></span>
+          <span class="meter"><span class="meter__fill" data-band="critical" style="--score:8;"></span></span>
+        </div>
+        <p class="cat__tally">1 high &middot; 1 medium</p>
+      </header>
+      <div class="findings">
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">TEST-1</span>
+              <h3 class="finding__title">Effectively no automated test coverage</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>tests/</code> &mdash; <code>waafi.test.ts</code> (5 pure-function assertions) and <code>mobile-account-privacy.test.ts</code> (string-matches a migration file and an HTML file). <code>pnpm test</code> passes 8/8.</dd></div>
+              <div><dt>Problem</dt><dd>No tests for auth / RBAC, server functions, listing lifecycle, pricing / fee calc, payment initiation / idempotency / reconciliation, migrations, or RLS. For a platform that moves money and enforces permissions this is the single biggest risk multiplier &mdash; every finding above is un-regression-guarded.</dd></div>
+              <div><dt>Fix</dt><dd>Integration harness (ephemeral Postgres + seeded RBAC). Priority suites: permission enforcement on every admin server fn; pricing tier boundaries; <code>initiateWalletPayment</code> idempotency &amp; reconciliation states; listing state machine; RLS allow / deny per policy; the post-fix password-reset flow.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">TEST-2</span>
+              <h3 class="finding__title">Lint not installed; no CI</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>package.json</code> (<code>"lint": "eslint ."</code> but no <code>eslint</code> dependency, no config, no binary); no <code>.github/workflows</code></dd></div>
+              <div><dt>Problem</dt><dd><code>pnpm lint</code> fails immediately; AGENTS.md assumes it works. Nothing runs <code>typecheck</code> / <code>test</code> / <code>build</code> on push.</dd></div>
+              <div><dt>Fix</dt><dd>Add ESLint (typescript-eslint, react-hooks, jsx-a11y) + config; a CI pipeline running <code>typecheck</code>, <code>lint</code>, <code>test</code>, <code>build</code>, and a Drizzle drift check on every PR.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ============ PROD ============ -->
+    <section id="prod">
+      <header class="cat">
+        <div><span class="eyebrow">Category</span><h2 class="sec">Production readiness</h2></div>
+        <div class="cat__score">
+          <span class="cat__num">28<small>/100</small></span>
+          <span class="meter"><span class="meter__fill" data-band="critical" style="--score:28;"></span></span>
+        </div>
+        <p class="cat__tally">2 high &middot; 3 medium &middot; 1 low</p>
+      </header>
+      <div class="findings">
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PROD-1</span>
+              <h3 class="finding__title">No migration step in the deployment</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>Dockerfile</code> (build &rarr; <code>pnpm start</code>), <code>nixpacks.toml</code> (<code>pnpm install &amp;&amp; pnpm build</code> &rarr; <code>pnpm start</code>)</dd></div>
+              <div><dt>Problem</dt><dd>Neither runs <code>drizzle-kit migrate</code> (also unreliable &mdash; see DB-3). Schema changes are applied by hand out of band &mdash; exactly how the journal desynced.</dd></div>
+              <div><dt>Fix</dt><dd>After DB-3 is reconciled, add a gated migration step (separate job / release phase, not in web-container start) with a documented rollback.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="high">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PROD-2</span>
+              <h3 class="finding__title">No monitoring, error tracking, or health check</h3>
+              <span class="chip chip--high">High</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd>whole repo &mdash; logging is <code>console.info/error</code> with prefixes; no Sentry / OTel; no <code>/healthz</code>; no alerting</dd></div>
+              <div><dt>Problem</dt><dd>In production you would be blind to the payment reconciliation gap (BE-2), notification-worker stalls (BE-5), 5xx spikes, or DB saturation.</dd></div>
+              <div><dt>Fix</dt><dd>Error tracking with release tagging; structured JSON logs; a health endpoint; alerts on payment failures / stuck <code>processing</code> jobs / worker liveness.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PROD-3</span>
+              <h3 class="finding__title">Backups / DR / key rotation undocumented</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>docs/operations/runbook.md</code> (local dev only)</dd></div>
+              <div><dt>Problem</dt><dd>No documented backup cadence, PITR settings, restore drill, or <code>PAYMENT_CREDENTIALS_ENCRYPTION_KEY</code> rotation procedure (docs note re-encryption is needed but give no steps).</dd></div>
+              <div><dt>Fix</dt><dd>Document Supabase PITR / backup policy + a tested restore; write a key-rotation runbook (dual-read old / new key, re-encrypt <code>payment_gateways</code>, cut over).</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PROD-4</span>
+              <h3 class="finding__title">Dual lockfiles</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>pnpm-lock.yaml</code> and <code>package-lock.json</code> both committed; <code>packageManager: pnpm@9.11.0</code>; Dockerfile uses <code>--frozen-lockfile</code>, nixpacks uses bare <code>pnpm install</code></dd></div>
+              <div><dt>Problem</dt><dd>Non-deterministic installs depending on tool; nixpacks&rsquo; bare install can mutate the lockfile during a deploy build.</dd></div>
+              <div><dt>Fix</dt><dd>Delete <code>package-lock.json</code>; commit to pnpm; <code>--frozen-lockfile</code> everywhere.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="medium">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PROD-5</span>
+              <h3 class="finding__title">Env schema incomplete; <code>NODE_ENV</code> drives behaviour</h3>
+              <span class="chip chip--medium">Medium</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd><code>app/lib/env.ts</code> (validates 9 vars) vs used-but-unvalidated <code>DATABASE_POOL_SIZE</code>, <code>DIRECT_URL</code>, <code>PAYMENT_CREDENTIALS_ENCRYPTION_KEY</code>, <code>APP_URL</code>, <code>VITE_SUPABASE_*</code>; <code>db/index.ts:12</code> and <code>routes/__root.tsx:95</code> gate logging / devtools on <code>NODE_ENV</code></dd></div>
+              <div><dt>Problem</dt><dd>A missing / short <code>PAYMENT_CREDENTIALS_ENCRYPTION_KEY</code> only fails at first gateway use. A wrong <code>NODE_ENV</code> in prod enables query logging and dev tools.</dd></div>
+              <div><dt>Fix</dt><dd>Add every required var to the Zod schema (incl. <code>min(32)</code> on the key) and fail fast at boot; assert <code>NODE_ENV=production</code> in prod.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="finding" data-sev="low">
+          <div class="finding__stripe"></div>
+          <div class="finding__body">
+            <div class="finding__head">
+              <span class="finding__id">PROD-6</span>
+              <h3 class="finding__title">Repo hygiene</h3>
+              <span class="chip chip--low">Low</span>
+            </div>
+            <dl>
+              <div><dt>Location</dt><dd>committed binaries / large docs (<code>System Review &amp; Change Request.pdf</code> 745&nbsp;KB, PRD 356&nbsp;KB, design system 295&nbsp;KB, state-machine PNG 122&nbsp;KB); <code>package.json</code> <code>version: 0.1.0</code> vs <code>CHANGELOG.md</code> at <code>v1.4.0</code></dd></div>
+              <div><dt>Problem</dt><dd>Large sources bloat the repo; version does not track the changelog / builds.</dd></div>
+              <div><dt>Fix</dt><dd>Move large docs to Git LFS / an asset store; sync <code>package.json</code> with the changelog and stamp it into builds / error reports.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <div class="prose"><p style="font-size:.86rem;">Working well: Dockerfile + nixpacks, partial env-schema validation, prefixed console logging, changelog discipline, docs, audit log, encrypted credentials, payment reconciliation states.</p></div>
+
+      </div>
+    </section>
+
+    <!-- ============ PLAN ============ -->
+    <section id="plan" class="prose">
+      <h2 class="sec">Remediation plan</h2>
+      <p>Ordered from ship-blockers to cleanup. Phases are a real sequence &mdash; Phase&nbsp;0 gates any deployment; later phases can overlap once it clears. References point at the finding IDs above.</p>
+
+      <div class="phase">
+        <div class="phase__head">
+          <span class="phase__tag">PHASE 0</span>
+          <h3 class="phase__title">Critical blockers &mdash; before any deployment</h3>
+          <span class="phase__when">~1 week</span>
+        </div>
+        <ol>
+          <li><b>Rebuild password reset</b> <span class="ref">SEC-1</span> &mdash; email-only token delivery, hashed + single-use + short TTL, generic responses, token out of the URL, rate-limited; add a regression test.</li>
+          <li><b>Remove hardcoded admin credentials</b> <span class="ref">SEC-2</span> &mdash; env-driven or invite-based; rotate any existing <code>admin@celis.so</code>.</li>
+          <li><b>Authenticate the storage upload URL</b> <span class="ref">SEC-3</span> &mdash; require a session, force <code>sellerId = session user</code>, assert seller role, move bucket provisioning out of the request path.</li>
+          <li><b>Stop trusting client <code>sellerId</code> / <code>listingId</code></b> <span class="ref">SEC-4</span> &mdash; in <code>createListing</code>, <code>submitShopListing</code>, <code>fetchSellerListingEligibility</code>; add ownership checks to all listing mutations.</li>
+          <li><b>Add auth rate limiting + email verification</b> <span class="ref">SEC-5</span> &mdash; sign-in / sign-up / password-reset.</li>
+        </ol>
+      </div>
+
+      <div class="phase">
+        <div class="phase__head">
+          <span class="phase__tag">PHASE 1</span>
+          <h3 class="phase__title">High-severity correctness &amp; integrity</h3>
+          <span class="phase__when">~2&ndash;3 weeks</span>
+        </div>
+        <ol>
+          <li><b>Reconcile migrations &amp; add a deploy step</b> <span class="ref">DB-3 / PROD-1</span> &mdash; absorb hand-written migrations into the journal, renumber duplicates, model every live table, add a drift check, gate a migration step in deploy.</li>
+          <li><b>Unify the identity model</b> <span class="ref">DB-1</span> &mdash; move off the <code>public."auth.users"</code> mirror to the real <code>auth.users</code>; create profiles via an auth trigger.</li>
+          <li><b>Protect financial history</b> <span class="ref">DB-2</span> &mdash; change financial FKs to <code>RESTRICT</code> / <code>SET NULL</code>; design account deletion as anonymisation.</li>
+          <li><b>Close the payment loop</b> <span class="ref">BE-2</span> &mdash; a signed WaafiPay callback route + a scheduled reconciliation job.</li>
+          <li><b>Harden the remaining exposure</b> <span class="ref">SEC-6 / SEC-7 / SEC-8 / SEC-10</span> &mdash; escape JSON-LD; enforce visibility + strip <code>sellerPhone</code> in <code>getListingById</code>; neutralise CSV formulas; record IP / UA / request-id in audit logs.</li>
+          <li><b>Stand up the test harness</b> <span class="ref">TEST-1</span> &mdash; ephemeral Postgres + seeded RBAC; first suites: admin RBAC, pricing boundaries, payment idempotency / reconciliation, listing state machine.</li>
+          <li><b>Add observability</b> <span class="ref">PROD-2</span> &mdash; error tracking, health endpoint, structured logs, alerts on payment failures / worker liveness.</li>
+          <li><b>Decide the transactional scope</b> <span class="ref">BE-1</span> &mdash; build the order / payout lifecycle, or remove the dead admin surfaces + schema and document the classifieds model.</li>
+        </ol>
+      </div>
+
+      <div class="phase">
+        <div class="phase__head">
+          <span class="phase__tag">PHASE 2</span>
+          <h3 class="phase__title">Medium &mdash; parallelizable</h3>
+          <span class="phase__when">~2&ndash;4 weeks</span>
+        </div>
+        <ol>
+          <li><b>Real search</b> <span class="ref">PERF-1 / DB-4</span> &mdash; FTS or <code>pg_trgm</code> GIN, fix the double count, GIN on <code>metadata</code>, drop <code>search_vector</code>.</li>
+          <li><b>Server-side ledger pagination + streamed exports</b> <span class="ref">PERF-2</span>.</li>
+          <li><b>HA notification worker</b> <span class="ref">BE-5</span> &mdash; <code>FOR UPDATE SKIP LOCKED</code>, attempts / backoff, stale-job reclaim, clear tokens by id.</li>
+          <li><b>Central auth / error wrapper</b> <span class="ref">BE-3</span> &mdash; <code>CelisError</code> serialization, code-based client branching, reuse <code>phoneSchema</code>.</li>
+          <li><b>Harden definer functions</b> <span class="ref">SEC-11</span> &mdash; <code>SET search_path = ''</code> + schema-qualification; stop returning <code>SQLERRM</code>.</li>
+          <li><b>Verify RLS on the real project</b> <span class="ref">DB-5</span> &mdash; run the security advisor to zero; add allow / deny tests.</li>
+          <li><b>Feedback &amp; a11y</b> <span class="ref">UX-1 / UX-2 / UX-3</span> &mdash; <code>ConfirmDialog</code>, a toast system, form ARIA wiring.</li>
+          <li><b>Tooling &amp; env</b> <span class="ref">TEST-2 / PROD-4 / PROD-5</span> &mdash; ESLint + CI, drop <code>package-lock.json</code>, complete the env schema and fail fast.</li>
+          <li><b>Idempotency table</b> <span class="ref">DB-6</span>; <b>backup / key-rotation runbooks</b> <span class="ref">PROD-3</span>; <b>redirect validation + Firebase creds + secrets manager</b> <span class="ref">SEC-9 / SEC-12</span>.</li>
+        </ol>
+      </div>
+
+      <div class="phase">
+        <div class="phase__head">
+          <span class="phase__tag">PHASE 3</span>
+          <h3 class="phase__title">Low &mdash; cleanup</h3>
+          <span class="phase__when">ongoing</span>
+        </div>
+        <ol>
+          <li><b>Split the 1,000&ndash;1,900-line files</b> <span class="ref">BE-4</span>; one source of truth for config defaults.</li>
+          <li><b>Schema modelling</b> <span class="ref">DB-7</span> &mdash; <code>numeric</code> / PostGIS coordinates, store storage paths, storage cleanup on delete, <code>categories.is_active</code>.</li>
+          <li><b>IA &amp; loading states</b> <span class="ref">UX-4 / UX-5</span> &mdash; collapse <code>/browse</code>, pick one review model gated behind interactions, move client fetches into loaders / Suspense.</li>
+          <li><b>Page performance</b> <span class="ref">PERF-3 / PERF-4</span> &mdash; combine per-page fetches, <code>Cache-Control</code> on public GETs, memoise current user per request.</li>
+          <li><b>Repo hygiene</b> <span class="ref">PROD-6</span> &mdash; large docs to LFS, sync <code>package.json</code> version with the changelog.</li>
+        </ol>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<footer class="foot">
+  Celis production-readiness review &middot; source-only audit, 2 September 2026 &middot; 41 findings &middot; overall 34 / 100, Not Ready. Database findings are drawn from migration and schema source; the live database, RLS runtime state, and Supabase advisors were not accessible in this session.
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.querySelector("[data-toggle-theme]");
+    var label = document.querySelector("[data-toggle-label]");
+    function stored() { try { return localStorage.getItem("celis-audit-theme"); } catch (e) { return null; } }
+    function systemDark() { return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches; }
+    function current() {
+      var t = root.getAttribute("data-theme");
+      if (t === "dark" || t === "light") return t;
+      return systemDark() ? "dark" : "light";
+    }
+    function apply(t) {
+      root.setAttribute("data-theme", t);
+      if (label) label.textContent = t === "dark" ? "Light" : "Dark";
+    }
+    var s = stored();
+    if (s === "dark" || s === "light") apply(s);
+    else if (label) label.textContent = current() === "dark" ? "Light" : "Dark";
+    if (btn) btn.addEventListener("click", function () {
+      var next = current() === "dark" ? "light" : "dark";
+      apply(next);
+      try { localStorage.setItem("celis-audit-theme", next); } catch (e) {}
+    });
+  })();
+</script>
+</body>
+</html>
