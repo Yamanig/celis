@@ -106,9 +106,22 @@ Key files:
 Rules:
 
 - Package changes can affect seller access and marketplace revenue.
-- Package create/update/delete actions require confirmation.
+- Package create/update/status/archive/delete actions require confirmation.
 - Keep pricing and package display consistent across seller and admin surfaces.
 - Document plan/package behavior changes.
+- `listing_packages.is_active` is the enable flag and the archive flag.
+  Inactive packages are excluded from `listListingPackages` (seller purchase)
+  and rejected by `assignSellerPackage` (admin assignment).
+- Deactivating or archiving a package cancels live `seller_subscriptions`
+  (status `cancelled`); subscription rows are never deleted so history and
+  financial records stay intact.
+- `deleteListingPackage` hard-deletes only when no `seller_subscriptions`
+  row (active or historical) references the package; otherwise it throws and
+  records a `package_delete_blocked` audit event. Referenced packages must be
+  archived instead.
+- Package `package_created`, `package_updated`, `package_status_changed`,
+  `package_archived`, `package_deleted`, and `package_delete_blocked` events
+  are written to `audit_logs` with the actor, timestamp, and old → new values.
 
 ## Moderation, RBAC & Audit
 

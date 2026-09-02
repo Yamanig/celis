@@ -14,6 +14,18 @@
   now audits `category_status_changed` and `reorderCategory` audits
   `category_reordered`, both with old → new context. The expanded selection is
   preserved across all related actions.
+- Admin Packages: Archive (soft-delete) and Delete row actions, both behind a
+  confirm dialog that names the package. Delete is a hard delete only when no
+  `seller_subscriptions` row references the package; referenced packages are
+  blocked and the attempt is audited. Create/edit/status/archive/delete now
+  write `audit_logs` events with the actor, timestamp, and old → new values.
+
+### Fixed
+
+- Admin Packages: the edit-dialog Active switch is now driven by freshly
+  loaded data instead of a stale snapshot, routes through a confirmation, and
+  reports success/failure. Required-field validation now surfaces on save.
+  Mutating actions are gated on the `settings:manage` permission in the UI.
 
 ## [v1.4.0] - 2026-08-30
 

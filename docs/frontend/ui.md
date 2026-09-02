@@ -89,3 +89,8 @@ Rules:
   an activate/deactivate switch and up/down reorder controls; deactivating a
   category that still has listings or children first asks for confirmation.
   Related actions only re-run the loader, so the expanded selection is kept.
+- Admin package management (`/admin/packages`) gates create/edit/archive/delete
+  on `settings:manage`. The Active switch is driven by freshly loaded data (not
+  a stale dialog snapshot); turning it off, plus Archive and Delete, open a
+  confirm dialog that names the package. Delete is blocked server-side for
+  packages referenced by any subscription — archive instead.

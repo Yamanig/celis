@@ -663,6 +663,24 @@ export const updateAdminListingPackage = createServerFn({ method: "POST" })
     return updateListingPackage(id, input);
   });
 
+const listingPackageIdSchema = z.object({ id: z.string().uuid() });
+
+export const archiveAdminListingPackage = createServerFn({ method: "POST" })
+  .validator(listingPackageIdSchema)
+  .handler(async ({ data }) => {
+    await requirePermission("settings:manage");
+    const { archiveListingPackage } = await import("./seller-packages.server");
+    return archiveListingPackage(data.id);
+  });
+
+export const deleteAdminListingPackage = createServerFn({ method: "POST" })
+  .validator(listingPackageIdSchema)
+  .handler(async ({ data }) => {
+    await requirePermission("settings:manage");
+    const { deleteListingPackage } = await import("./seller-packages.server");
+    return deleteListingPackage(data.id);
+  });
+
 const sellerNumberSchema = z.object({ sellerNumber: z.string().min(1).max(20) });
 
 export const fetchSellerByNumber = createServerFn({ method: "GET" })

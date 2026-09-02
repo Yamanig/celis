@@ -1,6 +1,9 @@
 import { db } from "~/db";
 import { profiles, users, listings, listingPackages, sellerSubscriptions } from "~/db/schema";
 import { eq, and, or, gte, lte, count, desc, isNull } from "drizzle-orm";
+import { insertAuditLog } from "./audit.server";
+
+const PACKAGE_RESOURCE = "listing_package";
 
 function randomSellerNumber() {
   // 8-digit number, padded with leading zeros.
@@ -264,6 +267,23 @@ export async function createListingPackage(input: {
       gracePeriodDays: input.gracePeriodDays,
     })
     .returning();
+
+  await insertAuditLog({
+    action: "package_created",
+    resourceType: PACKAGE_RESOURCE,
+    resourceId: pkg.id,
+    metadata: {
+      name: pkg.name,
+      code: pkg.code,
+      price: pkg.price,
+      currency: pkg.currency,
+      listingAllowance: pkg.listingAllowance,
+      isUnlimited: pkg.isUnlimited,
+      durationDays: pkg.durationDays,
+      isActive: pkg.isActive,
+    },
+  });
+
   return pkg;
 }
 
@@ -285,6 +305,13 @@ export async function updateListingPackage(
     isActive: boolean;
   }>
 ) {
+  const [existing] = await db
+    .select()
+    .from(listingPackages)
+    .where(eq(listingPackages.id, id))
+    .limit(1);
+  if (!existing) throw new Error("Package not found");
+
   const [pkg] = await db
     .update(listingPackages)
     .set({ ...input, updatedAt: new Date() })
@@ -292,8 +319,11 @@ export async function updateListingPackage(
     .returning();
 
   // Deactivating a package should revoke access for sellers currently on it.
+  // Subscription rows are retained (status set to cancelled) so historical and
+  // financial records stay intact.
+  let cancelledSubscriptions = 0;
   if (pkg && input.isActive === false) {
-    await db
+    const cancelled = await db
       .update(sellerSubscriptions)
       .set({ status: "cancelled", updatedAt: new Date() })
       .where(
@@ -301,10 +331,163 @@ export async function updateListingPackage(
           eq(sellerSubscriptions.packageId, id),
           eq(sellerSubscriptions.status, "active")
         )
-      );
+      )
+      .returning({ id: sellerSubscriptions.id });
+    cancelledSubscriptions = cancelled.length;
+  }
+
+  // Record field edits (old -> new), kept separate from status changes.
+  const editableKeys = [
+    "code",
+    "name",
+    "description",
+    "sellerTypeEligibility",
+    "listingAllowance",
+    "isUnlimited",
+    "featuredAllowance",
+    "durationDays",
+    "price",
+    "currency",
+    "autoRenew",
+    "gracePeriodDays",
+  ] as const;
+  const changes: Record<string, string> = {};
+  for (const key of editableKeys) {
+    const next = (input as Record<string, unknown>)[key];
+    const prev = (existing as Record<string, unknown>)[key];
+    if (next !== undefined && next !== prev) {
+      changes[key] = `${prev ?? ""} → ${next ?? ""}`;
+    }
+  }
+  if (Object.keys(changes).length > 0) {
+    await insertAuditLog({
+      action: "package_updated",
+      resourceType: PACKAGE_RESOURCE,
+      resourceId: id,
+      metadata: { name: pkg?.name ?? existing.name, ...changes },
+    });
+  }
+
+  if (
+    pkg &&
+    input.isActive !== undefined &&
+    input.isActive !== existing.isActive
+  ) {
+    await insertAuditLog({
+      action: "package_status_changed",
+      resourceType: PACKAGE_RESOURCE,
+      resourceId: id,
+      metadata: {
+        name: pkg.name,
+        previousStatus: existing.isActive ? "active" : "inactive",
+        status: input.isActive ? "active" : "inactive",
+        cancelledSubscriptions,
+      },
+    });
   }
 
   return pkg;
+}
+
+/**
+ * Soft-delete: keep the row and all subscription history, flip it inactive, and
+ * cancel any live subscriptions. Always safe to call.
+ */
+export async function archiveListingPackage(id: string) {
+  const [existing] = await db
+    .select()
+    .from(listingPackages)
+    .where(eq(listingPackages.id, id))
+    .limit(1);
+  if (!existing) throw new Error("Package not found");
+
+  if (!existing.isActive) return existing;
+
+  const [pkg] = await db
+    .update(listingPackages)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(eq(listingPackages.id, id))
+    .returning();
+
+  const cancelled = await db
+    .update(sellerSubscriptions)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(
+      and(
+        eq(sellerSubscriptions.packageId, id),
+        eq(sellerSubscriptions.status, "active")
+      )
+    )
+    .returning({ id: sellerSubscriptions.id });
+
+  await insertAuditLog({
+    action: "package_archived",
+    resourceType: PACKAGE_RESOURCE,
+    resourceId: id,
+    metadata: {
+      name: pkg.name,
+      code: pkg.code,
+      previousStatus: "active",
+      status: "inactive",
+      cancelledSubscriptions: cancelled.length,
+    },
+  });
+
+  return pkg;
+}
+
+/**
+ * Hard-delete, permitted only when nothing references the package. Any
+ * subscription reference (active or historical) blocks the delete and records
+ * the attempt; callers should archive instead.
+ */
+export async function deleteListingPackage(id: string) {
+  const [existing] = await db
+    .select()
+    .from(listingPackages)
+    .where(eq(listingPackages.id, id))
+    .limit(1);
+  if (!existing) throw new Error("Package not found");
+
+  const [{ value: references }] = await db
+    .select({ value: count() })
+    .from(sellerSubscriptions)
+    .where(eq(sellerSubscriptions.packageId, id));
+  const referenceCount = Number(references);
+
+  if (referenceCount > 0) {
+    await insertAuditLog({
+      action: "package_delete_blocked",
+      resourceType: PACKAGE_RESOURCE,
+      resourceId: id,
+      metadata: {
+        name: existing.name,
+        code: existing.code,
+        referencedBy: referenceCount,
+      },
+    });
+    throw new Error(
+      `"${existing.name}" is referenced by ${referenceCount} subscription${
+        referenceCount === 1 ? "" : "s"
+      } and cannot be permanently deleted. Archive it instead to preserve history.`
+    );
+  }
+
+  await db.delete(listingPackages).where(eq(listingPackages.id, id));
+
+  await insertAuditLog({
+    action: "package_deleted",
+    resourceType: PACKAGE_RESOURCE,
+    resourceId: id,
+    metadata: {
+      name: existing.name,
+      code: existing.code,
+      price: existing.price,
+      currency: existing.currency,
+    },
+  });
+
+  return { success: true as const };
 }
 
 export async function getSellerSubscriptions(sellerId: string) {

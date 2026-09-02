@@ -23,13 +23,17 @@ import {
 } from "~/components/ui/select";
 import { PageHeader } from "~/components/admin/page-header";
 import { AdminTable } from "~/components/admin/admin-table";
+import { ConfirmDialog } from "~/components/admin/confirm-dialog";
 import {
   fetchAdminListingPackages,
   createAdminListingPackage,
   updateAdminListingPackage,
+  archiveAdminListingPackage,
+  deleteAdminListingPackage,
   assignAdminSellerPackage,
   fetchSellerByNumber,
 } from "~/server/admin.functions";
+import { fetchCurrentUserPermissions } from "~/server/auth.functions";
 import { formatPrice } from "~/lib/format";
 
 export const Route = createFileRoute("/admin/packages")({
@@ -42,7 +46,13 @@ export const Route = createFileRoute("/admin/packages")({
     ],
   }),
 
-  loader: async () => fetchAdminListingPackages(),
+  loader: async () => {
+    const [packages, permissions] = await Promise.all([
+      fetchAdminListingPackages(),
+      fetchCurrentUserPermissions(),
+    ]);
+    return { packages, permissions };
+  },
 });
 
 interface PackageForm {
@@ -76,12 +86,30 @@ const emptyForm: PackageForm = {
 };
 
 function AdminPackagesPage() {
-  const packages = Route.useLoaderData();
+  const { packages, permissions } = Route.useLoaderData();
+  const canManage = permissions.includes("settings:manage");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<typeof packages[number] | null>(null);
   const [form, setForm] = useState<PackageForm>(emptyForm);
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<
+    { kind: "success" | "error"; text: string } | null
+  >(null);
+  const [actionDialog, setActionDialog] = useState<{
+    open: boolean;
+    kind: "status" | "archive" | "delete";
+    pkg: typeof packages[number] | null;
+    nextActive: boolean;
+  }>({ open: false, kind: "status", pkg: null, nextActive: false });
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // The edit dialog keeps a snapshot in `editing`; read live values from the
+  // freshly loaded list so the Active switch reflects the persisted state.
+  const editingLive = editing
+    ? packages.find((p) => p.id === editing.id) ?? editing
+    : null;
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignSellerNumber, setAssignSellerNumber] = useState("");
   const [assignEmail, setAssignEmail] = useState("");
@@ -110,6 +138,7 @@ function AdminPackagesPage() {
   const reset = () => {
     setEditing(null);
     setForm(emptyForm);
+    setFormError(null);
   };
 
   const openCreate = () => {
@@ -139,8 +168,29 @@ function AdminPackagesPage() {
     setOpen(true);
   };
 
+  const validateForm = (): string | null => {
+    if (!form.name.trim()) return "Name is required.";
+    if (!form.code.trim()) return "Code is required.";
+    if (!form.isUnlimited && (!Number.isFinite(form.listingAllowance) || form.listingAllowance < 1))
+      return "Listing allowance must be at least 1 (or enable Unlimited).";
+    if (!Number.isFinite(form.durationDays) || form.durationDays < 1)
+      return "Duration must be at least 1 day.";
+    if (!Number.isFinite(form.price) || form.price < 0)
+      return "Price cannot be negative.";
+    if (form.currency.trim().length !== 3)
+      return "Currency must be a 3-letter code (e.g. USD).";
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManage) return;
+    const validationError = validateForm();
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+    setFormError(null);
     setLoading(true);
     try {
       const payload = {
@@ -158,10 +208,103 @@ function AdminPackagesPage() {
         await createAdminListingPackage({ data: payload });
       }
       await router.invalidate();
+      setFeedback({
+        kind: "success",
+        text: editing
+          ? `Saved changes to ${form.name}.`
+          : `Created package ${form.name}.`,
+      });
       setOpen(false);
       reset();
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : "Failed to save package"
+      );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyStatus = async (
+    pkg: typeof packages[number],
+    nextActive: boolean
+  ) => {
+    if (!canManage) return;
+    setActionLoading(true);
+    try {
+      await updateAdminListingPackage({
+        data: { id: pkg.id, isActive: nextActive },
+      });
+      await router.invalidate();
+      setActionDialog((prev) => ({ ...prev, open: false }));
+      setFeedback({
+        kind: "success",
+        text: `${pkg.name} is now ${nextActive ? "active" : "inactive"}.`,
+      });
+    } catch (err) {
+      setFeedback({
+        kind: "error",
+        text: err instanceof Error ? err.message : "Failed to update status",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggleActive = (
+    pkg: typeof packages[number],
+    nextActive: boolean
+  ) => {
+    if (!canManage) return;
+    if (!nextActive) {
+      // Deactivating cancels any live subscription on this package.
+      setActionDialog({
+        open: true,
+        kind: "status",
+        pkg,
+        nextActive,
+      });
+      return;
+    }
+    void applyStatus(pkg, nextActive);
+  };
+
+  const handleArchive = async (pkg: typeof packages[number]) => {
+    if (!canManage) return;
+    setActionLoading(true);
+    try {
+      await archiveAdminListingPackage({ data: { id: pkg.id } });
+      await router.invalidate();
+      setActionDialog((prev) => ({ ...prev, open: false }));
+      setFeedback({ kind: "success", text: `Archived ${pkg.name}.` });
+    } catch (err) {
+      setFeedback({
+        kind: "error",
+        text: err instanceof Error ? err.message : "Failed to archive package",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async (pkg: typeof packages[number]) => {
+    if (!canManage) return;
+    setActionLoading(true);
+    try {
+      await deleteAdminListingPackage({ data: { id: pkg.id } });
+      await router.invalidate();
+      setActionDialog((prev) => ({ ...prev, open: false }));
+      setFeedback({ kind: "success", text: `Deleted ${pkg.name}.` });
+    } catch (err) {
+      // Referenced packages are blocked server-side — surface the reason and
+      // keep the dialog closed so the admin can archive instead.
+      setActionDialog((prev) => ({ ...prev, open: false }));
+      setFeedback({
+        kind: "error",
+        text: err instanceof Error ? err.message : "Failed to delete package",
+      });
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -219,14 +362,44 @@ function AdminPackagesPage() {
         title="Listing packages"
         description="Manage packages for shop sellers"
         action={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setAssignOpen(true)}>
-              Assign to seller
-            </Button>
-            <Button onClick={openCreate}>Add package</Button>
-          </div>
+          canManage ? (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setAssignOpen(true)}>
+                Assign to seller
+              </Button>
+              <Button onClick={openCreate}>Add package</Button>
+            </div>
+          ) : undefined
         }
       />
+
+      {!canManage && (
+        <p className="rounded-md border border-celis-caution bg-celis-caution-subtle p-3 text-sm text-celis-ink">
+          Read-only: you need the “Manage settings” permission to create, edit,
+          archive, or delete packages.
+        </p>
+      )}
+
+      {feedback && (
+        <div
+          role="status"
+          className={`flex items-start justify-between gap-3 rounded-md border p-3 text-sm ${
+            feedback.kind === "success"
+              ? "border-celis-success bg-celis-success-subtle text-celis-ink"
+              : "border-celis-destructive bg-celis-destructive-subtle text-celis-ink"
+          }`}
+        >
+          <span>{feedback.text}</span>
+          <button
+            type="button"
+            className="shrink-0 text-celis-ink-secondary hover:text-celis-ink"
+            onClick={() => setFeedback(null)}
+            aria-label="Dismiss message"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <Card className="border-celis-border bg-celis-surface-base">
         <CardContent className="p-0">
@@ -303,9 +476,48 @@ function AdminPackagesPage() {
                 key: "actions",
                 header: "",
                 cell: (p) => (
-                  <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
-                    Edit
-                  </Button>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!canManage}
+                      onClick={() => openEdit(p)}
+                    >
+                      Edit
+                    </Button>
+                    {p.isActive && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!canManage}
+                        onClick={() =>
+                          setActionDialog({
+                            open: true,
+                            kind: "archive",
+                            pkg: p,
+                            nextActive: false,
+                          })
+                        }
+                      >
+                        Archive
+                      </Button>
+                    )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={!canManage}
+                      onClick={() =>
+                        setActionDialog({
+                          open: true,
+                          kind: "delete",
+                          pkg: p,
+                          nextActive: false,
+                        })
+                      }
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 ),
               },
             ]}
@@ -484,32 +696,81 @@ function AdminPackagesPage() {
                 Auto-renew
               </Label>
             </div>
-            {editing && (
+            {editing && editingLive && (
               <div className="flex items-center gap-2">
                 <Switch
                   id="package-active-toggle"
-                  checked={editing.isActive}
-                  onCheckedChange={async (checked) => {
-                    await updateAdminListingPackage({
-                      data: { id: editing.id, isActive: checked },
-                    });
-                    await router.invalidate();
-                  }}
+                  checked={editingLive.isActive}
+                  disabled={!canManage || actionLoading}
+                  onCheckedChange={(checked) =>
+                    handleToggleActive(editingLive, checked)
+                  }
                 />
-                <Label htmlFor="package-active-toggle">Active</Label>
+                <Label htmlFor="package-active-toggle">
+                  {editingLive.isActive ? "Active" : "Inactive"}
+                </Label>
               </div>
+            )}
+            {formError && (
+              <p className="rounded-md border border-celis-destructive bg-celis-destructive-subtle p-2 text-sm text-celis-ink">
+                {formError}
+              </p>
             )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" disabled={loading || !canManage}>
                 {loading ? "Saving..." : "Save"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={actionDialog.open}
+        onOpenChange={(open) =>
+          setActionDialog((prev) => ({ ...prev, open }))
+        }
+        title={
+          actionDialog.kind === "delete"
+            ? `Delete ${actionDialog.pkg?.name ?? "package"}?`
+            : actionDialog.kind === "archive"
+            ? `Archive ${actionDialog.pkg?.name ?? "package"}?`
+            : `Deactivate ${actionDialog.pkg?.name ?? "package"}?`
+        }
+        description={
+          actionDialog.kind === "delete"
+            ? `Permanently deletes "${actionDialog.pkg?.name}" (${
+                actionDialog.pkg?.code ?? "no code"
+              }). This is only allowed when no seller subscription has ever referenced it — otherwise archive it instead. This cannot be undone.`
+            : actionDialog.kind === "archive"
+            ? `Archives "${actionDialog.pkg?.name}". It stays in reports and history, disappears from new purchases and seller assignments, and any live subscription on it is cancelled.`
+            : `"${actionDialog.pkg?.name}" will be hidden from new purchases and seller assignments, and any seller currently on it loses access. Existing subscription history is kept.`
+        }
+        confirmLabel={
+          actionLoading
+            ? "Working..."
+            : actionDialog.kind === "delete"
+            ? "Delete"
+            : actionDialog.kind === "archive"
+            ? "Archive"
+            : "Deactivate"
+        }
+        destructive={actionDialog.kind !== "status"}
+        loading={actionLoading}
+        onConfirm={() => {
+          if (!actionDialog.pkg) return;
+          if (actionDialog.kind === "delete") {
+            void handleDelete(actionDialog.pkg);
+          } else if (actionDialog.kind === "archive") {
+            void handleArchive(actionDialog.pkg);
+          } else {
+            void applyStatus(actionDialog.pkg, actionDialog.nextActive);
+          }
+        }}
+      />
 
       <Dialog
         open={assignOpen}
