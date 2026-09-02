@@ -1,9 +1,12 @@
 import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { Badge } from "~/components/ui/badge";
+import { Switch } from "~/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Pagination } from "~/components/ui/pagination";
 import {
@@ -14,11 +17,13 @@ import {
   DialogFooter,
 } from "~/components/ui/dialog";
 import { AdminTable } from "~/components/admin/admin-table";
+import { ConfirmDialog } from "~/components/admin/confirm-dialog";
 import { PageHeader } from "~/components/admin/page-header";
 import {
   fetchAdminCategories,
   createAdminCategory,
   updateAdminCategory,
+  reorderAdminCategory,
   deleteAdminCategory,
 } from "~/server/admin.functions";
 import {
@@ -142,6 +147,16 @@ function AdminCategoriesPage() {
     category: (typeof items)[number] | null;
   }>({ open: false, category: null });
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [feedback, setFeedback] = useState<
+    { kind: "success" | "error"; text: string } | null
+  >(null);
+  const [statusDialog, setStatusDialog] = useState<{
+    open: boolean;
+    category: (typeof items)[number] | null;
+    nextActive: boolean;
+  }>({ open: false, category: null, nextActive: false });
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (
@@ -213,8 +228,21 @@ function AdminCategoriesPage() {
         });
       }
       await router.invalidate();
+      setFeedback({
+        kind: "success",
+        text: editing
+          ? `Saved changes to ${form.name}.`
+          : creatingSubcategoryOf
+          ? `Added subcategory ${form.name} under ${creatingSubcategoryOf.name}.`
+          : `Created category ${form.name}.`,
+      });
       setOpen(false);
       reset();
+    } catch (err) {
+      setFeedback({
+        kind: "error",
+        text: err instanceof Error ? err.message : "Failed to save category",
+      });
     } finally {
       setLoading(false);
     }
@@ -222,15 +250,90 @@ function AdminCategoriesPage() {
 
   const handleDelete = async () => {
     if (!canManage || !deleteDialog.category) return;
+    const name = deleteDialog.category.name;
     setDeleteLoading(true);
     try {
       await deleteAdminCategory({ data: { id: deleteDialog.category.id } });
       await router.invalidate();
       setDeleteDialog({ open: false, category: null });
+      setFeedback({ kind: "success", text: `Deleted ${name}.` });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete category");
+      setFeedback({
+        kind: "error",
+        text: err instanceof Error ? err.message : "Failed to delete category",
+      });
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const applyStatus = async (
+    category: (typeof items)[number],
+    nextActive: boolean
+  ) => {
+    if (!canManage) return;
+    setStatusLoading(true);
+    try {
+      await updateAdminCategory({
+        data: { id: category.id, isActive: nextActive },
+      });
+      await router.invalidate();
+      setStatusDialog({ open: false, category: null, nextActive: false });
+      setFeedback({
+        kind: "success",
+        text: `${category.name} is now ${nextActive ? "active" : "inactive"}.`,
+      });
+    } catch (err) {
+      setFeedback({
+        kind: "error",
+        text: err instanceof Error ? err.message : "Failed to update status",
+      });
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const handleToggleActive = (
+    category: (typeof items)[number],
+    nextActive: boolean
+  ) => {
+    if (!canManage) return;
+    // Deactivating a category that still holds listings or subcategories has a
+    // wider blast radius (it disappears from browse and the seller wizard), so
+    // confirm first. Activating, and deactivating an empty node, apply directly.
+    if (
+      !nextActive &&
+      (category.listingCount > 0 || category.childCount > 0)
+    ) {
+      setStatusDialog({ open: true, category, nextActive });
+      return;
+    }
+    void applyStatus(category, nextActive);
+  };
+
+  const handleReorder = async (
+    category: (typeof items)[number],
+    direction: "up" | "down"
+  ) => {
+    if (!canManage) return;
+    setReorderingId(category.id);
+    try {
+      const result = await reorderAdminCategory({
+        data: { id: category.id, direction },
+      });
+      if (result && "success" in result && !result.success) return;
+      await router.invalidate();
+      setFeedback({
+        kind: "success",
+        text: `Moved ${category.name} ${direction}.`,
+      });
+    } catch (err) {
+      setFeedback({
+        kind: "error",
+        text: err instanceof Error ? err.message : "Failed to reorder",
+      });
+    } finally {
+      setReorderingId(null);
     }
   };
 
@@ -336,6 +439,27 @@ function AdminCategoriesPage() {
         </p>
       )}
 
+      {feedback && (
+        <div
+          role="status"
+          className={`flex items-start justify-between gap-3 rounded-md border p-3 text-sm ${
+            feedback.kind === "success"
+              ? "border-celis-success bg-celis-success-subtle text-celis-ink"
+              : "border-celis-destructive bg-celis-destructive-subtle text-celis-ink"
+          }`}
+        >
+          <span>{feedback.text}</span>
+          <button
+            type="button"
+            className="shrink-0 text-celis-ink-secondary hover:text-celis-ink"
+            onClick={() => setFeedback(null)}
+            aria-label="Dismiss message"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
         <Card className="h-fit border-celis-border bg-celis-surface-base">
           <CardHeader className="pb-3">
@@ -352,11 +476,12 @@ function AdminCategoriesPage() {
                   <button
                     type="button"
                     aria-expanded={selected}
+                    aria-controls={`category-panel-${category.id}`}
                     className={`flex w-full items-center gap-2 rounded-lg border p-3 text-left transition-colors ${
                       selected
                         ? "border-primary bg-primary/10"
                         : "border-celis-border bg-celis-surface-inset hover:border-primary/50"
-                    }`}
+                    } ${category.isActive ? "" : "opacity-70"}`}
                     onClick={() =>
                       navigate({
                         search: (prev) => ({
@@ -373,18 +498,38 @@ function AdminCategoriesPage() {
                       <span className="block truncate font-medium text-celis-ink">{category.name}</span>
                       <span className="block truncate text-xs text-celis-ink-secondary">/{category.slug}</span>
                     </span>
+                    {!category.isActive && (
+                      <Badge variant="outline" className="shrink-0">
+                        Inactive
+                      </Badge>
+                    )}
                     <span className="shrink-0 rounded-full bg-celis-surface-base px-2 py-1 text-xs tabular-nums text-celis-ink-secondary">
                       {category.childCount}
                     </span>
                   </button>
 
                   {selected && (
-                    <div className="relative ml-5 border-l border-celis-border pl-4 pt-2">
+                    <div
+                      id={`category-panel-${category.id}`}
+                      className="relative ml-5 border-l border-celis-border pl-4 pt-2"
+                    >
                       {(subcategories?.items ?? []).map((child) => (
-                        <div key={child.id} className="relative flex items-center gap-2 py-1.5 before:absolute before:-left-4 before:top-1/2 before:h-px before:w-3 before:bg-celis-border">
+                        <div
+                          key={child.id}
+                          className={`relative flex items-center gap-2 py-1.5 before:absolute before:-left-4 before:top-1/2 before:h-px before:w-3 before:bg-celis-border ${
+                            child.isActive ? "" : "opacity-60"
+                          }`}
+                        >
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-celis-ink">{child.name}</p>
+                            <p className="truncate text-sm font-medium text-celis-ink">
+                              {child.name}
+                              {!child.isActive && (
+                                <span className="ml-1.5 text-xs font-normal text-celis-ink-tertiary">
+                                  (inactive)
+                                </span>
+                              )}
+                            </p>
                             <p className="truncate text-xs text-celis-ink-tertiary">{child.listingCount} listings</p>
                           </div>
                         </div>
@@ -408,12 +553,28 @@ function AdminCategoriesPage() {
               <CardHeader className="gap-3 border-b border-celis-border">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                   <div>
-                    <CardTitle>{selectedCategory.name}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle>{selectedCategory.name}</CardTitle>
+                      <Badge variant={selectedCategory.isActive ? "success" : "outline"}>
+                        {selectedCategory.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
                     <p className="mt-1 text-sm text-celis-ink-secondary">
                       {subcategories?.total ?? 0} subcategories · {selectedCategory.listingCount} direct listings
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-2 text-sm text-celis-ink-secondary">
+                      <Switch
+                        checked={selectedCategory.isActive}
+                        disabled={!canManage || statusLoading}
+                        onCheckedChange={(checked) =>
+                          handleToggleActive(selectedCategory, checked)
+                        }
+                        aria-label={`${selectedCategory.isActive ? "Deactivate" : "Activate"} ${selectedCategory.name}`}
+                      />
+                      {selectedCategory.isActive ? "Active" : "Inactive"}
+                    </label>
                     <Button variant="outline" size="sm" disabled={!canManage} onClick={() => openEdit(selectedCategory)}>
                       Edit category
                     </Button>
@@ -455,6 +616,61 @@ function AdminCategoriesPage() {
                       key: "listings",
                       header: "Listings",
                       cell: (c) => <span className="tabular-nums">{c.listingCount}</span>,
+                    },
+                    {
+                      key: "status",
+                      header: "Status",
+                      cell: (c) => (
+                        <label className="flex items-center gap-2 text-xs text-celis-ink-secondary">
+                          <Switch
+                            checked={c.isActive}
+                            disabled={!canManage || statusLoading}
+                            onCheckedChange={(checked) =>
+                              handleToggleActive(c, checked)
+                            }
+                            aria-label={`${c.isActive ? "Deactivate" : "Activate"} ${c.name}`}
+                          />
+                          {c.isActive ? "Active" : "Inactive"}
+                        </label>
+                      ),
+                    },
+                    {
+                      key: "order",
+                      header: "Order",
+                      cell: (c) => {
+                        const list = subcategories?.items ?? [];
+                        const idx = list.findIndex((x) => x.id === c.id);
+                        return (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              disabled={
+                                !canManage || reorderingId !== null || idx <= 0
+                              }
+                              aria-label={`Move ${c.name} up`}
+                              onClick={() => handleReorder(c, "up")}
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              disabled={
+                                !canManage ||
+                                reorderingId !== null ||
+                                idx === list.length - 1
+                              }
+                              aria-label={`Move ${c.name} down`}
+                              onClick={() => handleReorder(c, "down")}
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        );
+                      },
                     },
                     {
                       key: "configuration",
@@ -957,6 +1173,31 @@ function AdminCategoriesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={statusDialog.open}
+        onOpenChange={(open) =>
+          setStatusDialog((prev) => ({ ...prev, open }))
+        }
+        title={`Deactivate ${statusDialog.category?.name ?? "category"}?`}
+        description={
+          statusDialog.category
+            ? `${statusDialog.category.name} has ${statusDialog.category.childCount} subcategor${
+                statusDialog.category.childCount === 1 ? "y" : "ies"
+              } and ${statusDialog.category.listingCount} listing${
+                statusDialog.category.listingCount === 1 ? "" : "s"
+              }. Deactivating hides it from browsing and the seller listing form. Existing listings are kept and stay reachable by direct link.`
+            : ""
+        }
+        confirmLabel={statusLoading ? "Deactivating..." : "Deactivate"}
+        destructive
+        loading={statusLoading}
+        onConfirm={() => {
+          if (statusDialog.category) {
+            void applyStatus(statusDialog.category, statusDialog.nextActive);
+          }
+        }}
+      />
 
     </div>
   );

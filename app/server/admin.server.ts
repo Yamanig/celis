@@ -983,6 +983,7 @@ export async function getAdminCategories(options?: {
       slug: r.category.slug,
       parentId: r.category.parentId,
       sortOrder: r.category.sortOrder,
+      isActive: r.category.isActive,
       listingCount: r.listingCount,
       childCount: r.childCount,
       createdAt: r.category.createdAt,
@@ -1059,28 +1060,121 @@ export async function createCategory(input: {
 
 export async function updateCategory(
   id: string,
-  input: { name?: string; slug?: string; sortOrder?: number }
+  input: { name?: string; slug?: string; sortOrder?: number; isActive?: boolean }
 ) {
   await requirePermission("categories:manage");
+
+  const [existing] = await db
+    .select()
+    .from(categories)
+    .where(eq(categories.id, id))
+    .limit(1);
+  if (!existing) throw new Error("Category not found");
+
   const [row] = await db
     .update(categories)
     .set({ ...input, updatedAt: new Date() })
     .where(eq(categories.id, id))
     .returning();
-  await insertAuditLog({
-    action: "category_updated",
-    resourceType: "category",
-    resourceId: id,
-    metadata: input,
-  });
+
+  // Record field edits with old → new values, separate from status changes.
+  const editableKeys = ["name", "slug", "sortOrder"] as const;
+  const changes: Record<string, string> = {};
+  for (const key of editableKeys) {
+    if (input[key] !== undefined && input[key] !== existing[key]) {
+      changes[key] = `${existing[key] ?? ""} → ${input[key] ?? ""}`;
+    }
+  }
+  if (Object.keys(changes).length > 0) {
+    await insertAuditLog({
+      action: "category_updated",
+      resourceType: "category",
+      resourceId: id,
+      metadata: { name: row.name, ...changes },
+    });
+  }
+
+  if (input.isActive !== undefined && input.isActive !== existing.isActive) {
+    await insertAuditLog({
+      action: "category_status_changed",
+      resourceType: "category",
+      resourceId: id,
+      metadata: {
+        name: row.name,
+        parentId: row.parentId,
+        previousStatus: existing.isActive ? "active" : "inactive",
+        status: input.isActive ? "active" : "inactive",
+      },
+    });
+  }
+
   return {
     id: row.id,
     name: row.name,
     slug: row.slug,
     sortOrder: row.sortOrder,
+    isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * Move a category one position up or down within its sibling group (same
+ * parent). Sibling sort orders are normalised to a 0-based sequence so repeated
+ * moves stay stable even when the seed data left `sort_order` null.
+ */
+export async function reorderCategory(id: string, direction: "up" | "down") {
+  await requirePermission("categories:manage");
+
+  const [target] = await db
+    .select()
+    .from(categories)
+    .where(eq(categories.id, id))
+    .limit(1);
+  if (!target) throw new Error("Category not found");
+
+  const siblings = await db
+    .select()
+    .from(categories)
+    .where(
+      target.parentId
+        ? eq(categories.parentId, target.parentId)
+        : isNull(categories.parentId)
+    )
+    .orderBy(categories.sortOrder, categories.name);
+
+  const index = siblings.findIndex((s) => s.id === id);
+  const swapIndex = direction === "up" ? index - 1 : index + 1;
+  if (swapIndex < 0 || swapIndex >= siblings.length) {
+    return { success: false as const, reason: "boundary" as const };
+  }
+
+  const ordered = [...siblings];
+  [ordered[index], ordered[swapIndex]] = [ordered[swapIndex], ordered[index]];
+
+  await db.transaction(async (tx) => {
+    for (let position = 0; position < ordered.length; position++) {
+      await tx
+        .update(categories)
+        .set({ sortOrder: position, updatedAt: new Date() })
+        .where(eq(categories.id, ordered[position].id));
+    }
+  });
+
+  await insertAuditLog({
+    action: "category_reordered",
+    resourceType: "category",
+    resourceId: id,
+    metadata: {
+      name: target.name,
+      parentId: target.parentId,
+      direction,
+      swappedWith: siblings[swapIndex].name,
+    },
+  });
+
+  return { success: true as const };
 }
 
 export async function deleteCategory(id: string) {

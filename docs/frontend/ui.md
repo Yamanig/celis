@@ -85,4 +85,7 @@ Rules:
 - Keep admin UI dense and listing UI marketplace-friendly.
 - Admin category management uses a master-detail hierarchy: root categories load
   first in an expandable tree, subcategories load on expansion, and listing
-  Conditions/Fields are configured from subcategory rows.
+  Conditions/Fields are configured from subcategory rows. Each row also carries
+  an activate/deactivate switch and up/down reorder controls; deactivating a
+  category that still has listings or children first asks for confirmation.
+  Related actions only re-run the loader, so the expanded selection is kept.

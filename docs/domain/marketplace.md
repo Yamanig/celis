@@ -6,7 +6,11 @@ This is the compact domain guide for Celis. The full product source is `somalia-
 
 - **User:** Marketplace account, buyer, seller, admin, or platform staff depending on role.
 - **Listing:** Marketplace item/service posted by a seller.
-- **Category:** Listing classification.
+- **Category:** Listing classification. Two-level hierarchy (parent → subcategory).
+  `categories.is_active` hides a (sub)category from browse, search, and the
+  seller listing wizard without touching its existing listings; admins still
+  see inactive rows. Deletion stays blocked while a category has listings or
+  child categories.
 - **Seller:** User who creates listings and may buy seller packages.
 - **Buyer:** User browsing listings and initiating orders/payments.
 - **Order:** Transactional record connecting buyer, seller, listing, and payment state.

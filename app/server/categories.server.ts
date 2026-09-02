@@ -4,11 +4,21 @@ import { eq, isNull, count, sql, and, asc } from "drizzle-orm";
 import type { CategoryMetadataSchema } from "~/lib/category-metadata";
 
 export async function getRootCategories() {
-  return db.select().from(categories).where(isNull(categories.parentId));
+  return db
+    .select()
+    .from(categories)
+    .where(and(isNull(categories.parentId), eq(categories.isActive, true)))
+    .orderBy(asc(categories.sortOrder), asc(categories.name));
 }
 
 export async function getChildCategories(parentId: string) {
-  return db.select().from(categories).where(eq(categories.parentId, parentId)).orderBy(asc(categories.sortOrder), asc(categories.name));
+  return db
+    .select()
+    .from(categories)
+    .where(
+      and(eq(categories.parentId, parentId), eq(categories.isActive, true))
+    )
+    .orderBy(asc(categories.sortOrder), asc(categories.name));
 }
 
 export async function getCategoryById(id: string) {

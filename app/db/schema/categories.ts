@@ -21,6 +21,7 @@ export const categories = pgTable(
     parentId: uuid("parent_id"),
     metadataSchema: jsonb("metadata_schema").notNull().default({}),
     sortOrder: integer("sort_order"),
+    isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -30,6 +31,7 @@ export const categories = pgTable(
   },
   (table) => ({
     idxCategoriesParent: index("idx_categories_parent").on(table.parentId),
+    idxCategoriesActive: index("idx_categories_active").on(table.isActive),
   })
 );
 

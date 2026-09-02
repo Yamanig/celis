@@ -21,6 +21,7 @@ import {
   getAdminCategories,
   createCategory,
   updateCategory,
+  reorderCategory,
   deleteCategory,
   getAdminCategoryFees,
   createCategoryFee,
@@ -292,6 +293,7 @@ const updateCategorySchema = z.object({
   name: z.string().min(1).max(100).optional(),
   slug: z.string().min(1).max(100).optional(),
   sortOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const updateAdminCategory = createServerFn({ method: "POST" })
@@ -301,7 +303,19 @@ export const updateAdminCategory = createServerFn({ method: "POST" })
       name: data.name,
       slug: data.slug,
       sortOrder: data.sortOrder,
+      isActive: data.isActive,
     });
+  });
+
+const reorderCategorySchema = z.object({
+  id: z.string().uuid(),
+  direction: z.enum(["up", "down"]),
+});
+
+export const reorderAdminCategory = createServerFn({ method: "POST" })
+  .validator(reorderCategorySchema)
+  .handler(async ({ data }) => {
+    return reorderCategory(data.id, data.direction);
   });
 
 const deleteCategorySchema = z.object({ id: z.string().uuid() });

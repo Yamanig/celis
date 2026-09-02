@@ -1,5 +1,20 @@
 # Changelog
 
+## [v1.5.0] - 2026-09-02
+
+### Added
+
+- Migration `0033_category_active_flag.sql` adds a non-destructive
+  `categories.is_active` flag (all existing rows stay active). Deactivated
+  parents and subcategories drop out of browse, search, and the seller listing
+  wizard while their listings stay intact; admins still see them.
+- Admin Categories: per-row activate/deactivate switch, up/down reorder
+  controls, and inline success/error feedback. Deactivating a category that
+  still has listings or children asks for confirmation first. `updateCategory`
+  now audits `category_status_changed` and `reorderCategory` audits
+  `category_reordered`, both with old → new context. The expanded selection is
+  preserved across all related actions.
+
 ## [v1.4.0] - 2026-08-30
 
 - Removed anonymous reads from the `profiles` and `users` base tables and added
