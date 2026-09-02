@@ -27,6 +27,8 @@
   `parseLegalDoc`), instead of as bare standalone HTML documents. The privacy
   body is still pulled from the generated `public/privacy/index.html`, so it
   stays the single source of truth.
+- Sign-up now shows "By creating an account, you agree to Celis's Terms of
+  Service and Privacy Policy" under the submit button, linking both pages.
 
 ### Fixed
 

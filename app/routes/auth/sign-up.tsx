@@ -200,6 +200,18 @@ function SignUpPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Creating account..." : "Create account"}
             </Button>
+
+            <p className="text-center text-xs text-celis-ink-tertiary">
+              By creating an account, you agree to Celis&apos;s{" "}
+              <Link to="/terms" className="text-celis-primary hover:underline">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="text-celis-primary hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </form>
 
           <p className="mt-6 text-center text-sm text-celis-ink-secondary">
