@@ -35,6 +35,17 @@ export const Route = createRootRoute({
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:description", content: defaultDescription },
     ],
+    // Rukun self-hosted analytics. The collector only counts events whose
+    // Origin is the registered domain (celis.so), so local dev and preview
+    // hosts hit the endpoint but are discarded server-side.
+    scripts: [
+      {
+        src: "https://analytics.rukun.com.so/js/pixel.js",
+        "data-domain": "celis.so",
+        "data-site-id": "P-EMWPFCU2C8",
+        defer: true,
+      },
+    ],
   }),
   beforeLoad: async () => {
     const user = await fetchCurrentUser();
