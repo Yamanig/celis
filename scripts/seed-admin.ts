@@ -3,8 +3,25 @@ import { db } from "../app/db";
 import { authUsers, users, profiles } from "../app/db/schema";
 import { eq } from "drizzle-orm";
 
-const EMAIL = "admin@celis.so";
-const PASSWORD = "CelisAdmin123!";
+function requireEnv(): { email: string; password: string } {
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!email || !password) {
+    console.error(
+      "seed-admin: set ADMIN_EMAIL and ADMIN_PASSWORD before running.\n" +
+        "  ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='<12+ char secret>' pnpm db:seed-admin"
+    );
+    process.exit(1);
+  }
+  if (password.length < 12) {
+    console.error("seed-admin: ADMIN_PASSWORD must be at least 12 characters.");
+    process.exit(1);
+  }
+  return { email, password };
+}
+
+const { email: EMAIL, password: PASSWORD } = requireEnv();
 
 async function main() {
   const supabase = getServiceSupabase();
@@ -77,7 +94,7 @@ async function main() {
 
   console.log("\nAdmin account ready:");
   console.log("Email:", EMAIL);
-  console.log("Password:", PASSWORD);
+  console.log("Password: (set from ADMIN_PASSWORD env var)");
 }
 
 main()
