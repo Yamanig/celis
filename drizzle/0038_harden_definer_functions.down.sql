@@ -1,0 +1,17 @@
+-- Rollback for 0038_harden_definer_functions.sql
+--
+-- This migration only did CREATE OR REPLACE FUNCTION on existing functions
+-- (no drops, no signature changes, no data). To revert to the pre-0038
+-- definitions (SET search_path TO public, raw SQLERRM in the error path),
+-- re-run the prior migration files in order:
+--
+--   psql "$DIRECT_URL" -f drizzle/0022_phase2_atomic_listing_rpc.sql
+--   psql "$DIRECT_URL" -f drizzle/0023_phase2_hardening_fixes.sql
+--   psql "$DIRECT_URL" -f drizzle/0024_condition_enum_mapping_rpc.sql
+--
+-- 0022 also touches RLS policies / indexes / a trigger; if you only need the
+-- function bodies back, extract just the CREATE OR REPLACE FUNCTION statements
+-- for: check_listing_metadata, update_listing_status, delete_listing,
+-- save_listing_images (0022); validate_listing_fields,
+-- sync_category_fields_to_metadata (0023); normalize_listing_condition,
+-- normalize_delivery_method, save_listing_with_fields (0024).
