@@ -105,6 +105,7 @@ export async function startPhoneAuth(
       );
       return { deliveryUnconfirmed: true };
     }
+    console.error("[phone-auth] signInWithOtp failed:", error.status, error.code, error.message);
     throw mapAuthError(error.message);
   }
   return { deliveryUnconfirmed: false };
@@ -147,6 +148,7 @@ export async function startAddPhone(
       );
       return { deliveryUnconfirmed: true };
     }
+    console.error("[phone-auth] updateUser(phone) failed:", error.status, error.code, error.message);
     throw mapAuthError(error.message);
   }
   return { deliveryUnconfirmed: false };

@@ -19,6 +19,20 @@ export interface RateLimitRule {
  * Postgres-backed so it survives restarts / redeploys and stays correct across
  * multiple server instances.
  */
+/** Pull the underlying error text out of a possibly drizzle-wrapped DB error. */
+function dbErrorInfo(err: unknown): { message: string; code: string } {
+  const parts: string[] = [];
+  let code = "";
+  let cur: unknown = err;
+  for (let i = 0; i < 4 && cur; i++) {
+    if (cur instanceof Error) parts.push(cur.message);
+    const c = (cur as { code?: unknown }).code;
+    if (typeof c === "string" && !code) code = c;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return { message: parts.join(" | "), code };
+}
+
 let tableMissingWarned = false;
 
 export async function enforceRateLimit(
@@ -46,8 +60,8 @@ export async function enforceRateLimit(
   } catch (err) {
     // Fail open if the table is not there yet (migration 0035 not applied), so a
     // deploy that lands the code before the migration doesn't lock everyone out.
-    const message = err instanceof Error ? err.message : String(err);
-    if (/relation "?rate_limits"? does not exist/i.test(message)) {
+    const { message, code } = dbErrorInfo(err);
+    if (code === "42P01" || /relation "?rate_limits"? does not exist/i.test(message)) {
       if (!tableMissingWarned) {
         tableMissingWarned = true;
         console.error(
@@ -56,7 +70,8 @@ export async function enforceRateLimit(
       }
       return;
     }
-    throw err;
+    console.error("[rate-limit] unexpected error, failing open:", message || err);
+    return;
   }
 
   const row = (result as { count: number }[])[0];

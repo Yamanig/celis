@@ -5,6 +5,7 @@ import { signIn, requestPhoneOtp } from "~/server/auth.functions";
 import { useAuth } from "~/lib/auth-context";
 import { safeInternalPath } from "~/lib/safe-redirect";
 import { toE164 } from "~/lib/phone";
+import { clientErrorMessage } from "~/lib/errors";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -60,7 +61,7 @@ function SignInPage() {
       }
       navigate({ to: safeInternalPath(redirect) });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed");
+      setError(clientErrorMessage(err, "Sign in failed. Check your details and try again."));
     } finally {
       setLoading(false);
     }
@@ -87,7 +88,7 @@ function SignInPage() {
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send the code");
+      setError(clientErrorMessage(err, "Couldn't send the code. Try again."));
     } finally {
       setLoading(false);
     }

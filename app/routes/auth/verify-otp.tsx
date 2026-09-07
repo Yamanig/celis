@@ -12,6 +12,7 @@ import {
 import { useAuth } from "~/lib/auth-context";
 import { safeInternalPath } from "~/lib/safe-redirect";
 import { formatE164ForDisplay } from "~/lib/phone";
+import { clientErrorMessage } from "~/lib/errors";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -89,7 +90,7 @@ function VerifyOtpPage() {
       else await requestPhoneOtp({ data: { phone } });
       startCooldown();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not resend the code");
+      setError(clientErrorMessage(err, "Couldn't resend the code. Try again."));
     }
   };
 
@@ -129,7 +130,7 @@ function VerifyOtpPage() {
         navigate({ to: safeInternalPath(redirect) });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Verification failed");
+      setError(clientErrorMessage(err, "Verification failed. Try again."));
     } finally {
       setLoading(false);
     }

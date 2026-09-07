@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requestAddPhoneOtp } from "~/server/auth.functions";
 import { toE164 } from "~/lib/phone";
 import { safeInternalPath } from "~/lib/safe-redirect";
+import { clientErrorMessage } from "~/lib/errors";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -77,7 +78,7 @@ function AddPhonePage() {
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
+      setError(clientErrorMessage(err, "Couldn't send the code. Try again."));
     } finally {
       setLoading(false);
     }

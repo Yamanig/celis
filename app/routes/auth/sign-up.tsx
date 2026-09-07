@@ -3,6 +3,7 @@ import { useState } from "react";
 import { signUp, requestPhoneOtp } from "~/server/auth.functions";
 import { useAuth } from "~/lib/auth-context";
 import { toE164 } from "~/lib/phone";
+import { clientErrorMessage } from "~/lib/errors";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -82,7 +83,7 @@ function SignUpPage() {
         search: { phone, mode: "signin" },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send the code");
+      setError(clientErrorMessage(err, "Couldn't send the code. Try again."));
     } finally {
       setLoading(false);
     }
@@ -113,7 +114,7 @@ function SignUpPage() {
       await refresh();
       navigate({ to: "/auth/add-phone", search: { redirect: "/dashboard" } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign up failed");
+      setError(clientErrorMessage(err, "Sign up failed. Try again."));
     } finally {
       setLoading(false);
     }

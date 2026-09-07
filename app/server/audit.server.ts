@@ -76,8 +76,16 @@ export async function insertAuditLog(event: AuditEvent) {
   } catch (err) {
     // Fall back if migration 0036 (user_agent / request_id columns) is not
     // applied yet — never let an audit write break the audited action.
-    const message = err instanceof Error ? err.message : String(err);
-    if (/column .*(user_agent|request_id).* does not exist/i.test(message)) {
+    let text = "";
+    let code = "";
+    let cur: unknown = err;
+    for (let i = 0; i < 4 && cur; i++) {
+      if (cur instanceof Error) text += ` ${cur.message}`;
+      const c = (cur as { code?: unknown }).code;
+      if (typeof c === "string" && !code) code = c;
+      cur = (cur as { cause?: unknown }).cause;
+    }
+    if (code === "42703" || /column .*(user_agent|request_id).* does not exist/i.test(text)) {
       await db.insert(auditLogs).values(base);
       return;
     }

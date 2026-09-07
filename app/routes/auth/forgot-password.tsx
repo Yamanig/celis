@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { requestPasswordResetOtp } from "~/server/auth.functions";
 import { toE164 } from "~/lib/phone";
+import { clientErrorMessage } from "~/lib/errors";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -53,7 +54,7 @@ function ForgotPasswordPage() {
         search: { phone, mode: "reset" },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
+      setError(clientErrorMessage(err, "Request failed. Try again."));
     } finally {
       setLoading(false);
     }
