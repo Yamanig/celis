@@ -33,6 +33,7 @@ import { getFeaturedListingFee } from "~/server/config.functions";
 import { PaymentModal } from "~/components/listings/payment-modal";
 import { formatPrice, formatRelativeDate } from "~/lib/format";
 import { formatMetadataValue } from "~/lib/category-metadata";
+import { renderJsonLd } from "~/lib/json-ld";
 import {
   MapPin,
   Package,
@@ -701,7 +702,7 @@ function ListingDetailPage() {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
+            __html: renderJsonLd({
               "@context": "https://schema.org",
               "@type": "Product",
               name: listing.title,
