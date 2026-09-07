@@ -624,7 +624,7 @@ export async function toggleUserSuperAdmin(id: string) {
     action: "user_super_admin_toggled",
     resourceType: "user",
     resourceId: id,
-    metadata: { isSuperAdmin: next, actorId: actor.id },
+    metadata: { isSuperAdmin: next },
   });
   return { success: true, isSuperAdmin: next };
 }
@@ -815,7 +815,7 @@ export async function markListingPaidManually(
   listingId: string,
   reason: string
 ) {
-  const actor = await requirePermission("listings:moderate");
+  await requirePermission("listings:moderate");
   const [listing] = await db
     .select({
       status: listings.status,
@@ -847,7 +847,6 @@ export async function markListingPaidManually(
     resourceType: "listing",
     resourceId: listingId,
     metadata: {
-      actorId: actor.id,
       reason,
       previousStatus: listing.status,
       previousMonetizationStatus: listing.monetizationStatus,
@@ -933,7 +932,7 @@ export async function updateListingStatus(id: string, status: ListingStatus) {
     action: "listing_status_changed",
     resourceType: "listing",
     resourceId: id,
-    metadata: { previousStatus: listing.status, status, actorId: actor.id },
+    metadata: { previousStatus: listing.status, status },
   });
   return { success: true };
 }
@@ -2031,13 +2030,13 @@ export async function updatePlatformConfig(
 }
 
 export async function runListingExpirySweep() {
-  const user = await requirePermission("listings:moderate");
+  await requirePermission("listings:moderate");
   const { expireStaleListings } = await import("./listings.server");
   const result = await expireStaleListings();
   await insertAuditLog({
     action: "expiry_sweep_run",
     resourceType: "listings",
-    metadata: { expiredCount: result.expiredCount, actorId: user.id },
+    metadata: { expiredCount: result.expiredCount },
   });
   return result;
 }

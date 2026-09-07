@@ -2,6 +2,33 @@ import { db } from "~/db";
 import { auditLogs } from "~/db/schema";
 import { getCurrentUser } from "./auth.server";
 import { eq, desc, count, sql } from "drizzle-orm";
+import { getRequestHeader } from "@tanstack/react-start/server";
+
+/**
+ * Best-effort request context for an audit entry. Returns nulls when called
+ * outside a request (scripts, cron) instead of throwing.
+ */
+function getRequestContext(): {
+  ipAddress: string | null;
+  userAgent: string | null;
+  requestId: string | null;
+} {
+  try {
+    const forwardedFor = getRequestHeader("x-forwarded-for");
+    const ipAddress =
+      forwardedFor?.split(",")[0]?.trim() ||
+      getRequestHeader("x-real-ip") ||
+      null;
+    const userAgent = getRequestHeader("user-agent") ?? null;
+    const requestId =
+      getRequestHeader("x-request-id") ??
+      getRequestHeader("cf-ray") ??
+      null;
+    return { ipAddress, userAgent, requestId };
+  } catch {
+    return { ipAddress: null, userAgent: null, requestId: null };
+  }
+}
 
 export type AuditMetadata = Record<string, string | number | boolean | null> | null;
 
@@ -35,13 +62,27 @@ function serializeMetadata(
 
 export async function insertAuditLog(event: AuditEvent) {
   const user = await getCurrentUser().catch(() => null);
-  await db.insert(auditLogs).values({
+  const { ipAddress, userAgent, requestId } = getRequestContext();
+  const base = {
     actorId: user?.id ?? null,
     action: event.action,
     resourceType: event.resourceType,
     resourceId: event.resourceId ?? null,
     metadata: serializeMetadata(event.metadata),
-  });
+    ipAddress,
+  };
+  try {
+    await db.insert(auditLogs).values({ ...base, userAgent, requestId });
+  } catch (err) {
+    // Fall back if migration 0036 (user_agent / request_id columns) is not
+    // applied yet — never let an audit write break the audited action.
+    const message = err instanceof Error ? err.message : String(err);
+    if (/column .*(user_agent|request_id).* does not exist/i.test(message)) {
+      await db.insert(auditLogs).values(base);
+      return;
+    }
+    throw err;
+  }
 }
 
 export async function getAdminAuditLogs(options?: {

@@ -247,7 +247,6 @@ export const reviewAdminListing = createServerFn({ method: "POST" })
         action: "listing_approved",
         resourceType: "listing",
         resourceId: data.id,
-        metadata: { actorId: user.id },
       });
       return { success: true, id: data.id, status: "active" as const };
     }
@@ -256,7 +255,7 @@ export const reviewAdminListing = createServerFn({ method: "POST" })
       action: "listing_rejected",
       resourceType: "listing",
       resourceId: data.id,
-      metadata: { actorId: user.id, reason: data.reason },
+      metadata: { reason: data.reason },
     });
     return { success: true, id: data.id, status: "rejected" as const };
   });
