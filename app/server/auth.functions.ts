@@ -179,8 +179,8 @@ export const requestPhoneOtp = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await enforceRateLimit(`otp:ip:${getClientIp()}`, { max: 10, windowSec: 600 });
     await enforceRateLimit(`otp:phone:${data.phone}`, { max: 5, windowSec: 600 });
-    await startPhoneAuth(data.phone, true);
-    return { ok: true };
+    const { deliveryUnconfirmed } = await startPhoneAuth(data.phone, true);
+    return { ok: true, deliveryUnconfirmed };
   });
 
 /** Verify the phone code and establish the session. */
@@ -200,8 +200,8 @@ export const requestAddPhoneOtp = createServerFn({ method: "POST" })
   .validator(phoneOnlySchema)
   .handler(async ({ data }) => {
     await enforceRateLimit(`otp:phone:${data.phone}`, { max: 5, windowSec: 600 });
-    await startAddPhone(data.phone);
-    return { ok: true };
+    const { deliveryUnconfirmed } = await startAddPhone(data.phone);
+    return { ok: true, deliveryUnconfirmed };
   });
 
 /** Verify the code from requestAddPhoneOtp. */

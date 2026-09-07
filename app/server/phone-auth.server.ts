@@ -33,6 +33,23 @@ async function persistVerifiedPhone(userId: string, e164: string) {
  * Mirrors `celis mobile/lib/auth.ts`.
  */
 
+/**
+ * The Supabase "Send SMS" hook has a hard 5s deadline. Our WAHA box often
+ * delivers the WhatsApp message but responds to the edge function slower than
+ * that, so `signInWithOtp` comes back with a hook-timeout error even though
+ * Supabase has already generated + stored the OTP and the code reaches the
+ * handset. Treat that specific case as "sent" so the user can go on to enter
+ * the code (a real non-delivery just fails at verify, and they resend).
+ */
+function isHookDeliveryTimeout(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("failed to reach hook") ||
+    (m.includes("hook") && m.includes("timeout")) ||
+    (m.includes("hook") && m.includes("maximum time"))
+  );
+}
+
 function mapAuthError(message: string): CelisError {
   const m = message.toLowerCase();
   if (m.includes("otp") && (m.includes("expired") || m.includes("invalid"))) {
@@ -56,9 +73,9 @@ function mapAuthError(message: string): CelisError {
       409
     );
   }
-  if (m.includes("whatsapp") || m.includes("sms")) {
+  if (m.includes("whatsapp") || m.includes("sms") || m.includes("hook")) {
     return new CelisError(
-      "We couldn't reach your WhatsApp — check the number and try again.",
+      "We couldn't send the code. Check the number and try again.",
       "WHATSAPP_SEND_FAILED",
       502
     );
@@ -68,15 +85,29 @@ function mapAuthError(message: string): CelisError {
 
 /**
  * Send a login/signup code to `phone` (strict E.164). One call for both new and
- * existing numbers when `createUser` is true.
+ * existing numbers when `createUser` is true. Returns `deliveryUnconfirmed` when
+ * the Supabase hook timed out (the code was still generated and usually still
+ * delivered).
  */
-export async function startPhoneAuth(phone: string, createUser: boolean) {
+export async function startPhoneAuth(
+  phone: string,
+  createUser: boolean
+): Promise<{ deliveryUnconfirmed: boolean }> {
   const supabase = getSupabaseServerClient();
   const { error } = await supabase.auth.signInWithOtp({
     phone,
     options: { shouldCreateUser: createUser },
   });
-  if (error) throw mapAuthError(error.message);
+  if (error) {
+    if (isHookDeliveryTimeout(error.message)) {
+      console.warn(
+        "[phone-auth] Send SMS hook timed out; OTP generated, delivery via WAHA assumed"
+      );
+      return { deliveryUnconfirmed: true };
+    }
+    throw mapAuthError(error.message);
+  }
+  return { deliveryUnconfirmed: false };
 }
 
 /** Verify the code from `startPhoneAuth` and establish the web session. */
@@ -100,14 +131,25 @@ export async function confirmPhoneAuth(phone: string, token: string) {
 }
 
 /** Attach a phone to the signed-in account and send a confirmation code. */
-export async function startAddPhone(phone: string) {
+export async function startAddPhone(
+  phone: string
+): Promise<{ deliveryUnconfirmed: boolean }> {
   const supabase = getSupabaseServerClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) {
     throw new CelisError("Sign in first.", "UNAUTHORIZED", 401);
   }
   const { error } = await supabase.auth.updateUser({ phone });
-  if (error) throw mapAuthError(error.message);
+  if (error) {
+    if (isHookDeliveryTimeout(error.message)) {
+      console.warn(
+        "[phone-auth] Send SMS hook timed out on add-phone; delivery via WAHA assumed"
+      );
+      return { deliveryUnconfirmed: true };
+    }
+    throw mapAuthError(error.message);
+  }
+  return { deliveryUnconfirmed: false };
 }
 
 /** Verify the code from `startAddPhone`. */
