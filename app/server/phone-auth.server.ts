@@ -34,23 +34,17 @@ async function persistVerifiedPhone(userId: string, e164: string) {
  */
 
 /**
- * The Supabase "Send SMS" hook has a hard 5s deadline. Our WAHA box often
- * delivers the WhatsApp message but responds to the edge function slower than
- * that, so `signInWithOtp` comes back with a hook-timeout error even though
- * Supabase has already generated + stored the OTP and the code reaches the
- * handset. Treat that specific case as "sent" so the user can go on to enter
- * the code (a real non-delivery just fails at verify, and they resend).
+ * The Supabase "Send SMS" hook has a hard 5s deadline. Our WAHA box usually
+ * delivers the WhatsApp message but responds slower than that, so signInWithOtp
+ * / updateUser come back with a hook error even though Supabase already
+ * generated + stored the OTP and the code reaches the handset.
+ *
+ * Anything that isn't a clearly terminal error (rate limit, number already
+ * taken, bad OTP) is treated as "delivery uncertain": we let the user go on to
+ * the verify screen instead of dead-ending them. A genuine non-delivery just
+ * fails at verify and they resend.
  */
-function isHookDeliveryTimeout(message: string): boolean {
-  const m = message.toLowerCase();
-  return (
-    m.includes("failed to reach hook") ||
-    (m.includes("hook") && m.includes("timeout")) ||
-    (m.includes("hook") && m.includes("maximum time"))
-  );
-}
-
-function mapAuthError(message: string): CelisError {
+function isTerminalAuthError(message: string): CelisError | null {
   const m = message.toLowerCase();
   if (m.includes("otp") && (m.includes("expired") || m.includes("invalid"))) {
     return new CelisError(
@@ -59,28 +53,36 @@ function mapAuthError(message: string): CelisError {
       400
     );
   }
-  if (m.includes("rate limit") || m.includes("too many")) {
+  if (m.includes("rate limit") || m.includes("too many requests") || m.includes("over_")) {
     return new CelisError(
       "Too many attempts. Wait a minute and try again.",
       "RATE_LIMITED",
       429
     );
   }
-  if (m.includes("phone") && m.includes("exists")) {
+  if (m.includes("phone") && (m.includes("exists") || m.includes("already registered") || m.includes("taken"))) {
     return new CelisError(
       "This number already has a Celis account.",
       "PHONE_EXISTS",
       409
     );
   }
-  if (m.includes("whatsapp") || m.includes("sms") || m.includes("hook")) {
-    return new CelisError(
-      "We couldn't send the code. Check the number and try again.",
-      "WHATSAPP_SEND_FAILED",
-      502
-    );
+  if (m.includes("invalid phone") || m.includes("phone_number_invalid")) {
+    return new CelisError("Enter a valid phone number.", "INVALID_PHONE", 400);
   }
-  return new CelisError(message, "AUTH_ERROR", 400);
+  return null;
+}
+
+/** Error for a failed verifyOtp — a real message for known cases, generic otherwise. */
+function verifyError(message: string): CelisError {
+  return (
+    isTerminalAuthError(message) ??
+    new CelisError(
+      "That code is wrong or has expired — request a new one.",
+      "OTP_INVALID",
+      400
+    )
+  );
 }
 
 /**
@@ -99,14 +101,15 @@ export async function startPhoneAuth(
     options: { shouldCreateUser: createUser },
   });
   if (error) {
-    if (isHookDeliveryTimeout(error.message)) {
-      console.warn(
-        "[phone-auth] Send SMS hook timed out; OTP generated, delivery via WAHA assumed"
-      );
-      return { deliveryUnconfirmed: true };
-    }
-    console.error("[phone-auth] signInWithOtp failed:", error.status, error.code, error.message);
-    throw mapAuthError(error.message);
+    const terminal = isTerminalAuthError(error.message);
+    if (terminal) throw terminal;
+    console.warn(
+      "[phone-auth] signInWithOtp non-terminal error, proceeding to verify:",
+      error.status,
+      error.code,
+      error.message
+    );
+    return { deliveryUnconfirmed: true };
   }
   return { deliveryUnconfirmed: false };
 }
@@ -120,7 +123,7 @@ export async function confirmPhoneAuth(phone: string, token: string) {
     type: "sms",
   });
   if (error || !data.user) {
-    throw mapAuthError(error?.message ?? "Verification failed");
+    throw verifyError(error?.message ?? "");
   }
 
   await ensureLocalUserRecord(
@@ -142,14 +145,15 @@ export async function startAddPhone(
   }
   const { error } = await supabase.auth.updateUser({ phone });
   if (error) {
-    if (isHookDeliveryTimeout(error.message)) {
-      console.warn(
-        "[phone-auth] Send SMS hook timed out on add-phone; delivery via WAHA assumed"
-      );
-      return { deliveryUnconfirmed: true };
-    }
-    console.error("[phone-auth] updateUser(phone) failed:", error.status, error.code, error.message);
-    throw mapAuthError(error.message);
+    const terminal = isTerminalAuthError(error.message);
+    if (terminal) throw terminal;
+    console.warn(
+      "[phone-auth] updateUser(phone) non-terminal error, proceeding to verify:",
+      error.status,
+      error.code,
+      error.message
+    );
+    return { deliveryUnconfirmed: true };
   }
   return { deliveryUnconfirmed: false };
 }
@@ -163,7 +167,7 @@ export async function confirmAddPhone(phone: string, token: string) {
     type: "phone_change",
   });
   if (error || !data.user) {
-    throw mapAuthError(error?.message ?? "Verification failed");
+    throw verifyError(error?.message ?? "");
   }
   await persistVerifiedPhone(data.user.id, phone);
   return { userId: data.user.id };
@@ -184,6 +188,16 @@ export async function setPasswordForCurrentSession(password: string) {
     );
   }
   const { error } = await supabase.auth.updateUser({ password });
-  if (error) throw mapAuthError(error.message);
+  if (error) {
+    console.error("[phone-auth] updateUser(password) failed:", error.status, error.code, error.message);
+    throw (
+      isTerminalAuthError(error.message) ??
+      new CelisError(
+        "Couldn't update the password. Try a different one.",
+        "PASSWORD_UPDATE_FAILED",
+        400
+      )
+    );
+  }
   return { ok: true };
 }

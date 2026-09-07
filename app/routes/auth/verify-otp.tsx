@@ -228,6 +228,11 @@ function VerifyOtpPage() {
                   ? `Resend code in ${cooldown}s`
                   : "Resend code"}
               </button>
+
+              <p className="text-center text-xs text-celis-ink-tertiary">
+                The code can take a minute to arrive on WhatsApp. If it
+                doesn&apos;t, resend once the timer clears.
+              </p>
             </form>
           )}
         </CardContent>
