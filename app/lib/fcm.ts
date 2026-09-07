@@ -5,15 +5,43 @@ import { getServiceSupabase } from "~/lib/supabase/server";
 
 type ProfileWithToken = { fcm_token: string | null } | null;
 
+let warnedMissing = false;
+function warnFcmDisabled(reason: string) {
+  if (warnedMissing) return;
+  warnedMissing = true;
+  const level =
+    process.env.NODE_ENV === "production" ? console.error : console.warn;
+  level(
+    `[fcm] push notifications disabled — ${reason}. ` +
+      "Set FIREBASE_SERVICE_ACCOUNT to the service-account JSON (inline) in deploys."
+  );
+}
+
 function getFirebaseServiceAccount(): ServiceAccount | null {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!raw) return null;
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
+  if (!raw) {
+    warnFcmDisabled("FIREBASE_SERVICE_ACCOUNT is not set");
+    return null;
+  }
+  // Preferred for deploys: the full JSON provided inline.
+  if (raw.startsWith("{")) {
+    try {
+      return JSON.parse(raw) as ServiceAccount;
+    } catch {
+      warnFcmDisabled("FIREBASE_SERVICE_ACCOUNT is not valid JSON");
+      return null;
+    }
+  }
+  // Local dev fallback: a path to a JSON file on disk.
+  if (!fs.existsSync(raw)) {
+    warnFcmDisabled(`FIREBASE_SERVICE_ACCOUNT file not found at ${raw}`);
+    return null;
+  }
   try {
-    return JSON.parse(raw) as ServiceAccount;
+    return JSON.parse(fs.readFileSync(raw, "utf-8")) as ServiceAccount;
   } catch {
-    const path = raw;
-    if (!fs.existsSync(path)) return null;
-    return JSON.parse(fs.readFileSync(path, "utf-8")) as ServiceAccount;
+    warnFcmDisabled(`FIREBASE_SERVICE_ACCOUNT file at ${raw} is not valid JSON`);
+    return null;
   }
 }
 
