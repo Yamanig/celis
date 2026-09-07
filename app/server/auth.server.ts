@@ -2,6 +2,7 @@ import { db } from "~/db";
 import { users, profiles, authUsers, permissions, rolePermissions, roles } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { getSupabaseServerClient } from "~/lib/supabase/server";
+import { CelisError } from "~/lib/errors";
 import {
   generateUniqueSellerNumber,
   ensureProfileSellerNumber,
@@ -15,6 +16,8 @@ export interface CurrentUser {
   displayName: string | null;
   sellerNumber: string | null;
   phone: string | null;
+  /** True when a phone number is a verified identity on the Supabase auth user. */
+  hasVerifiedPhone: boolean;
   isVerified: boolean;
   verificationStatus: import("~/db/schema").VerificationStatus;
   isSuperAdmin: boolean;
@@ -33,7 +36,17 @@ export async function getAuthUser() {
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const authUser = await getAuthUser();
-  if (!authUser?.email) return null;
+  if (!authUser) return null;
+
+  // Phone-only accounts have no auth.users.email — fall back to a synthetic one.
+  const email =
+    authUser.email ||
+    (authUser.phone ? `${authUser.phone.replace(/\D/g, "")}@celis.so` : null);
+  if (!email) return null;
+
+  const hasVerifiedPhone = Boolean(
+    authUser.phone && authUser.phone_confirmed_at
+  );
 
   const rows = await db
     .select({
@@ -48,7 +61,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const row = rows[0];
   if (!row) {
     // Auth exists but local record missing — create it on the fly.
-    return ensureLocalUserRecord(authUser.id, authUser.email);
+    const created = await ensureLocalUserRecord(authUser.id, email);
+    return { ...created, hasVerifiedPhone };
   }
 
   return {
@@ -58,6 +72,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     displayName: row.profile?.displayName ?? null,
     sellerNumber: row.profile?.sellerNumber ?? null,
     phone: row.user.walletPhone ?? row.profile?.phone ?? null,
+    hasVerifiedPhone,
     isVerified:
       row.user.verificationStatus === "approved" || row.user.verifiedAt !== null,
     verificationStatus: row.user.verificationStatus,
@@ -194,6 +209,26 @@ export async function requirePermission(
 
 export async function requireAdmin(): Promise<CurrentUser> {
   return requirePermission("admin:access");
+}
+
+/**
+ * Resolve the signed-in user and assert they hold a seller account. Every
+ * listing mutation derives its `sellerId` from this — the client must never be
+ * trusted to supply one (SEC-4).
+ */
+export async function requireSellerUser(): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new CelisError("Sign in to continue.", "UNAUTHORIZED", 401);
+  }
+  if (user.role !== "seller") {
+    throw new CelisError(
+      "You need a seller account to do this.",
+      "NOT_A_SELLER",
+      403
+    );
+  }
+  return user;
 }
 
 export interface RoleRecord {
@@ -388,6 +423,7 @@ export async function ensureLocalUserRecord(
     displayName: profileRow[0]?.displayName ?? email.split("@")[0],
     sellerNumber: profileRow[0]?.sellerNumber ?? null,
     phone: null,
+    hasVerifiedPhone: false,
     isVerified: false,
     verificationStatus: "pending" as import("~/db/schema").VerificationStatus,
     isSuperAdmin: false,

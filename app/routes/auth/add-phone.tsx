@@ -1,7 +1,9 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { requestPasswordResetOtp } from "~/server/auth.functions";
+import { z } from "zod";
+import { requestAddPhoneOtp } from "~/server/auth.functions";
 import { toE164 } from "~/lib/phone";
+import { safeInternalPath } from "~/lib/safe-redirect";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -17,17 +19,35 @@ import {
   type CountryItem,
 } from "~/components/auth/phone-input";
 
-export const Route = createFileRoute("/auth/forgot-password")({
-  component: ForgotPasswordPage,
+const searchSchema = z.object({ redirect: z.string().optional() });
+
+export const Route = createFileRoute("/auth/add-phone")({
+  component: AddPhonePage,
+  validateSearch: searchSchema,
+  beforeLoad: ({ context, search }) => {
+    if (!context.user) {
+      throw redirect({
+        to: "/auth/sign-in",
+        search: { redirect: "/auth/add-phone" },
+      });
+    }
+    if (context.user.hasVerifiedPhone) {
+      throw redirect({ to: safeInternalPath(search.redirect) });
+    }
+  },
   head: () => ({
     meta: [
-      { title: "Forgot password | Celis" },
-      { name: "description", content: "Reset your Celis account password." },
+      { title: "Add your phone number | Celis" },
+      {
+        name: "description",
+        content: "Add and verify a phone number for your Celis account.",
+      },
     ],
   }),
 });
 
-function ForgotPasswordPage() {
+function AddPhonePage() {
+  const { redirect: redirectTo } = Route.useSearch();
   const navigate = useNavigate();
   const [country, setCountry] = useState<CountryItem>(DEFAULT_COUNTRY);
   const [national, setNational] = useState("");
@@ -47,10 +67,14 @@ function ForgotPasswordPage() {
     }
 
     try {
-      await requestPasswordResetOtp({ data: { phone } });
+      await requestAddPhoneOtp({ data: { phone } });
       navigate({
         to: "/auth/verify-otp",
-        search: { phone, mode: "reset" },
+        search: {
+          phone,
+          mode: "add-phone",
+          ...(redirectTo ? { redirect: redirectTo } : {}),
+        },
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
@@ -67,10 +91,10 @@ function ForgotPasswordPage() {
 
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle>Reset your password</CardTitle>
+          <CardTitle>Add your phone number</CardTitle>
           <CardDescription>
-            Enter the phone number on your account and we&apos;ll send a code on
-            WhatsApp.
+            Buyers use your number to reach you, and it secures your account. We
+            verify it with a WhatsApp code.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -92,12 +116,11 @@ function ForgotPasswordPage() {
           </form>
 
           <p className="mt-6 text-center text-sm text-celis-ink-secondary">
-            Remember your password?{" "}
             <Link
-              to="/auth/sign-in"
+              to={safeInternalPath(redirectTo)}
               className="text-celis-primary hover:underline"
             >
-              Sign in
+              Skip for now
             </Link>
           </p>
         </CardContent>

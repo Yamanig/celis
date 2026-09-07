@@ -10,6 +10,16 @@ export const phoneSchema = z
   .min(1, "Phone number is required")
   .regex(/^\+?[1-9]\d{7,14}$/, "Enter a valid phone number");
 
+/** Strict E.164, as required by Supabase phone auth. */
+export const e164PhoneSchema = z
+  .string()
+  .regex(/^\+[1-9]\d{7,14}$/, "Enter a valid phone number");
+
+/** The 6-digit WhatsApp one-time code. */
+export const otpSchema = z
+  .string()
+  .regex(/^\d{6}$/, "Enter the 6-digit code");
+
 export const profileSchema = z.object({
   displayName: z.string().min(2, "Name must be at least 2 characters").max(80),
   phone: phoneSchema,

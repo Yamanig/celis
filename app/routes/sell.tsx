@@ -56,7 +56,27 @@ function SellPage() {
           </span>
         </div>
 
-        {!user.phone ? (
+        {user.role !== "seller" ? (
+          <Card className="border-celis-caution bg-celis-caution-subtle">
+            <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+              <AlertTriangle className="h-10 w-10 text-celis-caution" />
+              <div>
+                <h2 className="text-lg font-semibold text-celis-ink">
+                  Seller account required
+                </h2>
+                <p className="mt-1 max-w-sm text-sm text-celis-ink-secondary">
+                  Listing items needs a seller account. Update your account to
+                  start selling.
+                </p>
+              </div>
+              <Button asChild>
+                <Link to="/account" search={{ redirect: "/sell" }}>
+                  Go to account settings
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : !user.phone ? (
           <Card className="border-celis-caution bg-celis-caution-subtle">
             <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
               <AlertTriangle className="h-10 w-10 text-celis-caution" />
@@ -65,12 +85,12 @@ function SellPage() {
                   Phone number required
                 </h2>
                 <p className="mt-1 max-w-sm text-sm text-celis-ink-secondary">
-                  Buyers will use your phone number to contact you. Add it to
-                  your account before listing an item.
+                  Buyers will use your phone number to contact you. Verify one
+                  before listing an item.
                 </p>
               </div>
               <Button asChild>
-                <Link to="/account" search={{ redirect: "/sell" }}>
+                <Link to="/auth/add-phone" search={{ redirect: "/sell" }}>
                   Add phone number
                 </Link>
               </Button>

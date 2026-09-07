@@ -22,10 +22,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as ShopsShopSlugRouteImport } from './routes/shops.$shopSlug'
 import { Route as ListingsIdRouteImport } from './routes/listings.$id'
+import { Route as AuthVerifyOtpRouteImport } from './routes/auth/verify-otp'
 import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
 import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
+import { Route as AuthAddPhoneRouteImport } from './routes/auth/add-phone'
 import { Route as AdminVerificationsRouteImport } from './routes/admin/verifications'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
@@ -105,6 +107,11 @@ const ListingsIdRoute = ListingsIdRouteImport.update({
   path: '/listings/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthVerifyOtpRoute = AuthVerifyOtpRouteImport.update({
+  id: '/auth/verify-otp',
+  path: '/auth/verify-otp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthSignUpRoute = AuthSignUpRouteImport.update({
   id: '/auth/sign-up',
   path: '/auth/sign-up',
@@ -123,6 +130,11 @@ const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
 const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   id: '/auth/forgot-password',
   path: '/auth/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthAddPhoneRoute = AuthAddPhoneRouteImport.update({
+  id: '/auth/add-phone',
+  path: '/auth/add-phone',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminVerificationsRoute = AdminVerificationsRouteImport.update({
@@ -214,10 +226,12 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/verifications': typeof AdminVerificationsRoute
+  '/auth/add-phone': typeof AuthAddPhoneRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
+  '/auth/verify-otp': typeof AuthVerifyOtpRoute
   '/listings/$id': typeof ListingsIdRoute
   '/shops/$shopSlug': typeof ShopsShopSlugRoute
   '/admin/': typeof AdminIndexRoute
@@ -245,10 +259,12 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/verifications': typeof AdminVerificationsRoute
+  '/auth/add-phone': typeof AuthAddPhoneRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
+  '/auth/verify-otp': typeof AuthVerifyOtpRoute
   '/listings/$id': typeof ListingsIdRoute
   '/shops/$shopSlug': typeof ShopsShopSlugRoute
   '/admin': typeof AdminIndexRoute
@@ -278,10 +294,12 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/verifications': typeof AdminVerificationsRoute
+  '/auth/add-phone': typeof AuthAddPhoneRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
+  '/auth/verify-otp': typeof AuthVerifyOtpRoute
   '/listings/$id': typeof ListingsIdRoute
   '/shops/$shopSlug': typeof ShopsShopSlugRoute
   '/admin/': typeof AdminIndexRoute
@@ -312,10 +330,12 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/admin/verifications'
+    | '/auth/add-phone'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/auth/verify-otp'
     | '/listings/$id'
     | '/shops/$shopSlug'
     | '/admin/'
@@ -343,10 +363,12 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/admin/verifications'
+    | '/auth/add-phone'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/auth/verify-otp'
     | '/listings/$id'
     | '/shops/$shopSlug'
     | '/admin'
@@ -375,10 +397,12 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/admin/verifications'
+    | '/auth/add-phone'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/auth/verify-otp'
     | '/listings/$id'
     | '/shops/$shopSlug'
     | '/admin/'
@@ -397,10 +421,12 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SellRoute: typeof SellRoute
   TermsRoute: typeof TermsRoute
+  AuthAddPhoneRoute: typeof AuthAddPhoneRoute
   AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   AuthSignInRoute: typeof AuthSignInRoute
   AuthSignUpRoute: typeof AuthSignUpRoute
+  AuthVerifyOtpRoute: typeof AuthVerifyOtpRoute
   ListingsIdRoute: typeof ListingsIdRoute
   ShopsShopSlugRoute: typeof ShopsShopSlugRoute
   ApiMobilePaymentsListingFeeRoute: typeof ApiMobilePaymentsListingFeeRoute
@@ -499,6 +525,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ListingsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/verify-otp': {
+      id: '/auth/verify-otp'
+      path: '/auth/verify-otp'
+      fullPath: '/auth/verify-otp'
+      preLoaderRoute: typeof AuthVerifyOtpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/sign-up': {
       id: '/auth/sign-up'
       path: '/auth/sign-up'
@@ -525,6 +558,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/forgot-password'
       fullPath: '/auth/forgot-password'
       preLoaderRoute: typeof AuthForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/add-phone': {
+      id: '/auth/add-phone'
+      path: '/auth/add-phone'
+      fullPath: '/auth/add-phone'
+      preLoaderRoute: typeof AuthAddPhoneRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/verifications': {
@@ -666,10 +706,12 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SellRoute: SellRoute,
   TermsRoute: TermsRoute,
+  AuthAddPhoneRoute: AuthAddPhoneRoute,
   AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
   AuthSignInRoute: AuthSignInRoute,
   AuthSignUpRoute: AuthSignUpRoute,
+  AuthVerifyOtpRoute: AuthVerifyOtpRoute,
   ListingsIdRoute: ListingsIdRoute,
   ShopsShopSlugRoute: ShopsShopSlugRoute,
   ApiMobilePaymentsListingFeeRoute: ApiMobilePaymentsListingFeeRoute,

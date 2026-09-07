@@ -23,6 +23,7 @@ import {
   fetchCurrentSellerSubscription,
 } from "~/server/listings.functions";
 import { PaymentModal } from "~/components/listings/payment-modal";
+import { AddPhoneBanner } from "~/components/auth/add-phone-banner";
 import { getFeaturedListingFee } from "~/server/config.functions";
 import { formatPrice } from "~/lib/format";
 import {
@@ -156,6 +157,7 @@ function DashboardPage() {
       <SiteHeader />
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
+        <AddPhoneBanner redirect="/dashboard" />
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">

@@ -17,4 +17,4 @@ export * from "./audit-logs";
 export * from "./seller-packages";
 export * from "./listing-interactions";
 export * from "./saved-listings";
-export * from "./password-resets";
+export * from "./rate-limits";
