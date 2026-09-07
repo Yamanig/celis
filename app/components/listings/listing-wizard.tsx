@@ -156,7 +156,7 @@ export function ListingWizard({
   const [subcategories, setSubcategories] = useState<CategoryListItem[]>([]);
 
   useEffect(() => {
-    fetchSellerListingEligibility({ data: { sellerId } }).then(setEligibility);
+    fetchSellerListingEligibility().then(setEligibility);
   }, [sellerId]);
 
   useEffect(() => {
@@ -326,7 +326,7 @@ export function ListingWizard({
     setSubmitting(true);
     try {
       const result = await createListing({
-        data: { sellerId, listing: form },
+        data: { listing: form },
       });
       setCreatedListingId(result.id);
       setServerFeeCents(result.feeCents ?? 0);
@@ -335,7 +335,7 @@ export function ListingWizard({
         setPaymentOpen(true);
       } else {
         await submitShopListing({
-          data: { listingId: result.id, sellerId },
+          data: { listingId: result.id },
         });
         setSubmittedForReview(true);
       }
@@ -597,7 +597,6 @@ export function ListingWizard({
           {step === 2 && (
             <div className="space-y-4">
               <ImageUploader
-                sellerId={sellerId}
                 images={form.images}
                 onChange={(imgs) => updateField("images", imgs)}
               />

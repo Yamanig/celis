@@ -3,7 +3,6 @@ import { z } from "zod";
 import { listingSchema } from "~/lib/validation";
 import {
   insertDraftListing,
-  requireSeller,
   getListingById,
   searchListings,
   getFeaturedListings,
@@ -23,25 +22,27 @@ import {
 } from "./seller-packages.server";
 import { getCategoryMetadataSchema } from "./categories.server";
 import { validateMetadata } from "~/lib/category-metadata";
+import { requireSellerUser } from "./auth.server";
 
 const createListingSchema = z.object({
-  sellerId: z.string().uuid(),
   listing: listingSchema,
 });
 
 const submitShopSchema = z.object({
   listingId: z.string().uuid(),
-  sellerId: z.string().uuid(),
 });
 
 export const fetchSellerListingEligibility = createServerFn({ method: "GET" })
-  .validator(z.object({ sellerId: z.string().uuid() }))
-  .handler(async ({ data }) => getSellerListingEligibility(data.sellerId));
+  .handler(async () => {
+    const user = await requireSellerUser();
+    return getSellerListingEligibility(user.id);
+  });
 
 export const submitShopListing = createServerFn({ method: "POST" })
   .validator(submitShopSchema)
   .handler(async ({ data }) => {
-    await submitShopListingForReview(data.listingId, data.sellerId);
+    const user = await requireSellerUser();
+    await submitShopListingForReview(data.listingId, user.id);
     return { success: true, id: data.listingId };
   });
 
@@ -73,10 +74,8 @@ export const fetchCurrentSellerSubscription = createServerFn({
 export const createListing = createServerFn({ method: "POST" })
   .validator(createListingSchema)
   .handler(async ({ data }) => {
-    await requireSeller(data.sellerId);
-    const { getCurrentUser } = await import("./auth.server");
-    const user = await getCurrentUser();
-    if (!user?.phone) {
+    const user = await requireSellerUser();
+    if (!user.phone) {
       throw new Error("Add a phone number to your account before listing an item.");
     }
     const metadataSchema = await getCategoryMetadataSchema(data.listing.categoryId);
@@ -88,7 +87,7 @@ export const createListing = createServerFn({ method: "POST" })
           .join("; ")
       );
     }
-    const listing = await insertDraftListing(data.sellerId, data.listing);
+    const listing = await insertDraftListing(user.id, data.listing);
 
     const { getListingPricing } = await import("./config.server");
     const pricing = await getListingPricing(
@@ -112,7 +111,12 @@ const listingIdSchema = z.object({ id: z.string().uuid() });
 export const fetchListingById = createServerFn({ method: "GET" })
   .validator(listingIdSchema)
   .handler(async ({ data }) => {
-    return getListingById(data.id);
+    const { getCurrentUser, hasPermission } = await import("./auth.server");
+    const user = await getCurrentUser();
+    const viewer = user
+      ? { id: user.id, isOfficer: await hasPermission(user, "listings:moderate") }
+      : null;
+    return getListingById(data.id, viewer);
   });
 
 const similarListingsSchema = z.object({

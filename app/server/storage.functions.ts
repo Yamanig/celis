@@ -1,15 +1,20 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createListingImageUploadUrl } from "./storage.server";
+import { requireSellerUser } from "./auth.server";
 
 const uploadUrlSchema = z.object({
-  sellerId: z.string().uuid(),
-  fileName: z.string().min(1),
-  fileType: z.string().regex(/^image\//, "Only image files are allowed"),
+  fileName: z.string().min(1).max(200),
+  fileType: z
+    .string()
+    .regex(/^image\/(jpeg|jpg|png|webp|gif|avif)$/i, "Unsupported image type"),
 });
 
 export const getListingImageUploadUrl = createServerFn({ method: "POST" })
   .validator(uploadUrlSchema)
   .handler(async ({ data }) => {
-    return createListingImageUploadUrl(data.sellerId, data.fileName, data.fileType);
+    // SEC-3: require an authenticated seller and force the storage path prefix
+    // to their own id. The client can no longer choose an arbitrary sellerId.
+    const user = await requireSellerUser();
+    return createListingImageUploadUrl(user.id, data.fileName, data.fileType);
   });

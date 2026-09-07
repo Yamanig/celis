@@ -123,7 +123,16 @@ export async function insertDraftListing(
   return listing;
 }
 
-export async function getListingById(id: string): Promise<ListingDetail | null> {
+export interface ListingViewer {
+  id: string;
+  /** May view non-public listings of any seller (e.g. a moderator). */
+  isOfficer: boolean;
+}
+
+export async function getListingById(
+  id: string,
+  viewer?: ListingViewer | null
+): Promise<ListingDetail | null> {
   const rows = await db
     .select({
       listing: listings,
@@ -159,10 +168,21 @@ export async function getListingById(id: string): Promise<ListingDetail | null> 
     businessAddress,
     shopSlug,
   } = rows[0];
+
+  // SEC-7: a direct call must not expose draft / pending / rejected / expired
+  // listings — or the seller's phone on them — to anyone but the owner or a
+  // moderator. The route loader enforces the same rule for defence in depth.
+  const isOwner = viewer?.id === listing.sellerId;
+  const isOfficer = viewer?.isOfficer ?? false;
+  const isPublic = listing.status === "active";
+  if (!isPublic && !isOwner && !isOfficer) {
+    return null;
+  }
+
   return {
     ...mapListingPublic(listing, categoryName),
     sellerName,
-    sellerPhone,
+    sellerPhone: isPublic || isOwner || isOfficer ? sellerPhone : null,
     sellerVerified: sellerVerifiedAt !== null,
     sellerType: sellerType ?? "individual",
     businessName,
@@ -222,6 +242,7 @@ export async function submitShopListingForReview(
   id: string,
   sellerId: string
 ) {
+  await assertListingOwner(id, sellerId);
   const eligibility = await getSellerListingEligibility(sellerId);
   if (eligibility.sellerType !== "shop" || !eligibility.canList) {
     throw new CelisError(
@@ -381,16 +402,24 @@ export async function rejectListing(
   return updated;
 }
 
-export async function requireSeller(sellerId: string) {
-  const user = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, sellerId))
+/**
+ * Assert that `listingId` exists and is owned by `userId`. Every seller-facing
+ * listing mutation calls this so a client cannot act on another seller's
+ * listing by passing its id (SEC-4).
+ */
+export async function assertListingOwner(listingId: string, userId: string) {
+  const [row] = await db
+    .select({ id: listings.id, sellerId: listings.sellerId, status: listings.status })
+    .from(listings)
+    .where(eq(listings.id, listingId))
     .limit(1);
-  if (!user[0]) {
-    throw new CelisError("User not found", "USER_NOT_FOUND", 404);
+  if (!row) {
+    throw new CelisError("Listing not found", "LISTING_NOT_FOUND", 404);
   }
-  return user[0];
+  if (row.sellerId !== userId) {
+    throw new CelisError("Forbidden", "FORBIDDEN", 403);
+  }
+  return row;
 }
 
 export interface SearchListingsFilters {

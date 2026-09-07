@@ -2,36 +2,31 @@ import { getServiceSupabase } from "~/lib/supabase/server";
 import { env } from "~/lib/env";
 import { CelisError } from "~/lib/errors";
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 export function getListingImageBucket() {
   return env.SUPABASE_STORAGE_BUCKET || "listing-images";
 }
 
-async function ensureListingImageBucket(supabase: ReturnType<typeof getServiceSupabase>) {
-  const bucketName = getListingImageBucket();
-  const { data: bucket, error: getError } = await supabase.storage.getBucket(bucketName);
-  if (bucket) return;
-  if (getError && getError.message !== "The resource was not found") {
-    throw new CelisError(getError.message, "STORAGE_ERROR", 500);
-  }
-  const { error: createError } = await supabase.storage.createBucket(bucketName, {
-    public: true,
-    fileSizeLimit: 10 * 1024 * 1024,
-    allowedMimeTypes: ["image/*"],
-  });
-  if (createError) {
-    throw new CelisError(createError.message, "STORAGE_ERROR", 500);
-  }
+function sanitizeFileName(fileName: string) {
+  const base = fileName.split(/[/\\]/).pop() ?? "image";
+  return base.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "image";
 }
 
 export async function createListingImageUploadUrl(
   sellerId: string,
   fileName: string,
-  _fileType: string
+  fileType: string
 ) {
+  if (!/^image\//i.test(fileType)) {
+    throw new CelisError("Only image uploads are allowed", "INVALID_FILE_TYPE", 400);
+  }
+
   const supabase = getServiceSupabase();
-  await ensureListingImageBucket(supabase);
+  // The bucket is provisioned at deploy time (`pnpm storage:create-bucket`);
+  // it is never created from a request path (SEC-3).
   const bucketName = getListingImageBucket();
-  const path = `${sellerId}/${crypto.randomUUID()}-${fileName}`;
+  const path = `${sellerId}/${crypto.randomUUID()}-${sanitizeFileName(fileName)}`;
 
   const { data, error } = await supabase.storage
     .from(bucketName)
@@ -45,6 +40,7 @@ export async function createListingImageUploadUrl(
     signedUrl: data.signedUrl,
     path,
     publicUrl: supabase.storage.from(bucketName).getPublicUrl(path).data.publicUrl,
+    maxBytes: MAX_IMAGE_BYTES,
   };
 }
 

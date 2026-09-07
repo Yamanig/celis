@@ -6,14 +6,12 @@ import { cn } from "~/lib/utils";
 import { getOptimizedImageUrl } from "~/lib/images";
 
 interface ImageUploaderProps {
-  sellerId: string;
   images: ListingImage[];
   onChange: (images: ListingImage[]) => void;
   maxImages?: number;
 }
 
 export function ImageUploader({
-  sellerId,
   images,
   onChange,
   maxImages = 8,
@@ -39,7 +37,6 @@ export function ImageUploader({
         for (const file of files) {
           const meta = await getListingImageUploadUrl({
             data: {
-              sellerId,
               fileName: file.name,
               fileType: file.type,
             },
@@ -71,7 +68,7 @@ export function ImageUploader({
         if (inputRef.current) inputRef.current.value = "";
       }
     },
-    [images, maxImages, onChange, sellerId]
+    [images, maxImages, onChange]
   );
 
   const removeImage = useCallback(
