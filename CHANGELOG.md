@@ -1,5 +1,84 @@
 # Changelog
 
+## [v2.0.0] - 2026-09-07
+
+Security audit remediation — the full Security category from
+`docs/celisaudit.html` (SEC-1 … SEC-12). Auth, RBAC-adjacent access control, and
+schema changes; hence major.
+
+### Added
+
+- **Phone + WhatsApp OTP auth on web** (SEC-1 / SEC-5), reusing the mobile
+  team's live Supabase phone stack (`whatsapp-otp` Send-SMS hook → WAHA).
+  `app/server/phone-auth.server.ts` plus `requestPhoneOtp` / `verifyPhoneOtp` /
+  `requestAddPhoneOtp` / `verifyAddPhoneOtp` server functions. New routes
+  `/auth/verify-otp` and `/auth/add-phone`; `/auth/sign-in` and `/auth/sign-up`
+  gain a "WhatsApp code" path. `app/lib/phone.ts`, `app/components/auth/phone-input.tsx`.
+- **Postgres-backed auth rate limiting** (SEC-5): `rate_limits` table
+  (`drizzle/0035_auth_rate_limits.sql`), `app/server/rate-limit.server.ts`
+  `enforceRateLimit`. Applied to sign-in (per IP, per identifier, failed-login
+  backoff), sign-up, and every OTP / reset endpoint. Fails open if the table is
+  absent.
+- `audit_logs.user_agent` / `audit_logs.request_id`
+  (`drizzle/0036_audit_log_context.sql`); `insertAuditLog` now records IP,
+  user-agent, and request id from the request context (SEC-10).
+- `app/lib/json-ld.ts` (`renderJsonLd`) and `app/lib/safe-redirect.ts`
+  (`safeInternalPath`); `escapeCsvCell` / `toCsv` exported from `app/lib/csv.ts`.
+- `CurrentUser.hasVerifiedPhone`; `AddPhoneBanner` soft prompt on the dashboard
+  for accounts without a verified phone.
+- Tests: `tests/security-helpers.test.ts`, `tests/phone.test.ts`.
+
+### Changed / Fixed
+
+- **SEC-1 (critical):** password reset no longer returns the reset token in the
+  HTTP response. The token flow and the `password_resets` table are removed
+  (`drizzle/0037_drop_password_resets.sql`); reset is now phone-OTP →
+  `resetPasswordWithOtp`. `/auth/reset-password` redirects to
+  `/auth/forgot-password`.
+- **SEC-2 (critical):** `scripts/seed-admin.ts` reads `ADMIN_EMAIL` /
+  `ADMIN_PASSWORD` from the environment (fails if unset; password 12+ chars) and
+  no longer prints the password. Hardcoded `admin@celis.so` / `CelisAdmin123!`
+  removed.
+- **SEC-3 (high):** `getListingImageUploadUrl` requires an authenticated seller
+  and forces the storage path prefix to their own id; the bucket is no longer
+  created from the request path; file type is validated and the name sanitized.
+- **SEC-4 (high):** `createListing`, `submitShopListing`, and
+  `fetchSellerListingEligibility` no longer accept a client `sellerId` — it is
+  derived from the session via `requireSellerUser`. `submitShopListingForReview`
+  asserts listing ownership (`assertListingOwner`). `requireSeller` (row-exists
+  only) removed.
+- **SEC-6 (medium):** listing-detail JSON-LD is serialized through
+  `renderJsonLd`, escaping `< > &` and U+2028/U+2029.
+- **SEC-7 (medium):** `getListingById` takes a viewer and returns `null` for
+  non-active listings viewed by non-owners/non-moderators, and strips
+  `sellerPhone` unless the listing is active or the caller is the
+  owner/moderator.
+- **SEC-8 (medium):** CSV export cells starting with `= + - @ \t \r` are
+  prefixed with `'` (formula injection).
+- **SEC-9 (low):** the post-sign-in `redirect` query value is validated with
+  `safeInternalPath` before navigation.
+- **SEC-10 (medium):** audit entries record IP / user-agent / request id;
+  redundant `actorId` copies removed from several `metadata` payloads.
+- **SEC-11 (medium):** `drizzle/0038_harden_definer_functions.sql` recreates the
+  listing RPC / trigger functions with `SET search_path = ''` and fully
+  schema-qualified identifiers; `save_listing_with_fields` no longer returns raw
+  `SQLERRM` to the client. **Test on a branch DB before applying to production.**
+- **SEC-12 (medium):** `app/lib/env.ts` validates
+  `PAYMENT_CREDENTIALS_ENCRYPTION_KEY` (min 32) and other vars at boot;
+  `app/lib/fcm.ts` prefers inline `FIREBASE_SERVICE_ACCOUNT` JSON and logs a
+  clear warning when push is disabled; key-rotation runbook added.
+- `signIn` / `signUp` throw `CelisError` with stable codes instead of bare
+  `Error`.
+
+### Migration notes
+
+- Apply `drizzle/0035`–`0037` before/with the deploy; `0038` after testing on a
+  branch DB. See `docs/operations/runbook.md`.
+- Existing email/password users keep working; they are nudged (not forced) to
+  add a phone on next sign-in.
+- The identity-model rework (DB-1), the Drizzle journal reconciliation (DB-3),
+  and email verification are out of scope for this pass.
+
 ## [v1.5.0] - 2026-09-02
 
 ### Added

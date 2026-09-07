@@ -61,6 +61,39 @@ Rules:
 - Listing image changes should remain tied to listing ownership and moderation rules.
 - Storage setup changes must update operations docs.
 
+## Authentication
+
+Two ways in, one account model. Both establish a Supabase session via the SSR
+cookie client (`getSupabaseServerClient`).
+
+- **Phone + WhatsApp OTP** (`app/server/phone-auth.server.ts`,
+  `app/server/auth.functions.ts`): `requestPhoneOtp` → Supabase
+  `signInWithOtp({ phone })` → the mobile team's `whatsapp-otp` "Send SMS" auth
+  hook delivers the code over the self-hosted WAHA instance. `verifyPhoneOtp` →
+  `verifyOtp({ type: "sms" })` → `ensureLocalUserRecord`. Supabase owns OTP
+  generation, storage, expiry, verification, and its own rate limiting.
+  Phone-only accounts have no `auth.users.email`; a synthetic
+  `<digits>@celis.so` address is used for `public.users.email`.
+- **Email + password** (`signIn` / `signUp`): retained for existing users.
+  `signUp` still creates a confirmed account (no email verification step).
+  After an email sign-in with no phone identity the user is routed to
+  `/auth/add-phone` (soft, non-blocking — `AddPhoneBanner`).
+
+**Password reset** (`/auth/forgot-password` → `/auth/verify-otp?mode=reset`):
+the user proves control of the phone on their account via WhatsApp OTP, then
+sets a new password (`resetPasswordWithOtp`). Responses are generic regardless
+of whether the number has an account. The old token-in-response flow and the
+`password_resets` table are removed (see `drizzle/0037_drop_password_resets.sql`).
+
+**Rate limiting** (`app/server/rate-limit.server.ts`, `rate_limits` table):
+`enforceRateLimit(key, { max, windowSec })` is a Postgres fixed-window counter
+applied to `signIn` (per IP, per identifier, plus a failed-login backoff key),
+`signUp`, and every OTP / reset endpoint. It fails open if the table is missing
+(migration `0035` not yet applied).
+
+`getCurrentUser()` exposes `hasVerifiedPhone` (a confirmed phone identity on the
+Supabase auth user) alongside the app-level `phone`.
+
 ## Validation & Errors
 
 Rules:
